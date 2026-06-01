@@ -1,0 +1,11 @@
+# cert-review 런타임 의존성 (Python 3.10+)
+# 주의: Python OCR 라이브러리는 사용하지 않는다 (C1). pypdf는 임베디드 텍스트/주석
+# 메타만, pypdfium2는 페이지 렌더링(이미지)만 — OCR은 Claude Vision이 수행.
+pypdfium2>=4.0      # cert PDF -> 페이지 PNG 렌더링 (Phase 2 입력)
+pypdf>=4.0          # PDF 주석(/Annots) 메타 추출, MPS PDF 텍스트
+openpyxl>=3.1       # 6시트 한글 Excel 리포트
+extract-msg>=0.48   # Outlook .msg 이메일 파싱
+html2text>=2024.2   # 이메일 HTML 본문 -> 평문
+
+# 개발/테스트
+pytest>=8.0

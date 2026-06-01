@@ -1,0 +1,22 @@
+{
+  "name": "ReportReviewer",
+  "owner": {
+    "name": "donghun.lee"
+  },
+  "metadata": {
+    "description": "파이프 자재 MTC(성적서) 자동 검토 Claude Code 플러그인",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "cert-review",
+      "source": "./",
+      "description": "파이프 자재 MTC(Mill Test Certificate / 성적서)를 MPS(구매시방서) 및 ASTM/ASME 코드 기준과 대조 검토하고 6시트 한글 Excel 리포트를 생성한다. Claude Vision OCR + 결정적(Python) 비교 엔진 하이브리드. 모든 기준값은 ref_code/MPS에서 인용(출처 4종 메타 검증), LLM 생성 금지.",
+      "category": "productivity",
+      "strict": false,
+      "skills": [
+        "./skills/cert-review"
+      ]
+    }
+  ]
+}

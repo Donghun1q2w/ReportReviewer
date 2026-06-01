@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# 런타임 산출물 (사용자 데이터에서 생성 — 커밋 금지)
+.cache/
+output/
+**/manifest.json
+*.xlsx
+extracted_*.json
+
+# OMC / 에디터 / OS
+.omc/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 비밀
+.env
+*.key
+settings.local.json
