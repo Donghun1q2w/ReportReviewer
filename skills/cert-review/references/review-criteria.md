@@ -55,7 +55,15 @@ MPS가 Code보다 엄격한 항목 (MPS 우선):
 
 ### 3.1 기본 룰
 - Heat Analysis와 Product Analysis 모두 규격 범위 내
-- A106: C 감소분 × 0.06만큼 Mn max 증가 허용 (Footnote A/B)
+- **A106/SA-106 C/Mn 각주 (Footnote A/B) — Mn 판정 시 필수 적용**:
+  Table 1 각주에 따라 C가 규정 max보다 낮으면 그 감소분만큼 Mn max가 상향된다.
+  ```
+  조정 Mn max = min( base_Mn_max + floor((C_max - C실측)/0.01) × 0.06 , cap )
+     C_max : Gr.A 0.25 / Gr.B 0.30 / Gr.C 0.35
+     cap   : Gr.A 1.35% / Gr.B·C 1.65%
+     base_Mn_max : Table 1 Mn max (예: Gr.B/C 1.06)
+  ```
+  **Mn은 base max가 아니라 위 조정 max로 판정한다.** 예: SA-106-B, C=0.17 → 조정 max = 1.06 + 13×0.06 = 1.84 → cap 1.65 → **Mn 1.21%는 PASS**(오탐 금지). C가 max에 근접하면 상향폭이 작아 정상적으로 FAIL 가능.
 - A106 5원소 합계: Cr + Cu + Mo + Ni + V ≤ 1.0%
 - P91/P92: Ni + Mn ≤ 1.0%
 
@@ -258,6 +266,17 @@ Phase 5에서 생성하는 finding의 카테고리는 다음으로 제한한다:
 - **값이 존재하나 PO/MPR/도면과 불일치·모호 → `Identification`** (해당 속성이 식별 속성일 때).
   - 예: "XXS vs S/160 혼용 표기"(모호) → Identification. "Heat No. 불일치"(값 있으나 다름) → Identification. "치수 실측값이 허용범위 초과"(값 존재, 이탈) → Identification.
 - 즉 **존재-but-틀림 = Identification**, **아예-없음 = DocumentError**.
+
+### 11.2 자재 spec 표준 불일치 (ASME SA vs ASTM A) — 에러로 판정
+
+MPS/PO 발주 spec과 성적서 기재 spec의 **표준 계열·접두어가 다르면 사실상 동일 자재여도 `Identification` 에러(FAIL)**로 판정한다. 발주서와 성적서의 자재 식별이 형식상 불일치하므로 시정(성적서 재발행) 대상이다.
+
+- 예: MPS 발주 **ASME SA-106** (일반요건 SA-530) ↔ 성적서 **ASTM A-106** 기재 → **FAIL / Identification**. (ASME `SA-` 접두 vs ASTM `A-` 접두)
+- 예: 발주 SA-182 ↔ 성적서 A182, 발주 SA-234 ↔ 성적서 A234 등 동형.
+- 화학·기계 기준값은 ASME SA-xxx ≈ ASTM A-xxx로 사실상 동일하므로 **기준값 비교는 통과**할 수 있으나, **표기/식별 검토(표기·형식 시트)에서 별도 FAIL** 항목으로 기록한다.
+- 단순 **판년도(edition) 차이**만 있는 경우(같은 표준 계열, 예: A106-2019 vs A106-2022)는 §13/Code Edition 규칙에 따라 **주의**로 처리(에러 아님). 표준 계열 자체가 다른 경우만 본 규칙(FAIL) 적용.
+
+> 결정적 엔진(compare_engine)은 MPS 발주 spec을 구조화 입력으로 갖지 않으므로 본 판정은 Phase 5(LLM)·compliance 검토 경로에서 cert.header.spec ↔ MPS 발주 spec 비교로 수행한다.
 
 ## 12. PAGE 귀속 규칙 (page_ref 정합)
 

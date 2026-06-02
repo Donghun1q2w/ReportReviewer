@@ -18,9 +18,9 @@ SA-106-C,P,Heat,,0.035,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023
 SA-106-A,S,Heat,,0.035,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=A#Element=S,0.035,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
 SA-106-B,S,Heat,,0.035,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=B#Element=S,0.035,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
 SA-106-C,S,Heat,,0.035,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=C#Element=S,0.035,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
-SA-106-A,Si,Heat,,0.10,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=A#Element=Si,0.10,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
-SA-106-B,Si,Heat,,0.10,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=B#Element=Si,0.10,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
-SA-106-C,Si,Heat,,0.10,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=C#Element=Si,0.10,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
+SA-106-A,Si,Heat,0.10,,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=A#Element=Si,0.10,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
+SA-106-B,Si,Heat,0.10,,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=B#Element=Si,0.10,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
+SA-106-C,Si,Heat,0.10,,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=C#Element=Si,0.10,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
 SA-106-A,Cr,Heat,,0.40,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=A#Element=Cr,0.40,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
 SA-106-B,Cr,Heat,,0.40,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=B#Element=Cr,0.40,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
 SA-106-C,Cr,Heat,,0.40,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=C#Element=Cr,0.40,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e

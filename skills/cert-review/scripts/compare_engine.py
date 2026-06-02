@@ -184,6 +184,32 @@ def _body_evidence(
 # Rule families
 # ---------------------------------------------------------------------------
 
+# A106 / SA-106 Table 1, Footnote A/B: for each 0.01% that carbon is below the
+# specified C max, the Mn max rises 0.06%, capped at 1.35% (Gr.A) / 1.65% (Gr.B,C).
+# Mapping: grade -> (specified C max, Mn cap).
+_A106_CMN: dict[str, tuple[float, float]] = {
+    "SA-106-A": (0.25, 1.35),
+    "SA-106-B": (0.30, 1.65),
+    "SA-106-C": (0.35, 1.65),
+}
+
+
+def _a106_adjusted_mn_max(c_actual: float | None, grade: str, base_mn_max: float | None) -> float | None:
+    """Return the Footnote-adjusted Mn max for an A106/SA-106 grade, else None.
+
+    base_mn_max is the Table 1 Mn max from the reference CSV. When carbon is
+    below the specified C max the allowance raises the Mn ceiling (capped).
+    """
+    info = _A106_CMN.get(grade)
+    if info is None or c_actual is None or base_mn_max is None:
+        return None
+    c_max, cap = info
+    if c_actual >= c_max:
+        return base_mn_max
+    units = int((c_max - c_actual) / 0.01 + 1e-9)  # floor of 0.01% steps
+    return min(base_mn_max + units * 0.06, cap)
+
+
 def _check_chemistry(
     page_extraction: list[dict],
     grade_keys: list[str],
@@ -223,6 +249,9 @@ def _check_chemistry(
             continue
         analysis = chem.get("analysis_type") or "Heat"
         elements = chem.get("elements") or {}
+        # Carbon for this page/analysis — used by the A106 C/Mn footnote.
+        _c_payload = elements.get("C") if isinstance(elements.get("C"), dict) else elements.get("c")
+        c_actual = _try_float(_c_payload.get("value") if isinstance(_c_payload, dict) else None)
         for elem, payload in elements.items():
             raw_val = payload.get("value") if isinstance(payload, dict) else None
             val = _try_float(raw_val)
@@ -306,6 +335,11 @@ def _check_chemistry(
                     row = code_idx[key]
                     cmin = _try_float(row["min"])
                     cmax = _try_float(row["max"])
+                    # A106/SA-106 Footnote: raise the Mn ceiling when C is low.
+                    if elem == "Mn":
+                        adj = _a106_adjusted_mn_max(c_actual, g, cmax)
+                        if adj is not None:
+                            cmax = adj
                     violated = False
                     if cmin is not None and val < cmin:
                         violated = True

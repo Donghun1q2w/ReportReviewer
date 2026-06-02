@@ -45,9 +45,34 @@ from pathlib import Path
 
 import pytest
 
-from scripts.compare_engine import compare_case, _grade_route
+from scripts.compare_engine import compare_case, _grade_route, _a106_adjusted_mn_max
 from scripts.refdata_loader import load_csv
 from scripts.source_validator import compute_sha256
+
+
+def test_a106_cmn_footnote():
+    """A106/SA-106 Table 1 C/Mn footnote raises the Mn ceiling when C is low.
+
+    case 24 (Gr.B, C=0.17, base Mn max 1.06): adjusted = 1.06 + 13*0.06 = 1.84
+    -> capped at 1.65, so Mn=1.21% PASSES (not a violation).
+    """
+    # Low carbon -> ceiling rises to the 1.65 cap (Gr.B/C).
+    adj = _a106_adjusted_mn_max(0.17, "SA-106-B", 1.06)
+    assert abs(adj - 1.65) < 1e-9, adj
+    assert 1.21 <= adj          # Mn=1.21 is within the adjusted ceiling -> PASS
+    assert 1.70 > adj           # Mn=1.70 would still FAIL
+
+    # Carbon near the spec max -> only a small bump (no false PASS for high Mn).
+    adj2 = _a106_adjusted_mn_max(0.29, "SA-106-B", 1.06)
+    assert abs(adj2 - 1.12) < 1e-9, adj2   # 1.06 + 1*0.06
+    assert 1.21 > adj2          # Mn=1.21 still FAILS at C=0.29
+
+    # Carbon at/above spec max -> no allowance (returns base).
+    assert _a106_adjusted_mn_max(0.30, "SA-106-B", 1.06) == 1.06
+    # Grade A cap is 1.35.
+    assert _a106_adjusted_mn_max(0.05, "SA-106-A", 0.93) == 1.35
+    # Non-A106 grade -> footnote does not apply.
+    assert _a106_adjusted_mn_max(0.05, "SA-335-P91", 0.60) is None
 
 
 # Exact snippet that lives verbatim in BOTH the extracted.json annotation item
