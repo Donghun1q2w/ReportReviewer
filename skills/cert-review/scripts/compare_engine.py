@@ -102,6 +102,41 @@ def _try_float(x: Any) -> float | None:
         return None
 
 
+def _is_wider_range(r: dict, prev: dict) -> bool:
+    """True if row `r` is less restrictive than `prev` (lower min / higher max).
+
+    Used to deduplicate reference rows that share a (grade, element, analysis)
+    key but encode different sub-type limits. The widest range wins so a
+    base-type material is judged against the base limit, not a stricter variant.
+    Provenance stays intact because a single real row is kept (not merged).
+    """
+    rmin = _try_float(r.get("min"))
+    pmin = _try_float(prev.get("min"))
+    rmax = _try_float(r.get("max"))
+    pmax = _try_float(prev.get("max"))
+    rmin = rmin if rmin is not None else float("-inf")
+    pmin = pmin if pmin is not None else float("-inf")
+    rmax = rmax if rmax is not None else float("inf")
+    pmax = pmax if pmax is not None else float("inf")
+    return (rmin < pmin) or (rmin == pmin and rmax > pmax)
+
+
+def _to_mpa(value: float | None, unit: str | None) -> float | None:
+    """Normalize a strength limit to MPa.
+
+    Reference rows store strength in MPa or 'ksi'. Some 'ksi' rows actually
+    carry the psi figure (e.g. SA-106 '70 000 [485]'), so values > 1000 under a
+    ksi label are treated as psi. Without this, MPa cert readings are compared
+    against ksi/psi limit numbers and produce false pass/fail verdicts.
+    """
+    if value is None:
+        return None
+    u = (unit or "").strip().lower()
+    if u == "ksi":
+        return value * 0.00689476 if value > 1000 else value * 6.89476
+    return value  # MPa (or unitless) — already comparable
+
+
 def _grade_route(cert_grade: str, routing: list[dict]) -> dict | None:
     """Match cert_grade against routing.cert_grade_pattern regex; return row."""
     if not cert_grade:
@@ -134,6 +169,17 @@ def _resolve_grade_keys(routed: dict, cert_grade: str) -> list[str]:
         candidates.append(f"{asme}-{tail}")
     if tail:
         candidates.append(tail)
+    # Carbon-steel grades carry no P/F/WP tail (e.g. SA-106 Gr C, SA-672 B70).
+    # Derive '<asme>-<letter/token>' from a 'Gr(ade) X' or trailing token so the
+    # reference CSVs ('SA-106-C', ...) resolve. Without this, A106/A105/A672
+    # certs yield no grade keys and skip every deterministic check.
+    if not tail:
+        gr = re.search(r"Gr(?:ade)?\.?\s*([A-Z]\d*)\b", cert_grade or "", re.IGNORECASE)
+        if asme and gr:
+            candidates.append(f"{asme}-{gr.group(1).upper()}")
+    # Bare-spec grades (e.g. SA-105) key by the spec alone.
+    if asme and asme not in candidates:
+        candidates.append(asme)
     # MPS_overrides uses 'SA-335-P92' style only
     return candidates
 
@@ -221,11 +267,18 @@ def _check_chemistry(
 ) -> list[dict]:
     findings: list[dict] = []
 
-    # Index code limits by (grade, element, analysis)
+    # Index code limits by (grade, element, analysis). Some grades carry
+    # multiple rows for the same key (e.g. SA-335 P91 Type 1 Cr 8.00-9.50 vs
+    # Type 2 Cr 9.00-9.50). Keep the WIDEST (least restrictive) range so a
+    # base-type material is not falsely rejected against a stricter sub-type.
     code_idx: dict[tuple[str, str, str], dict] = {}
     for r in chem_csv:
-        if r["grade"] in grade_keys:
-            code_idx[(r["grade"], r["element"], r["analysis"])] = r
+        if r["grade"] not in grade_keys:
+            continue
+        key = (r["grade"], r["element"], r["analysis"])
+        prev = code_idx.get(key)
+        if prev is None or _is_wider_range(r, prev):
+            code_idx[key] = r
 
     # Index MPS overrides for grade by element token of parameter
     mps_by_elem: dict[str, dict] = {}
@@ -401,8 +454,14 @@ def _check_mechanical(
     findings: list[dict] = []
     code_idx: dict[tuple[str, str], dict] = {}
     for r in mech_csv:
-        if r["grade"] in grade_keys:
-            code_idx[(r["grade"], r["property"])] = r
+        if r["grade"] not in grade_keys:
+            continue
+        key = (r["grade"], r["property"])
+        prev = code_idx.get(key)
+        # Strength rows may appear in both MPa and ksi; prefer the MPa row so the
+        # comparison anchors on SI. When only ksi exists it is converted below.
+        if prev is None or (r.get("unit") or "").strip().lower() == "mpa":
+            code_idx[key] = r
 
     mps_idx: dict[str, dict] = {}
     for r in mps_csv:
@@ -469,6 +528,11 @@ def _check_mechanical(
                     row = code_idx[key]
                     cmin = _try_float(row["min"])
                     cmax = _try_float(row["max"])
+                    # Strength limits may be stored in ksi/psi; the cert reading
+                    # is MPa. Normalize the limit to MPa before comparing.
+                    if prop in ("TS", "YS"):
+                        cmin = _to_mpa(cmin, row.get("unit"))
+                        cmax = _to_mpa(cmax, row.get("unit"))
                     if cmin is not None and val < cmin:
                         fid += 1
                         findings.append({
