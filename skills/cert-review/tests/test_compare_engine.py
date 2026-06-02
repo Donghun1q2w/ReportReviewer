@@ -45,7 +45,12 @@ from pathlib import Path
 
 import pytest
 
-from scripts.compare_engine import compare_case, _grade_route, _a106_adjusted_mn_max
+from scripts.compare_engine import (
+    compare_case,
+    _grade_route,
+    _a106_adjusted_mn_max,
+    _resolve_grade_keys,
+)
 from scripts.refdata_loader import load_csv
 from scripts.source_validator import compute_sha256
 
@@ -162,6 +167,23 @@ def test_grade_route_matches_p91():
     row = _grade_route("SA-335 P91", routing)
     assert row is not None, "SA-335 P91 should route"
     assert row["asme_spec"] == "SA-335"
+
+
+def test_grade_route_and_keys_wpb():
+    """WPB/WPC carbon-steel fittings must route and resolve to SA-234-WPB/WPC
+    chemistry keys. Regression: chem key was garbled ('WPB^(D'), routing had no
+    WPB/WPC row, and _resolve_grade_keys only captured 'WP'+digit grades."""
+    routing = load_csv(DATA_DIR / "grade_routing.csv", WORK)
+    for cert_grade, key in [
+        ("SA-234 WPB", "SA-234-WPB"),
+        ("A234 WPC", "SA-234-WPC"),
+        ("WPB", "SA-234-WPB"),
+    ]:
+        row = _grade_route(cert_grade, routing)
+        assert row is not None, f"{cert_grade} should route"
+        assert row["asme_spec"] == "SA-234"
+        keys = _resolve_grade_keys(row, cert_grade)
+        assert key in keys, f"{cert_grade} -> {keys} missing {key}"
 
 
 # --- 2. THE KEY REGRESSION: GT Case 4 F4-5 (P92 Pb trace element) ------------

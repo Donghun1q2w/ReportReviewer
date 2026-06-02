@@ -128,7 +128,7 @@ def _resolve_grade_keys(routed: dict, cert_grade: str) -> list[str]:
     candidates: list[str] = []
     asme = (routed.get("asme_spec") or "").strip()
     # Extract trailing 'PXX'/'FXX'/'WPxx' token from cert_grade for short keys.
-    tail_match = re.search(r"(P\d+[a-z]?|F\d+[a-z]?|WP\d+[A-Z0-9]*)", cert_grade or "", re.IGNORECASE)
+    tail_match = re.search(r"(P\d+[a-z]?|F\d+[a-z]?|WP[BCR]\b|WP\d+[A-Z0-9]*)", cert_grade or "", re.IGNORECASE)
     tail = tail_match.group(1).upper() if tail_match else ""
     if asme and tail:
         candidates.append(f"{asme}-{tail}")

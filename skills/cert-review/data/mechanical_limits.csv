@@ -1,7 +1,7 @@
 grade,property,unit,min,max,specimen,source_file,anchor,snippet,sha256
-SA-105,EL,%,22,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table2#Grade=SA-105#Property=EL#%,22,7526dce4e6947e231acb874afd19fc06ff5b02cbb953d0f82a1825832f060972
-SA-105,TS,ksi,70,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table2#Grade=SA-105#Property=TS#ksi,70 | 40,7526dce4e6947e231acb874afd19fc06ff5b02cbb953d0f82a1825832f060972
-SA-105,YS,ksi,36,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table2#Grade=SA-105#Property=YS#ksi,"Yield strength, min. (ksi [MPa]) | 30 (205)",7526dce4e6947e231acb874afd19fc06ff5b02cbb953d0f82a1825832f060972
+SA-105,EL,%,22,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table2#Grade=SA-105#Property=EL#%,22,8b9c18275c955e6143271fd3649cd9606933fa87d51770dd02d4f7840902e1ac
+SA-105,TS,ksi,70,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table2#Grade=SA-105#Property=TS#ksi,70 | 40,8b9c18275c955e6143271fd3649cd9606933fa87d51770dd02d4f7840902e1ac
+SA-105,YS,ksi,36,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table2#Grade=SA-105#Property=YS#ksi,"Yield strength, min. (ksi [MPa]) | 30 (205)",8b9c18275c955e6143271fd3649cd9606933fa87d51770dd02d4f7840902e1ac
 SA-106-A,TS,ksi,48000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=A#Property=UTS#ksi,48 000 [330],82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
 SA-106-A,YS,ksi,30000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=A#Property=YS#ksi,30 000 [205],82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
 SA-106-B,TS,ksi,60000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=B#Property=UTS#ksi,60 000 [415],82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e

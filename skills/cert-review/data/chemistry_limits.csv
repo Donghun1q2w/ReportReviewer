@@ -1,12 +1,12 @@
 grade,element,analysis,min,max,unit,source_file,anchor,snippet,sha256
-SA-105,C,Heat,0.25,0.30,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=C,0.25–0.30,7526dce4e6947e231acb874afd19fc06ff5b02cbb953d0f82a1825832f060972
-SA-105,Mn,Heat,,0.75,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=Mn,0.75 max.,7526dce4e6947e231acb874afd19fc06ff5b02cbb953d0f82a1825832f060972
-SA-105,Si,Heat,0.15,0.35,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=Si,0.15–0.35,7526dce4e6947e231acb874afd19fc06ff5b02cbb953d0f82a1825832f060972
-SA-105,P,Heat,,0.025,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=P,0.025 max.,7526dce4e6947e231acb874afd19fc06ff5b02cbb953d0f82a1825832f060972
-SA-105,S,Heat,,0.025,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=S,0.025 max.,7526dce4e6947e231acb874afd19fc06ff5b02cbb953d0f82a1825832f060972
-SA-105,Cr,Heat,,0.25,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=Cr,0.25 max.,7526dce4e6947e231acb874afd19fc06ff5b02cbb953d0f82a1825832f060972
-SA-105,Mo,Heat,,0.15,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=Mo,0.15 max.,7526dce4e6947e231acb874afd19fc06ff5b02cbb953d0f82a1825832f060972
-SA-105,V,Heat,,0.08,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=V,0.08 max.,7526dce4e6947e231acb874afd19fc06ff5b02cbb953d0f82a1825832f060972
+SA-105,C,Heat,,0.35,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=C,0.35 max.,8b9c18275c955e6143271fd3649cd9606933fa87d51770dd02d4f7840902e1ac
+SA-105,Mn,Heat,0.60,1.05,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=Mn,0.60–1.05,8b9c18275c955e6143271fd3649cd9606933fa87d51770dd02d4f7840902e1ac
+SA-105,Si,Heat,0.10,0.35,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=Si,0.10–0.35,8b9c18275c955e6143271fd3649cd9606933fa87d51770dd02d4f7840902e1ac
+SA-105,P,Heat,,0.035,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=P,0.035 max.,8b9c18275c955e6143271fd3649cd9606933fa87d51770dd02d4f7840902e1ac
+SA-105,S,Heat,,0.040,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=S,0.040 max.,8b9c18275c955e6143271fd3649cd9606933fa87d51770dd02d4f7840902e1ac
+SA-105,Cr,Heat,,0.30,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=Cr,0.30 max.,8b9c18275c955e6143271fd3649cd9606933fa87d51770dd02d4f7840902e1ac
+SA-105,Mo,Heat,,0.12,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=Mo,0.12 max.,8b9c18275c955e6143271fd3649cd9606933fa87d51770dd02d4f7840902e1ac
+SA-105,V,Heat,,0.08,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table1#Grade=SA-105#Element=V,0.08 max.,8b9c18275c955e6143271fd3649cd9606933fa87d51770dd02d4f7840902e1ac
 SA-106-A,C,Heat,,0.25,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=A#Element=C,0.25,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
 SA-106-C,C,Heat,,0.35,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=C#Element=C,0.35,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
 SA-106-A,Mn,Heat,0.27,0.93,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table1#Grade=A#Element=Mn,0.27–0.93,82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
@@ -80,22 +80,22 @@ F22CL1,Mn,Heat,,20,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-
 F22CL1,P,Heat,,30,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table1#Grade=F22CL1#Element=P,30,f787bebf23103703e09ff4c14e8db931b4fa56da0f7723cb58ebe2fc2d0ea027
 SA-182-F22,Mn,Heat,,20,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table1#Grade=F22CL3#Element=Mn,20,f787bebf23103703e09ff4c14e8db931b4fa56da0f7723cb58ebe2fc2d0ea027
 SA-182-F22,P,Heat,,30,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table1#Grade=F22CL3#Element=P,30,f787bebf23103703e09ff4c14e8db931b4fa56da0f7723cb58ebe2fc2d0ea027
-WPB^(D,C,Heat,,0.35,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB^(D#Element=C,0.35,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPB^(D,Mn,Heat,0.29,1.06,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB^(D#Element=Mn,0.29–1.06,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPB^(D,P,Heat,,0.050,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB^(D#Element=P,0.050,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPB^(D,S,Heat,,0.058,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB^(D#Element=S,0.058,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPB^(D,Si,Heat,0.10,,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB^(D#Element=Si,0.10 min,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPB^(D,Cr,Heat,,0.40,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB^(D#Element=Cr,0.40,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPB^(D,Mo,Heat,,0.15,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB^(D#Element=Mo,0.15 max,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPB^(D,Ni,Heat,,0.40,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB^(D#Element=Ni,0.40,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPC^(D,C,Heat,,0.35,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC^(D#Element=C,0.35,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPC^(D,Mn,Heat,0.29,1.06,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC^(D#Element=Mn,0.29–1.06,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPC^(D,P,Heat,,0.050,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC^(D#Element=P,0.050,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPC^(D,S,Heat,,0.058,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC^(D#Element=S,0.058,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPC^(D,Si,Heat,0.10,,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC^(D#Element=Si,0.10 min,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPC^(D,Cr,Heat,,0.40,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC^(D#Element=Cr,0.40,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPC^(D,Mo,Heat,,0.15,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC^(D#Element=Mo,0.15 max,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-WPC^(D,Ni,Heat,,0.40,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC^(D#Element=Ni,0.40,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPB,C,Heat,,0.35,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB#Element=C,0.35,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPB,Mn,Heat,0.29,1.06,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB#Element=Mn,0.29–1.06,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPB,P,Heat,,0.050,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB#Element=P,0.050,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPB,S,Heat,,0.058,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB#Element=S,0.058,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPB,Si,Heat,0.10,,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB#Element=Si,0.10 min,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPB,Cr,Heat,,0.40,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB#Element=Cr,0.40,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPB,Mo,Heat,,0.15,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB#Element=Mo,0.15 max,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPB,Ni,Heat,,0.40,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPB#Element=Ni,0.40,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPC,C,Heat,,0.35,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC#Element=C,0.35,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPC,Mn,Heat,0.29,1.06,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC#Element=Mn,0.29–1.06,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPC,P,Heat,,0.050,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC#Element=P,0.050,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPC,S,Heat,,0.058,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC#Element=S,0.058,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPC,Si,Heat,0.10,,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC#Element=Si,0.10 min,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPC,Cr,Heat,,0.40,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC#Element=Cr,0.40,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPC,Mo,Heat,,0.15,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC#Element=Mo,0.15 max,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
+SA-234-WPC,Ni,Heat,,0.40,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WPC#Element=Ni,0.40,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
 WP1,C,Heat,,0.28,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WP1#Element=C,0.28,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
 WP1,Mn,Heat,0.30,0.80,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WP1#Element=Mn,0.30–0.80,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
 WP1,P,Heat,,0.045,%,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table1#Grade=WP1#Element=P,0.045,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
