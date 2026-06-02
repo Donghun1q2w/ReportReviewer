@@ -275,8 +275,32 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
 def cmd_build_report(args: argparse.Namespace) -> int:
     """Phase 6: build 6-sheet Korean Excel report."""
-    print(f"[TODO] build-report --case {args.case}: implementation pending Step 4")
-    return 1
+    from scripts.report_builder import build_report  # noqa: PLC0415
+
+    findings_path = CACHE_DIR / args.case / f"{args.case}_findings.json"
+    if not findings_path.exists():
+        print(
+            f"[ERROR] findings not found: {findings_path} "
+            f"(run `compare --case {args.case}` first)",
+            file=sys.stderr,
+        )
+        return 1
+    if not MANIFEST_PATH.exists():
+        print(
+            f"[ERROR] manifest not found: {MANIFEST_PATH} (run `build-manifest` first)",
+            file=sys.stderr,
+        )
+        return 1
+
+    out_dir = OUTPUT_DIR / "reports" / args.case
+    out_path = build_report(
+        case_id=args.case,
+        findings_path=findings_path,
+        manifest_path=MANIFEST_PATH,
+        out_dir=out_dir,
+    )
+    print(f"[OK] build-report --case {args.case}: {out_path}")
+    return 0
 
 
 def cmd_evaluate(args: argparse.Namespace) -> int:

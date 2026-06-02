@@ -1,0 +1,3 @@
+# Frozen provenance sources must keep LF endings so their recorded sha256
+# (computed on LF bytes) matches on every platform, including Windows checkouts.
+skills/cert-review/references/conventions.md text eol=lf

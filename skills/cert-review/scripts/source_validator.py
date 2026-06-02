@@ -111,9 +111,24 @@ def _snippet_present(snippet: str, haystack: str) -> bool:
     return _normalize_for_match(snippet) in _normalize_for_match(haystack)
 
 
+_PLUGIN_DIR = Path(__file__).resolve().parent.parent
+_PLUGIN_PREFIX = "plugin/cert-review-skill/"
+
+
 def _resolve_path(source_file: str, work_dir: Path) -> Path:
+    """Resolve a provenance source_file path.
+
+    Primary anchor is the working dir (ref_code/, dataset dirs). In the deployed
+    layout the plugin no longer sits under the working dir, so paths recorded as
+    ``plugin/cert-review-skill/...`` (e.g. the frozen references) are re-resolved
+    against the plugin directory when the work-dir candidate is absent. The
+    testbed layout keeps working because the work-dir candidate is tried first.
+    """
     sf = source_file.replace("\\", "/")
-    return (work_dir / sf).resolve()
+    p = (work_dir / sf).resolve()
+    if not p.exists() and sf.startswith(_PLUGIN_PREFIX):
+        p = (_PLUGIN_DIR / sf[len(_PLUGIN_PREFIX):]).resolve()
+    return p
 
 
 def _check(row: dict[str, Any], work_dir: Path, row_id: str) -> ValidationResult:
