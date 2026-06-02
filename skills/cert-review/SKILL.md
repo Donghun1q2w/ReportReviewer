@@ -316,6 +316,7 @@ python -m scripts.cli build-report --case <case_id>
 
 - 모든 finding은 `source_validator.filter_valid_findings` 통과 후 시트에 기입한다.
   탈락 항목은 시트 6 하단에 별도 행으로 표시하되 "[DROPPED - 출처 미확인]" 문구를 붙인다.
+- 보고서 문구(issue_summary·note·doc_checks 등)에 절 기호(섹션 부호)를 사용하지 않는다. 기준 조항 참조는 `기준 3.1` 형식으로 표기한다.
 - 파일 인코딩: `openpyxl`의 기본값(UTF-8 내부 저장). 한국어 폰트 폴백 사용.
 
 ---
