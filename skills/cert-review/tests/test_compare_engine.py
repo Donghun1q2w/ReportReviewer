@@ -353,7 +353,6 @@ def test_llm_findings_merge(cache_root: Path):
                     }
                 ]
             },
-            "emails": {"items": []},
         },
     }
     ext_path = _write_extracted(cache_root, case_id, extracted_payload)

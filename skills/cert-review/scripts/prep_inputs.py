@@ -1,6 +1,6 @@
 """prep_inputs.py — Phase-1 deterministic (non-Vision) input preparation.
 
-Produces all four input channels for a case WITHOUT any OCR:
+Produces all three input channels for a case WITHOUT any OCR:
   1. body   — per-page PNGs rendered from each cert PDF (pdf_split, pdfium raster)
   2. annotations — live reviewer /Annots read from the rawdata ORIGINAL PDF
                    (the cert-cleanup '_cert.pdf' files have FLATTENED annotations,
@@ -9,13 +9,12 @@ Produces all four input channels for a case WITHOUT any OCR:
                    rawdata PDFs (MPS files etc., not matched to any cert) are
                    pooled case-wide and ADDED to every cert's annotation channel,
                    each tagged with a "source_pdf" field.
-  3. emails — parsed .msg files (msg_loader), shared across the case's certs
-  4. zip_attachments — for zip-only cases, the unpacked archive manifest
+  3. zip_attachments — for zip-only cases, the unpacked archive manifest
 
 For each cert PDF a SKELETON <cert_stem>_extracted.json is written, conforming to
 references/extraction-schema.json v2.0. Phase-2 Claude Vision later fills
 channels.body.pages and page_extraction. Re-running prep is idempotent: a skeleton
-that already carries non-empty page_extraction is preserved (only annotations/emails
+that already carries non-empty page_extraction is preserved (only annotations/zip
 channels are refreshed).
 
 Constraint C1: NO Python OCR libs — only existing modules + stdlib + pypdf/pypdfium2.
@@ -28,7 +27,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.msg_loader import load_case_emails
 from scripts.pdf_annotations import extract_annotations
 from scripts.pdf_split import split_pdf
 from scripts.source_validator import compute_sha256
@@ -120,7 +118,6 @@ def prep_case(
             {"cert_pdf": str, "png_count": int,
              "annotations_count": int, "skeleton_path": str}
           ],
-          "emails_count": int,
           "zip_only": bool,
           "notes": [str, ...],
         }
@@ -172,9 +169,6 @@ def prep_case(
     rawdata_pdfs = (
         sorted(rawdata_dir.glob("*.pdf")) if rawdata_dir.is_dir() else []
     )
-
-    # ── 4. Emails (shared across the case's certs) ───────────────────────────
-    emails = load_case_emails(case_id, work_dir, cache_root)
 
     # ── Pre-compute the set of rawdata originals matched to a cert ────────────
     # Auxiliary annotations are pooled from EVERY rawdata pdf that is NOT one of
@@ -275,10 +269,6 @@ def prep_case(
                 "engine": "pypdf",
                 "items": annotations,
             }
-            existing["channels"]["emails"] = {
-                "engine": "extract-msg",
-                "items": emails,
-            }
             existing["channels"]["zip_attachments"] = zip_attachments
             skeleton = existing
             notes.append(f"{cert_pdf.name}: skipped_existing_ocr")
@@ -292,7 +282,6 @@ def prep_case(
                 "channels": {
                     "body": {"engine": "claude-vision", "pages": []},
                     "annotations": {"engine": "pypdf", "items": annotations},
-                    "emails": {"engine": "extract-msg", "items": emails},
                     "zip_attachments": zip_attachments,
                 },
                 "page_extraction": [],
@@ -313,7 +302,6 @@ def prep_case(
     return {
         "case_id": case_id,
         "certs": certs_summary,
-        "emails_count": len(emails),
         "zip_only": zip_only,
         "notes": notes,
     }

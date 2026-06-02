@@ -4,8 +4,6 @@
 pypdfium2>=4.0      # cert PDF -> 페이지 PNG 렌더링 (Phase 2 입력)
 pypdf>=4.0          # PDF 주석(/Annots) 메타 추출, MPS PDF 텍스트
 openpyxl>=3.1       # 6시트 한글 Excel 리포트
-extract-msg>=0.48   # Outlook .msg 이메일 파싱
-html2text>=2024.2   # 이메일 HTML 본문 -> 평문
 
 # 개발/테스트
 pytest>=8.0

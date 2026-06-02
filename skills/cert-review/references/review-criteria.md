@@ -10,7 +10,7 @@
 |---|---|
 | CSV row import | 4종 메타(source_file/anchor/snippet/sha256) 없으면 거부 |
 | Python 결정적 판정 | CSV에서만 수치 인용. 코드에 하드코딩된 수치 사용 금지 |
-| Claude 보조 판정 | annotations.json / emails.json / mps 텍스트에서 evidence를 인용하지 않으면 finding 작성 금지 |
+| Claude 보조 판정 | annotations.json / mps 텍스트에서 evidence를 인용하지 않으면 finding 작성 금지 |
 | 출력 직전 검증 | source_validator가 evidence 없는 finding을 dropped_findings.json으로 격리 |
 
 ## 1. Grade 라우팅 (data/grade_routing.csv)
@@ -110,11 +110,11 @@ MPS가 Code보다 엄격한 항목 (MPS 우선):
 | Chemistry | Python (CSV 룩업) | body + mps/ref_code |
 | Mechanical | Python | body + mps/ref_code |
 | HeatTreatment | Python | body + mps/ref_code |
-| NDE | Python + LLM | body + (annotations/emails) |
+| NDE | Python + LLM | body + (annotations) |
 | Microstructure | Python (수치) + LLM (사진 누락) | body 또는 annotations |
-| Identification | LLM | annotations 또는 emails 또는 mps |
-| DocumentError | LLM | annotations 또는 emails 또는 body |
-| Other | LLM | annotations 또는 emails (필수) |
+| Identification | LLM | annotations 또는 mps |
+| DocumentError | LLM | annotations 또는 body |
+| Other | LLM | annotations (필수) |
 
 ## 8. Severity 결정 룰
 
@@ -179,12 +179,11 @@ Claude는 다음 세 채널을 읽어 finding 후보를 식별한다:
 | 채널 키 | 소스 경로 | 내용 |
 |---|---|---|
 | `annotations` | `extracted.json` → `channels.annotations.items[]` | 성적서 PDF 주석 (검토자 메모, 스탬프 텍스트 등) |
-| `emails` | `extracted.json` → `channels.emails.items[]` | 검토자 이메일 본문 스레드 |
 | `body` | `extracted.json` → `page_extraction[page]` | 성적서 페이지 본문 (cert page context) |
 
 ### 10.2 Grade 귀속 규칙
 
-annotation이 특정 페이지와 연결되어 있으면 **그 페이지의 `page_extraction[page].header.grade`** 값을 해당 finding의 `material_grade`로 사용한다. 페이지 연결 정보가 없는 경우(이메일 등)에는 이메일 본문에 명시된 grade 또는 해당 case의 대표 grade를 사용한다.
+annotation이 특정 페이지와 연결되어 있으면 **그 페이지의 `page_extraction[page].header.grade`** 값을 해당 finding의 `material_grade`로 사용한다. 페이지 연결 정보가 없는 경우에는 해당 case의 대표 grade를 사용한다.
 
 ### 10.3 Finding 생성 대상 카테고리
 
@@ -220,7 +219,7 @@ Phase 5에서 생성하는 finding의 카테고리는 다음으로 제한한다:
       "required_action": "제조사·공급사에 요구할 조치 내용",
       "evidence": [
         {
-          "channel": "annotations|emails|body",
+          "channel": "annotations|body",
           "cert_stem": "(선택) 해당 성적서 파일의 stem (확장자 제외)",
           "snippet": "<채널 원문에서 그대로 복사한 텍스트 — extracted.json 안에 literal로 존재해야 함>"
         }
@@ -284,15 +283,14 @@ MPS/PO 발주 spec과 성적서 기재 spec의 **표준 계열·접두어가 다
 
 - `page_ref`은 **주석(annotation)의 원본 페이지 번호**(`channels.annotations.items[].page`)를 사용한다. 이 번호는 rawdata 원본 PDF 기준이며 GT의 page 번호와 같은 체계다.
 - 렌더링된 cleanup PNG의 인덱스(부분 페이지 추출로 재번호된 값)를 page_ref로 쓰지 말 것. cleanup 본문은 원본의 일부 페이지만 담아 페이지가 어긋난다.
-- 이메일 유래 finding은 page_ref를 null로 두거나, 이메일이 특정 페이지를 지목하면 그 번호를 쓴다.
 
 ## 13. 완전성 원칙 (Recall 우선)
 
-- **모든 distinct 검토자 표시를 finding으로 만든다**: 텍스트 주석, 마킹+이메일 언급, zip 폴더명(이슈별 분류), 이메일 본문 각 지적 사항을 빠짐없이 포착한다.
+- **모든 distinct 검토자 표시를 finding으로 만든다**: 텍스트 주석, 마킹, zip 폴더명(이슈별 분류)을 빠짐없이 포착한다.
 - subtle 항목을 "노이즈"로 버리지 말 것:
   - 값이 이상해 보여 확인 요청한 항목(예: 경도 22 HRB) → **Question/해당 category**
   - 모호한 표기(XXS vs S/160) → **Question/Identification**
   - 산술·표기 오기(Impact 평균) → **Minor/DocumentError**
   - remark란 Item No./수량 불일치 → **Minor/Identification** (spec 영향 없으면 Minor)
-- false positive 억제: 근거(annotation/email/zip 폴더명)가 없는 추정성 finding은 만들지 않는다. 모든 finding은 evidence snippet이 실재해야 한다.
+- false positive 억제: 근거(annotation/zip 폴더명)가 없는 추정성 finding은 만들지 않는다. 모든 finding은 evidence snippet이 실재해야 한다.
 - **포괄적 확인 메모 제외**: "성적서 확인 요청", "전반 확인 바람" 같이 **구체적 이슈를 특정하지 않는 전체 성적서 단위의 일반 확인 멘트**는 별도 finding으로 만들지 않는다 (precision을 떨어뜨리는 noise). 단, **특정 값/항목에 대한 확인 요청**(예: "경도 22 HRB로 낮음 — 확인 바람", "이 Heat의 N/Al 확인")은 Question finding으로 생성한다. 구분 기준: 확인 대상이 **구체적 측정값·항목·페이지**로 특정되면 finding, 성적서 전체에 대한 막연한 멘트면 제외.

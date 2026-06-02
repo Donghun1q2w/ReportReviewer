@@ -1,7 +1,7 @@
 """Deterministic comparison engine — Phase 4.
 
-Reads a case's extracted.json (Claude Vision body + pypdf annotations + .msg
-emails) and compares each page against the 7 reference CSVs under data/.
+Reads a case's extracted.json (Claude Vision body + pypdf annotations) and
+compares each page against the 7 reference CSVs under data/.
 Emits findings with evidence attached per C2/C8.
 
 This module deliberately does NOT call any LLM, OCR library, or Gemini API
@@ -13,7 +13,7 @@ Public API:
         - Loads the 7 reference CSVs via refdata_loader (which itself enforces
           provenance via source_validator).
         - Runs the 5 rule families (chemistry / mechanical / heat treatment /
-          NDE / annotations+emails) and filters out evidence-less findings.
+          NDE / annotations) and filters out evidence-less findings.
         - Writes <cache_root>/<case_id>/<case_id>_findings.json and returns
           a result dict.
 
@@ -38,14 +38,14 @@ from .source_validator import filter_valid_findings, compute_sha256
 
 
 # ---------------------------------------------------------------------------
-# Annotation/email pattern dictionary
+# Annotation pattern dictionary
 # ---------------------------------------------------------------------------
 
 # Pattern -> (category, severity). Patterns are matched case-insensitively
-# against literal substrings of the annotation/email text. Order matters:
+# against literal substrings of the annotation text. Order matters:
 # the first match wins, so the more-specific Reject patterns are listed first.
 _ANNOTATION_PATTERNS: list[tuple[str, str, str]] = [
-    # Reject: hard MPS / spec violation flagged in the email/annotation
+    # Reject: hard MPS / spec violation flagged in the annotation
     ("MPS requirement", "Chemistry", "Reject"),
     ("MPS 요건", "Chemistry", "Reject"),
     ("Pb(Lead)", "Chemistry", "Reject"),
@@ -688,7 +688,6 @@ def _check_nde(
 
 def _check_annotations(
     annotations: list[dict],
-    emails: list[dict],
     grade: str | None,
     extracted_path: Path,
     work_dir: Path,
@@ -696,7 +695,7 @@ def _check_annotations(
     case_id: str,
     cert_rel_path: str = "",
 ) -> list[dict]:
-    """Pattern-based extraction from annotations and email bodies.
+    """Pattern-based extraction from annotation text.
 
     The evidence for an annotation is the extracted.json itself (because the
     annotation text lives there verbatim and the validator can prove the
@@ -757,46 +756,6 @@ def _check_annotations(
                 "channel": "annotations",
                 "source_file": extracted_rel,
                 "anchor": f"channels.annotations.items[page={page_no}]",
-                "snippet": snippet,
-                "sha256": extracted_sha,
-            }],
-        })
-
-    for em in emails or []:
-        body = (em.get("body_text") or "").strip()
-        subj = (em.get("subject") or "").strip()
-        text = f"{subj}\n{body}"
-        cls = _classify(text)
-        if cls is None:
-            continue
-        cat, sev = cls
-        # Pick a short snippet that contains the matched keyword
-        snippet = subj if subj else body[:80]
-        if snippet in seen_snippets:
-            continue
-        seen_snippets.add(snippet)
-        fid += 1
-        findings.append({
-            "finding_id": f"EML-{fid:03d}",
-            "category": cat,
-            "severity": sev,
-            "material_grade": grade,
-            "heat_no": None,
-            "cert_pdf": cert_rel_path,
-            "page_ref": None,
-            "issue_summary": f"Email flag: {snippet[:60]}",
-            "details": f"Email subject: {subj}",
-            "structured": {
-                "location": "email",
-                "mtc_value": None,
-                "correct_value": None,
-                "item_name": subj or None,
-            },
-            "required_action": "Address per email correspondence.",
-            "evidence": [{
-                "channel": "emails",
-                "source_file": extracted_rel,
-                "anchor": f"channels.emails.items[subject={subj[:40]}]",
                 "snippet": snippet,
                 "sha256": extracted_sha,
             }],
@@ -1149,7 +1108,6 @@ def compare_case(
         page_extraction = ext.get("page_extraction") or []
         channels = ext.get("channels") or {}
         annotations = (channels.get("annotations") or {}).get("items") or []
-        emails = (channels.get("emails") or {}).get("items") or []
 
         # Determine grade (most common) and material_type guess
         grades = [
@@ -1191,7 +1149,7 @@ def compare_case(
         # from the optional LLM-authored file (resolved below). The function
         # remains defined for import/back-compat but is no longer invoked.
         # ann_findings = _check_annotations(
-        #     annotations, emails, cert_grade, ext_path, work_dir, cache_root,
+        #     annotations, cert_grade, ext_path, work_dir, cache_root,
         #     case_id, cert_file,
         # )
 

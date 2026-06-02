@@ -3,7 +3,7 @@
   "$id": "cert-review-skill/extraction-schema.json",
   "title": "Cert Extraction Schema",
   "version": "2.0",
-  "description": "Schema for the unified <cert_stem>_extracted.json produced by combining Claude Vision OCR (body) with Python-extracted PDF annotations, email .msg files, and zip attachments. Python OCR libraries are forbidden.",
+  "description": "Schema for the unified <cert_stem>_extracted.json produced by combining Claude Vision OCR (body) with Python-extracted PDF annotations and zip attachments. Python OCR libraries are forbidden.",
   "type": "object",
   "required": ["schema_version", "case_id", "cert_file", "cert_sha256", "channels", "page_extraction"],
   "properties": {
@@ -14,7 +14,7 @@
     "extracted_at": {"type": "string", "format": "date-time"},
     "channels": {
       "type": "object",
-      "required": ["body", "annotations", "emails"],
+      "required": ["body", "annotations"],
       "properties": {
         "body": {
           "type": "object",
@@ -40,28 +40,6 @@
                   "subtype": {"type": "string"},
                   "text": {"type": "string"},
                   "rect": {"type": ["array", "null"]}
-                }
-              }
-            }
-          }
-        },
-        "emails": {
-          "type": "object",
-          "required": ["engine", "items"],
-          "properties": {
-            "engine": {"const": "extract-msg"},
-            "items": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": ["subject", "body_text"],
-                "properties": {
-                  "subject": {"type": "string"},
-                  "from": {"type": ["string", "null"]},
-                  "to": {"type": ["string", "null"]},
-                  "date": {"type": ["string", "null"]},
-                  "body_text": {"type": "string"},
-                  "attachments": {"type": "array"}
                 }
               }
             }
@@ -180,7 +158,7 @@
       "type": "object",
       "required": ["channel", "source_file", "anchor", "snippet", "sha256"],
       "properties": {
-        "channel": {"enum": ["body", "annotations", "emails", "mps", "ref_code"]},
+        "channel": {"enum": ["body", "annotations", "mps", "ref_code"]},
         "source_file": {"type": "string"},
         "anchor": {"type": "string"},
         "snippet": {"type": "string", "minLength": 1},

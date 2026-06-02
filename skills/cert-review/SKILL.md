@@ -28,7 +28,7 @@ Phase 0–7을 순서대로 수행한다. Python 결정적 모듈(`scripts/`)과
 
 ```
 testbed/1. Standard Inspection/                ← Work Dir (기준 상대 경로 앵커)
-├── rawdata/<case>/                            ← 원본 PDF / .msg / .zip (주석 포함 원본)
+├── rawdata/<case>/                            ← 원본 PDF / .zip (주석 포함 원본)
 ├── standard inspection Cert cleanup data/<case>/   ← 주석 FLATTENED 성적서 PDF (body OCR 대상)
 ├── standard inspection MPS cleanup data/<case>/    ← MPS PDF
 ├── standard inspection GT data/              ← [C4] Phase 7 전용 — 절대 직접 접근 금지
@@ -57,7 +57,6 @@ testbed/1. Standard Inspection/                ← Work Dir (기준 상대 경�
         ├── cli.py                            ← 진입점
         ├── pdf_split.py                      ← pypdfium2 렌더러 (C1 준수)
         ├── pdf_annotations.py               ← pypdf /Annots 추출 (C1 준수)
-        ├── msg_loader.py                     ← .msg 이메일 파서
         ├── zip_unpacker.py                   ← zip 첨부 해제
         ├── source_validator.py              ← C2/C8 출처 검증기
         ├── compare_engine.py               ← Phase 4 결정적 비교
@@ -126,7 +125,7 @@ python -m scripts.cli build-manifest
 
 ## Phase 1: prep-inputs
 
-**목적**: 케이스별로 4-채널 입력(PNG body / PDF 주석 / 이메일 / zip)을 준비한다.
+**목적**: 케이스별로 3-채널 입력(PNG body / PDF 주석 / zip)을 준비한다.
 
 ```powershell
 python -m scripts.cli prep-inputs --case <case_id>
@@ -152,12 +151,7 @@ python -m scripts.cli prep-inputs --case <case_id>
 
 산출물: `.cache/<case>/<stem>_annotations.json`
 
-### 1-C. 이메일 로드 (msg_loader)
-
-`rawdata/<case>/*.msg` 파일을 `extract-msg` 라이브러리로 파싱하여
-`.cache/<case>/emails.json`에 저장한다.
-
-### 1-D. Zip 해제 (zip_unpacker)
+### 1-C. Zip 해제 (zip_unpacker)
 
 `rawdata/<case>/*.zip` 파일을 해제한다. Case 70처럼 cert PDF가 없고 zip만 있는 케이스
 (`is_zip_only: true`)는 zip 해제 후 내부 PDF/이미지를 동일 파이프라인으로 처리한다.
@@ -186,10 +180,9 @@ python -m scripts.cli prep-inputs --case <case_id>
    - `confidence`: `high` / `medium` / `low`
 3. 산출물 형식은 `references/extraction-schema.json` (schema_version: "2.0")을 따른다.
    파일명: `.cache/<case>/<cert_stem>_extracted.json`
-4. `channels` 섹션에 아래 세 채널을 통합한다:
+4. `channels` 섹션에 아래 두 채널을 통합한다:
    - `body.engine = "claude-vision"`, `body.pages = [1, 2, ...]`
    - `annotations.engine = "pypdf"`, `annotations.items = [...]` (Phase 1-B 결과)
-   - `emails.engine = "extract-msg"`, `emails.items = [...]` (Phase 1-C 결과)
 5. **화학성분 컬럼 정합성 검증** (OCR 직후 수행):
    - 각 원소값이 해당 grade의 통상 범위와 물리적으로 부합하는지 확인한다
      (예: P91의 Cr ≈ 8–9%, P22의 Cr ≈ 2%, A106의 C < 0.35%).
@@ -250,11 +243,11 @@ NDE·Microstructure 일부를 Claude가 직접 판단한다.
 
 | Category | 검토 내용 | 필수 evidence channel |
 |---|---|---|
-| Identification | PO번호·규격 불일치, 성적서-MPS 자재 미매칭 | annotations 또는 emails 또는 mps |
-| DocumentError | 날짜·서명 누락, 인감 미확인, 단위 표기 오류 | annotations 또는 emails 또는 body |
+| Identification | PO번호·규격 불일치, 성적서-MPS 자재 미매칭 | annotations 또는 mps |
+| DocumentError | 날짜·서명 누락, 인감 미확인, 단위 표기 오류 | annotations 또는 body |
 | NDE (보완) | 시험 누락, notch 규격 미확인 (사진 첨부 여부 포함) | body 또는 annotations |
 | Microstructure | δ-ferrite 사진 미첨부, 측정값 범위 이탈 (P91 ≤5%, P92 ≤2.5%) | body 또는 annotations |
-| Other | 이메일·주석에 명시된 특이사항 | annotations 또는 emails (필수) |
+| Other | 주석에 명시된 특이사항 | annotations (필수) |
 
 ### 출처 인용 규칙 (C2)
 
@@ -269,16 +262,6 @@ NDE·Microstructure 일부를 Claude가 직접 판단한다.
     "source_file": "rawdata/4/PU2405873-W2411008-SEONGHWA-1-21PCS MTC REV.1 Draft.pdf",
     "anchor": "p.2#annot-3",
     "snippet": "??? please explain the Mn value",
-    "sha256": "<64-hex>"
-  }
-  ```
-- `emails.json` 인용 예시:
-  ```json
-  {
-    "channel": "emails",
-    "source_file": "rawdata/4/review_query.msg",
-    "anchor": "subject:Re: MTC Query",
-    "snippet": "Ni content exceeds MPS limit",
     "sha256": "<64-hex>"
   }
   ```
@@ -352,7 +335,6 @@ python -m scripts.cli evaluate --all
 Phase 0  build-manifest          → manifest.json (46 cases)
 Phase 1  prep-inputs --case <id> → .cache/<id>/png/*.png
                                    .cache/<id>/*_annotations.json  [rawdata 원본 대상]
-                                   .cache/<id>/emails.json
 Phase 2  [CLAUDE VISION OCR]     → .cache/<id>/*_extracted.json
           Read PNG → transcribe    (Python OCR 금지)
 Phase 3  validate-refs            → exit 0 필수

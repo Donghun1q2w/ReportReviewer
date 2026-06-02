@@ -75,7 +75,7 @@ def cmd_build_manifest(args: argparse.Namespace) -> int:
     Pulls from three primary sources:
     - standard inspection Cert cleanup data/<case>/*.pdf
     - standard inspection MPS cleanup data/<case>/*.pdf
-    - rawdata/<case>/{*.pdf, *.msg, *.zip}
+    - rawdata/<case>/{*.pdf, *.zip}
 
     The ground-truth directory is intentionally never scanned here; the
     evaluation harness is the only module permitted to read it.
@@ -104,10 +104,6 @@ def cmd_build_manifest(args: argparse.Namespace) -> int:
             sorted(p.name for p in raw_case.glob("*.pdf") if p.is_file())
             if raw_case.exists() else []
         )
-        raw_msgs = (
-            sorted(p.name for p in raw_case.glob("*.msg") if p.is_file())
-            if raw_case.exists() else []
-        )
         raw_zips = (
             sorted(p.name for p in raw_case.glob("*.zip") if p.is_file())
             if raw_case.exists() else []
@@ -128,7 +124,6 @@ def cmd_build_manifest(args: argparse.Namespace) -> int:
             "mps_pdfs": mps_files,
             "rawdata": {
                 "pdfs": raw_pdfs,
-                "msgs": raw_msgs,
                 "zips": raw_zips,
             },
             "has_cert_pdf": bool(certs),
@@ -157,10 +152,10 @@ def cmd_build_manifest(args: argparse.Namespace) -> int:
 
 
 def cmd_prep_inputs(args: argparse.Namespace) -> int:
-    """Phase 1: prepare 4-channel inputs (PNG body / annotations / emails / zip).
+    """Phase 1: prepare 3-channel inputs (PNG body / annotations / zip).
 
     Renders cert PDFs to per-page PNGs, extracts live reviewer annotations from
-    the rawdata originals, parses .msg emails, unpacks zips (zip-only cases), and
+    the rawdata originals, unpacks zips (zip-only cases), and
     writes a skeleton extracted.json per cert for Phase-2 Vision to fill.
     """
     from scripts.prep_inputs import prep_case  # noqa: PLC0415
@@ -176,7 +171,7 @@ def cmd_prep_inputs(args: argparse.Namespace) -> int:
     print(
         f"[OK] prep-inputs --case {args.case}: "
         f"{len(summary['certs'])} cert(s), {total_pngs} PNG(s), "
-        f"{summary['emails_count']} email(s), zip_only={summary['zip_only']}"
+        f"zip_only={summary['zip_only']}"
     )
     for c in summary["certs"]:
         print(

@@ -11,14 +11,13 @@ python -m scripts.cli build-manifest
 python -m scripts.cli evaluate --all
 ```
 
-## 입력 채널 (rawdata 4-채널)
+## 입력 채널 (rawdata 3-채널)
 
 | # | 채널 | 출처 | 도구 | 산출물 |
 |---|---|---|---|---|
 | 1 | cert PDF body | `standard inspection Cert cleanup data/<case>/*.pdf` | pypdfium2 + Claude Vision | `<stem>_extracted.json` |
 | 2 | PDF annotations | (동일) | pypdf | `<stem>_annotations.json` |
-| 3 | Email `.msg` | `rawdata/<case>/*.msg` | extract-msg | `emails.json` |
-| 4 | Zip 첨부 | `rawdata/<case>/*.zip` | zipfile | 해제 후 1/2 반복 |
+| 3 | Zip 첨부 | `rawdata/<case>/*.zip` | zipfile | 해제 후 1/2 반복 |
 
 `standard inspection GT data/`는 평가 단계에서만 접근 (코드 가드 적용).
 
