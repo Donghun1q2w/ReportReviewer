@@ -3,7 +3,7 @@
   "$id": "cert-review-skill/extraction-schema.json",
   "title": "Cert Extraction Schema",
   "version": "2.0",
-  "description": "Schema for the unified <cert_stem>_extracted.json produced by combining Claude Vision OCR (body) with Python-extracted PDF annotations and zip attachments. Python OCR libraries are forbidden.",
+  "description": "Schema for the unified <cert_stem>_extracted.json produced by Claude Vision OCR (body channel). Python OCR libraries are forbidden. Reviewer annotations and rawdata are never read during operation.",
   "type": "object",
   "required": ["schema_version", "case_id", "cert_file", "cert_sha256", "channels", "page_extraction"],
   "properties": {
@@ -14,7 +14,7 @@
     "extracted_at": {"type": "string", "format": "date-time"},
     "channels": {
       "type": "object",
-      "required": ["body", "annotations"],
+      "required": ["body"],
       "properties": {
         "body": {
           "type": "object",
@@ -22,38 +22,6 @@
           "properties": {
             "engine": {"const": "claude-vision"},
             "pages": {"type": "array", "items": {"type": "integer"}}
-          }
-        },
-        "annotations": {
-          "type": "object",
-          "required": ["engine", "items"],
-          "properties": {
-            "engine": {"const": "pypdf"},
-            "items": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": ["page", "subtype", "text"],
-                "properties": {
-                  "page": {"type": "integer"},
-                  "author": {"type": ["string", "null"]},
-                  "subtype": {"type": "string"},
-                  "text": {"type": "string"},
-                  "rect": {"type": ["array", "null"]}
-                }
-              }
-            }
-          }
-        },
-        "zip_attachments": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["zip_file", "extracted_files"],
-            "properties": {
-              "zip_file": {"type": "string"},
-              "extracted_files": {"type": "array", "items": {"type": "string"}}
-            }
           }
         }
       }
@@ -158,7 +126,7 @@
       "type": "object",
       "required": ["channel", "source_file", "anchor", "snippet", "sha256"],
       "properties": {
-        "channel": {"enum": ["body", "annotations", "mps", "ref_code"]},
+        "channel": {"enum": ["body", "mps", "ref_code"]},
         "source_file": {"type": "string"},
         "anchor": {"type": "string"},
         "snippet": {"type": "string", "minLength": 1},

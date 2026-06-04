@@ -30,11 +30,9 @@ KNOWN PRODUCT BUGS these tests surface (assertions intentionally NOT weakened):
   (body + mps evidence both anchored on the image PDF) to be dropped, so
   test_pb_reject_finding and test_findings_have_required_schema_fields fail.
 
-  BUG B (compare_engine._check_annotations): line ~658 unconditionally calls
-  `extracted_path.relative_to(work_dir)`, so compare_case raises ValueError
-  whenever the cache dir is not a subpath of work_dir (e.g. pytest tmp_path on
-  a different drive). Worked around here via the cache_root fixture, which
-  anchors the cache under work_dir.
+  NOTE: the cache_root fixture anchors the cache under work_dir for historical
+  reasons; _rel_or_abs now degrades gracefully to an absolute path when the
+  cache lives off work_dir, so this is belt-and-suspenders.
 """
 
 from __future__ import annotations
@@ -81,7 +79,7 @@ def test_a106_cmn_footnote():
     assert _a106_adjusted_mn_max(0.05, "SA-335-P91", 0.60) is None
 
 
-# Exact snippet that lives verbatim in BOTH the extracted.json annotation item
+# Exact snippet that lives verbatim in BOTH the extracted.json body channel
 # AND the llm_findings evidence — provenance must validate against extracted.json.
 _DELTA_FERRITE_SNIPPET = (
     "The MTR shall clearly state that the delta ferrite content does not exceed 5%"
@@ -131,17 +129,11 @@ CANONICAL_FINDING_KEYS = {
 def cache_root(tmp_path: Path):
     """A unique cache dir that lives UNDER work_dir.
 
-    compare_engine._check_annotations calls
-    ``extracted_path.relative_to(work_dir)`` unconditionally, so compare_case
-    crashes with ValueError whenever the cache dir is not a subpath of
-    work_dir. pytest's tmp_path is on a different drive (C:) than work_dir
-    (D:), which is cross-drive and can never be relative. To keep per-test
-    isolation (we still derive uniqueness from tmp_path.name) while satisfying
-    the engine's hard requirement, we anchor the cache under
-    work_dir/.pytest_cache_runs/<unique> and clean it up afterward.
-
-    NOTE: this is a workaround for a real robustness limitation in
-    compare_engine (see _check_annotations line ~658) — see the failure report.
+    Historically the engine called ``extracted_path.relative_to(work_dir)``
+    unconditionally; _rel_or_abs now falls back to an absolute path when the
+    cache is off work_dir, so this anchoring is no longer strictly required.
+    We keep it for per-test isolation (uniqueness derived from tmp_path.name)
+    under work_dir/.pytest_cache_runs/<unique>, cleaned up afterward.
     """
     root = WORK / ".pytest_cache_runs" / tmp_path.name
     root.mkdir(parents=True, exist_ok=True)
@@ -336,9 +328,9 @@ def test_llm_findings_merge(cache_root: Path):
 
     Assertions:
       - An LLM finding whose evidence snippet IS literally present in
-        extracted.json (channel=annotations) survives into result['findings']
+        extracted.json (channel=body) survives into result['findings']
         with full 4-field evidence (source_file/anchor/snippet/sha256), where
-        source_file points at the extracted.json and anchor == 'channels.annotations'.
+        source_file points at the extracted.json and anchor == 'channels.body'.
       - An LLM finding whose evidence snippet is NOT present is DROPPED
         (recorded in dropped_findings, absent from findings) — Claude cannot
         invent a citation.
@@ -347,19 +339,19 @@ def test_llm_findings_merge(cache_root: Path):
     extracted_payload = {
         "cert_file": CERT_REL,
         "cert_sha256": _cert_sha(),
-        # No deterministic-trigger data: keep page_extraction empty so the only
-        # findings come from the LLM file. This isolates the merge behavior.
-        "page_extraction": [],
+        # The snippet lives in the body channel's page extraction (a remark),
+        # so the provenance validator can prove it exists in extracted.json.
+        # Only this one page is present so the merge behavior stays isolated.
+        "page_extraction": [
+            {
+                "page": 3,
+                "header": {"grade": "P91"},
+                "remarks": [_DELTA_FERRITE_SNIPPET],
+                "confidence": "high",
+            }
+        ],
         "channels": {
-            "annotations": {
-                "items": [
-                    {
-                        "page": 3,
-                        "subtype": "Highlight",
-                        "text": _DELTA_FERRITE_SNIPPET,
-                    }
-                ]
-            },
+            "body": {"engine": "claude-vision", "pages": [3]},
         },
     }
     ext_path = _write_extracted(cache_root, case_id, extracted_payload)
@@ -380,7 +372,7 @@ def test_llm_findings_merge(cache_root: Path):
                 "required_action": "Request revised MTR stating delta ferrite content.",
                 "evidence": [
                     {
-                        "channel": "annotations",
+                        "channel": "body",
                         "snippet": _DELTA_FERRITE_SNIPPET,
                     }
                 ],
@@ -400,7 +392,7 @@ def test_llm_findings_merge(cache_root: Path):
                 "required_action": "n/a",
                 "evidence": [
                     {
-                        "channel": "annotations",
+                        "channel": "body",
                         "snippet": "THIS TEXT IS NOT IN THE EXTRACTED JSON AT ALL 9z9z",
                     }
                 ],
@@ -431,7 +423,7 @@ def test_llm_findings_merge(cache_root: Path):
     # Full 4-field provenance resolved deterministically by the engine.
     for prov in ("channel", "source_file", "anchor", "snippet", "sha256"):
         assert ev.get(prov), f"L4-1 evidence missing/empty {prov}: {ev}"
-    assert ev["anchor"] == "channels.annotations", ev["anchor"]
+    assert ev["anchor"] == "channels.body", ev["anchor"]
     assert ev["snippet"] == _DELTA_FERRITE_SNIPPET
     # source_file resolves to the case's extracted.json and sha matches.
     assert ext_path.name in ev["source_file"], ev["source_file"]

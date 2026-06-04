@@ -1,6 +1,6 @@
 """Deterministic comparison engine — Phase 4.
 
-Reads a case's extracted.json (Claude Vision body + pypdf annotations) and
+Reads a case's extracted.json (Claude Vision body channel) and
 compares each page against the 7 reference CSVs under data/.
 Emits findings with evidence attached per C2/C8.
 
@@ -12,8 +12,9 @@ Public API:
         - Loads extracted.json under <cache_root>/<case_id>/.
         - Loads the 7 reference CSVs via refdata_loader (which itself enforces
           provenance via source_validator).
-        - Runs the 5 rule families (chemistry / mechanical / heat treatment /
-          NDE / annotations) and filters out evidence-less findings.
+        - Runs the 4 rule families (chemistry / mechanical / heat treatment /
+          NDE) plus optional LLM-authored findings, and filters out
+          evidence-less findings.
         - Writes <cache_root>/<case_id>/<case_id>_findings.json and returns
           a result dict.
 
@@ -35,42 +36,6 @@ from typing import Any, Iterable
 
 from .refdata_loader import load_csv, index_by
 from .source_validator import filter_valid_findings, compute_sha256
-
-
-# ---------------------------------------------------------------------------
-# Annotation pattern dictionary
-# ---------------------------------------------------------------------------
-
-# Pattern -> (category, severity). Patterns are matched case-insensitively
-# against literal substrings of the annotation text. Order matters:
-# the first match wins, so the more-specific Reject patterns are listed first.
-_ANNOTATION_PATTERNS: list[tuple[str, str, str]] = [
-    # Reject: hard MPS / spec violation flagged in the annotation
-    ("MPS requirement", "Chemistry", "Reject"),
-    ("MPS 요건", "Chemistry", "Reject"),
-    ("Pb(Lead)", "Chemistry", "Reject"),
-    ("delta ferrite", "Microstructure", "Reject"),
-    ("N/Al", "Chemistry", "Reject"),
-    ("N/AL", "Chemistry", "Reject"),
-    ("Cev", "Chemistry", "Question"),
-    ("CEF", "Chemistry", "Question"),
-    ("재발행", "DocumentError", "ActionRequired"),
-    ("re-issue", "DocumentError", "ActionRequired"),
-    # ActionRequired: missing test / data
-    ("누락", "DocumentError", "ActionRequired"),
-    ("missing", "DocumentError", "ActionRequired"),
-    ("MT ", "NDE", "ActionRequired"),
-    ("PT ", "NDE", "ActionRequired"),
-    # Question: ambiguous markings
-    ("???", "Other", "Question"),
-    ("please explain", "Other", "Question"),
-    # Minor: typo-only
-    ("오기", "DocumentError", "Minor"),
-    ("Typo", "DocumentError", "Minor"),
-    ("typo", "DocumentError", "Minor"),
-    ("불일치", "DocumentError", "ActionRequired"),
-    ("삭제 요청", "DocumentError", "ActionRequired"),
-]
 
 
 # ---------------------------------------------------------------------------
@@ -750,84 +715,6 @@ def _check_nde(
     return findings
 
 
-def _check_annotations(
-    annotations: list[dict],
-    grade: str | None,
-    extracted_path: Path,
-    work_dir: Path,
-    cache_root: Path,
-    case_id: str,
-    cert_rel_path: str = "",
-) -> list[dict]:
-    """Pattern-based extraction from annotation text.
-
-    The evidence for an annotation is the extracted.json itself (because the
-    annotation text lives there verbatim and the validator can prove the
-    snippet exists). The cert PDF is not used as evidence here because pypdf
-    cannot reliably extract annotation overlay text.
-    """
-    findings: list[dict] = []
-    if not extracted_path.exists():
-        return findings
-
-    # extracted.json's own provenance
-    extracted_rel = _rel_or_abs(extracted_path, work_dir)
-    extracted_sha = compute_sha256(extracted_path)
-
-    fid = 0
-    seen_snippets: set[str] = set()
-
-    def _classify(text: str) -> tuple[str, str] | None:
-        low = text
-        for needle, cat, sev in _ANNOTATION_PATTERNS:
-            if needle.lower() in low.lower():
-                return (cat, sev)
-        return None
-
-    for ann in annotations or []:
-        text = (ann.get("text") or "").strip()
-        if not text:
-            continue
-        cls = _classify(text)
-        if cls is None:
-            continue
-        cat, sev = cls
-        # Snippet must appear in extracted.json — use a short literal slice
-        snippet = text if len(text) <= 80 else text[:80]
-        if snippet in seen_snippets:
-            continue
-        seen_snippets.add(snippet)
-        page_no = ann.get("page", 1)
-        fid += 1
-        findings.append({
-            "finding_id": f"ANN-{fid:03d}",
-            "category": cat,
-            "severity": sev,
-            "material_grade": grade,
-            "heat_no": None,
-            "cert_pdf": cert_rel_path,
-            "page_ref": f"p.{page_no}",
-            "issue_summary": f"Annotation flag: {snippet[:60]}",
-            "details": f"PDF annotation (subtype={ann.get('subtype')}) on page {page_no}: {text}",
-            "structured": {
-                "location": f"page {page_no} annotation",
-                "mtc_value": None,
-                "correct_value": None,
-                "item_name": ann.get("subtype"),
-            },
-            "required_action": "Address per reviewer comment.",
-            "evidence": [{
-                "channel": "annotations",
-                "source_file": extracted_rel,
-                "anchor": f"channels.annotations.items[page={page_no}]",
-                "snippet": snippet,
-                "sha256": extracted_sha,
-            }],
-        })
-
-    return findings
-
-
 # ---------------------------------------------------------------------------
 # LLM-authored findings: resolve provenance + merge
 # ---------------------------------------------------------------------------
@@ -982,7 +869,11 @@ def _resolve_llm_findings(
         for ev in evidence_in:
             if not isinstance(ev, dict):
                 continue
-            channel = ev.get("channel") or "annotations"
+            channel = ev.get("channel") or "body"
+            if channel not in ("body", "mps", "ref_code"):
+                # Operation cites only body / mps / ref_code; anything else
+                # (notably the retired 'annotations' channel) collapses to body.
+                channel = "body"
             snippet = ev.get("snippet") or ""
             ext_path = _resolve_extracted(ev.get("cert_stem"))
             if ext_path is not None and ext_path.exists():
@@ -1170,8 +1061,6 @@ def compare_case(
         extracted_rel = _rel_or_abs(ext_path, work_dir)
         extracted_sha = compute_sha256(ext_path)
         page_extraction = ext.get("page_extraction") or []
-        channels = ext.get("channels") or {}
-        annotations = (channels.get("annotations") or {}).get("items") or []
 
         # Determine grade (most common) and material_type guess
         grades = [
@@ -1208,20 +1097,14 @@ def compare_case(
         nde_findings = _check_nde(
             page_extraction, grade_keys, material_type, nde_csv, cert_file,
         )
-        # NOTE: the crude pattern-based annotation matcher (_check_annotations)
-        # is DISABLED in the pipeline. Comment-derived findings now come solely
-        # from the optional LLM-authored file (resolved below). The function
-        # remains defined for import/back-compat but is no longer invoked.
-        # ann_findings = _check_annotations(
-        #     annotations, cert_grade, ext_path, work_dir, cache_root,
-        #     case_id, cert_file,
-        # )
+        # Comment-derived findings come solely from the optional LLM-authored
+        # file (resolved below via _resolve_llm_findings); the operation never
+        # reads reviewer annotations.
 
         all_raw_findings.extend(chem_findings)
         all_raw_findings.extend(mech_findings)
         all_raw_findings.extend(ht_findings)
         all_raw_findings.extend(nde_findings)
-        # all_raw_findings.extend(ann_findings)  # disabled — see note above
 
     # 2b. Merge OPTIONAL LLM/hand-authored findings (provenance resolved here),
     #     added BEFORE filtering so they pass the SAME provenance gate.
@@ -1270,7 +1153,6 @@ __all__ = [
     "_check_mechanical",
     "_check_heat_treatment",
     "_check_nde",
-    "_check_annotations",
     "_resolve_llm_findings",
     "_dedup",
     "_grade_token",

@@ -54,7 +54,6 @@ WORK_DIR = _resolve_work_dir()
 # overridable via env so a deployed user can point at their own folder names.
 CERT_DIR = WORK_DIR / os.environ.get("CERT_REVIEW_CERT_DIR", "standard inspection Cert cleanup data")
 MPS_DIR = WORK_DIR / os.environ.get("CERT_REVIEW_MPS_DIR", "standard inspection MPS cleanup data")
-RAWDATA_DIR = WORK_DIR / os.environ.get("CERT_REVIEW_RAWDATA_DIR", "rawdata")
 REF_CODE_DIR = WORK_DIR / os.environ.get("CERT_REVIEW_REF_CODE_DIR", "ref_code")
 CACHE_DIR = PLUGIN_DIR / ".cache"
 OUTPUT_DIR = WORK_DIR / "output"
@@ -70,15 +69,15 @@ def _ensure_utf8_stdout() -> None:
 
 
 def cmd_build_manifest(args: argparse.Namespace) -> int:
-    """Scan working dir and emit manifest.json indexing all 46 cases.
+    """Scan working dir and emit manifest.json indexing all cases.
 
-    Pulls from three primary sources:
+    Pulls from two primary sources:
     - standard inspection Cert cleanup data/<case>/*.pdf
     - standard inspection MPS cleanup data/<case>/*.pdf
-    - rawdata/<case>/{*.pdf, *.zip}
 
-    The ground-truth directory is intentionally never scanned here; the
-    evaluation harness is the only module permitted to read it.
+    Neither the ground-truth directory nor rawdata is scanned here; the
+    evaluation harness is the only module permitted to read GT, and rawdata is
+    forbidden during operation.
     """
     if not CERT_DIR.exists():
         print(f"[ERROR] Cert dir not found: {CERT_DIR}", file=sys.stderr)
@@ -93,20 +92,11 @@ def cmd_build_manifest(args: argparse.Namespace) -> int:
     for case_id in case_ids:
         cert_case = CERT_DIR / case_id
         mps_case = MPS_DIR / case_id
-        raw_case = RAWDATA_DIR / case_id
 
         certs = sorted(p.name for p in cert_case.glob("*.pdf") if p.is_file())
         mps_files = (
             sorted(p.name for p in mps_case.glob("*.pdf") if p.is_file())
             if mps_case.exists() else []
-        )
-        raw_pdfs = (
-            sorted(p.name for p in raw_case.glob("*.pdf") if p.is_file())
-            if raw_case.exists() else []
-        )
-        raw_zips = (
-            sorted(p.name for p in raw_case.glob("*.zip") if p.is_file())
-            if raw_case.exists() else []
         )
 
         cases.append({
@@ -116,19 +106,10 @@ def cmd_build_manifest(args: argparse.Namespace) -> int:
                 str(mps_case.relative_to(WORK_DIR)).replace("\\", "/")
                 if mps_case.exists() else None
             ),
-            "rawdata_dir": (
-                str(raw_case.relative_to(WORK_DIR)).replace("\\", "/")
-                if raw_case.exists() else None
-            ),
             "cert_pdfs": certs,
             "mps_pdfs": mps_files,
-            "rawdata": {
-                "pdfs": raw_pdfs,
-                "zips": raw_zips,
-            },
             "has_cert_pdf": bool(certs),
             "has_mps": bool(mps_files),
-            "is_zip_only": (not certs) and bool(raw_zips),
         })
 
     manifest = {
@@ -147,16 +128,15 @@ def cmd_build_manifest(args: argparse.Namespace) -> int:
     print(f"     case_count = {len(cases)}")
     print(f"     with_cert  = {sum(1 for c in cases if c['has_cert_pdf'])}")
     print(f"     with_mps   = {sum(1 for c in cases if c['has_mps'])}")
-    print(f"     zip_only   = {sum(1 for c in cases if c['is_zip_only'])}")
     return 0
 
 
 def cmd_prep_inputs(args: argparse.Namespace) -> int:
-    """Phase 1: prepare 3-channel inputs (PNG body / annotations / zip).
+    """Phase 1: prepare the body input channel (per-page PNGs).
 
-    Renders cert PDFs to per-page PNGs, extracts live reviewer annotations from
-    the rawdata originals, unpacks zips (zip-only cases), and
-    writes a skeleton extracted.json per cert for Phase-2 Vision to fill.
+    Renders the cert-cleanup PDFs to per-page PNGs and writes a skeleton
+    extracted.json per cert for Phase-2 Vision to fill. Operation reads ONLY the
+    cert-cleanup folder; rawdata originals are never touched.
     """
     from scripts.prep_inputs import prep_case  # noqa: PLC0415
 
@@ -170,14 +150,10 @@ def cmd_prep_inputs(args: argparse.Namespace) -> int:
     total_pngs = sum(c["png_count"] for c in summary["certs"])
     print(
         f"[OK] prep-inputs --case {args.case}: "
-        f"{len(summary['certs'])} cert(s), {total_pngs} PNG(s), "
-        f"zip_only={summary['zip_only']}"
+        f"{len(summary['certs'])} cert(s), {total_pngs} PNG(s)"
     )
     for c in summary["certs"]:
-        print(
-            f"     {c['cert_pdf']} -> "
-            f"{c['png_count']} png, {c['annotations_count']} annot"
-        )
+        print(f"     {c['cert_pdf']} -> {c['png_count']} png")
         print(f"        skeleton: {c['skeleton_path']}")
     for note in summary["notes"]:
         print(f"     note: {note}")
@@ -378,7 +354,7 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("build-manifest", help="Scan working dir and emit manifest.json").set_defaults(func=cmd_build_manifest)
 
-    p = sub.add_parser("prep-inputs", help="Prepare 4-channel inputs for a case")
+    p = sub.add_parser("prep-inputs", help="Prepare body (PNG) inputs for a case")
     p.add_argument("--case", required=True)
     p.set_defaults(func=cmd_prep_inputs)
 
