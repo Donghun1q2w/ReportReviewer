@@ -26,7 +26,6 @@ _DATASET = Path(
 _DATASET_COUPLED = {
     "test_compare_engine.py",
     "test_eval_harness.py",
-    "test_report_builder.py",
 }
 
 

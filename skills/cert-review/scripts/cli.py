@@ -4,8 +4,6 @@ Usage (Windows PowerShell):
     python -m scripts.cli build-manifest
     python -m scripts.cli prep-inputs --case 4
     python -m scripts.cli validate-refs
-    python -m scripts.cli compare --case 4
-    python -m scripts.cli build-report --case 4
     python -m scripts.cli evaluate --case 4
     python -m scripts.cli evaluate --all
 
@@ -56,7 +54,6 @@ CERT_DIR = WORK_DIR / os.environ.get("CERT_REVIEW_CERT_DIR", "standard inspectio
 MPS_DIR = WORK_DIR / os.environ.get("CERT_REVIEW_MPS_DIR", "standard inspection MPS cleanup data")
 REF_CODE_DIR = WORK_DIR / os.environ.get("CERT_REVIEW_REF_CODE_DIR", "ref_code")
 CACHE_DIR = PLUGIN_DIR / ".cache"
-OUTPUT_DIR = WORK_DIR / "output"
 MANIFEST_PATH = PLUGIN_DIR / "manifest.json"
 
 
@@ -220,65 +217,6 @@ def cmd_validate_refs(args: argparse.Namespace) -> int:
         return 1
 
 
-def cmd_compare(args: argparse.Namespace) -> int:
-    """Phase 4: deterministic comparison."""
-    from scripts.compare_engine import compare_case  # noqa: PLC0415
-
-    data_dir = PLUGIN_DIR / "data"
-    result = compare_case(
-        case_id=args.case,
-        work_dir=WORK_DIR,
-        cache_root=CACHE_DIR,
-        data_dir=data_dir,
-    )
-    stats = result["stats"]
-    print(f"[OK] compare --case {args.case}:")
-    print(f"     total findings   = {stats['total']}")
-    print(f"     dropped (no prov) = {stats['dropped']}")
-    print(f"     by category      = {stats['by_category']}")
-    print(f"     by severity      = {stats['by_severity']}")
-    out_path = CACHE_DIR / args.case / f"{args.case}_findings.json"
-    print(f"     written: {out_path}")
-    if stats["dropped"]:
-        drop_path = CACHE_DIR / args.case / f"{args.case}_dropped.json"
-        drop_path.write_text(
-            json.dumps(result["dropped_findings"], ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        print(f"     dropped log: {drop_path}")
-    return 0
-
-
-def cmd_build_report(args: argparse.Namespace) -> int:
-    """Phase 6: build 6-sheet Korean Excel report."""
-    from scripts.report_builder import build_report  # noqa: PLC0415
-
-    findings_path = CACHE_DIR / args.case / f"{args.case}_findings.json"
-    if not findings_path.exists():
-        print(
-            f"[ERROR] findings not found: {findings_path} "
-            f"(run `compare --case {args.case}` first)",
-            file=sys.stderr,
-        )
-        return 1
-    if not MANIFEST_PATH.exists():
-        print(
-            f"[ERROR] manifest not found: {MANIFEST_PATH} (run `build-manifest` first)",
-            file=sys.stderr,
-        )
-        return 1
-
-    out_dir = OUTPUT_DIR / "reports" / args.case
-    out_path = build_report(
-        case_id=args.case,
-        findings_path=findings_path,
-        manifest_path=MANIFEST_PATH,
-        out_dir=out_dir,
-    )
-    print(f"[OK] build-report --case {args.case}: {out_path}")
-    return 0
-
-
 def cmd_evaluate(args: argparse.Namespace) -> int:
     """Phase 7: strict GT match + rubric diagnostic.
 
@@ -359,14 +297,6 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_prep_inputs)
 
     sub.add_parser("validate-refs", help="Validate provenance of all reference CSVs").set_defaults(func=cmd_validate_refs)
-
-    p = sub.add_parser("compare", help="Run deterministic comparison for a case")
-    p.add_argument("--case", required=True)
-    p.set_defaults(func=cmd_compare)
-
-    p = sub.add_parser("build-report", help="Build 6-sheet xlsx report")
-    p.add_argument("--case", required=True)
-    p.set_defaults(func=cmd_build_report)
 
     p = sub.add_parser("evaluate", help="Evaluate against GT (strict + rubric)")
     group = p.add_mutually_exclusive_group(required=True)
