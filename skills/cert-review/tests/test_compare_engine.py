@@ -40,6 +40,7 @@ KNOWN PRODUCT BUGS these tests surface (assertions intentionally NOT weakened):
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -87,12 +88,18 @@ _DELTA_FERRITE_SNIPPET = (
 )
 
 
-# --- Fixed locations (per task spec) -----------------------------------------
+# --- Locations -----------------------------------------------------------
+# WORK is the dataset working dir (ref_code / cert dirs), overridable via env.
+# PLUGIN is THIS plugin's own dir, resolved from the test file location so the
+# suite is self-contained regardless of where the plugin is checked out.
 
 WORK = Path(
-    r"D:\001_Work\2026\033_성적서 검토\Certification_Examine\testbed\1. Standard Inspection"
+    os.environ.get(
+        "CERT_REVIEW_WORKDIR",
+        r"D:\001_Work\2026\033_성적서 검토\Certification_Examine\testbed\1. Standard Inspection",
+    )
 )
-PLUGIN = WORK / "plugin" / "cert-review-skill"
+PLUGIN = Path(__file__).resolve().parents[1]
 DATA_DIR = PLUGIN / "data"
 
 # A real file that exists, is reachable relative to WORK, and (being an

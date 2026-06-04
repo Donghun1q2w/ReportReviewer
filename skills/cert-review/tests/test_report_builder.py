@@ -17,14 +17,29 @@ import pytest
 
 from scripts.report_builder import build_report
 
-# Real manifest shipped with the plugin (case "4" exists in it).
-_MANIFEST_PATH = Path(
-    r"D:\001_Work\2026\033_성적서 검토\Certification_Examine\testbed"
-    r"\1. Standard Inspection\plugin\cert-review-skill\manifest.json"
-)
-
 _CASE_ID = "4"
 _CERT_PDF = "PU2405873-W2411008-SEONGHWA-1-21PCS MTC_cert.pdf"
+
+
+def _minimal_manifest() -> dict:
+    """Self-contained manifest (case '4') — no dependency on a generated
+    manifest.json or a fixed checkout path."""
+    return {
+        "schema_version": "2.0",
+        "case_count": 1,
+        "cases": [
+            {
+                "case_id": _CASE_ID,
+                "cert_dir": f"standard inspection Cert cleanup data/{_CASE_ID}",
+                "mps_dir": None,
+                "cert_pdfs": [_CERT_PDF],
+                "mps_pdfs": [],
+                "has_cert_pdf": True,
+                "has_mps": False,
+                "is_zip_only": False,
+            }
+        ],
+    }
 
 # A distinctive substring used to assert provenance round-trips into the sheet.
 _CHEM_SOURCE_FILE = "PU2405873-W2411008-SEONGHWA-1-21PCS MTC_cert.pdf"
@@ -246,11 +261,15 @@ def report_path(tmp_path: Path) -> Path:
         json.dumps(_synthetic_findings(), ensure_ascii=False),
         encoding="utf-8",
     )
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(_minimal_manifest(), ensure_ascii=False), encoding="utf-8"
+    )
     out_dir = tmp_path / "output"
     out_path = build_report(
         case_id=_CASE_ID,
         findings_path=findings_path,
-        manifest_path=_MANIFEST_PATH,
+        manifest_path=manifest_path,
         out_dir=out_dir,
     )
     assert out_path.exists(), "build_report did not produce an output file"
