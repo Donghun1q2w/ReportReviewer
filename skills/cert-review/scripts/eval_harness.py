@@ -235,6 +235,67 @@ def _parse_raw_comments(text: str) -> list[tuple[int, str]]:
     return out
 
 
+# E-mail reply section ('## 3. 이메일 회신 내역'): for many cases the reviewer
+# raised the non-conformity by e-mail rather than as a PDF annotation, so the
+# real GT lives here. Extract the substantive body of each e-mail (one concern
+# per e-mail); drop headers/greetings/signatures and bodies with no domain
+# token (generic "성적서 확인 요청" mails carry no finding).
+_EMAIL_META_RE = re.compile(
+    r"^\s*(?:\*\*)?\s*(?:수신|발신|보낸\s*사람|받는\s*사람|참조|첨부|제목|일시|"
+    r"From|To|Cc|Bcc|Sent|Date|Subject|Project|Supplier|Manufacturer)\b",
+    re.IGNORECASE,
+)
+_EMAIL_DROP_SUB = re.compile(r"\[cid:[^\]]*\]|image\d+\.\w+|<[^>]*>|https?://\S+|[\w.\-]+@[\w.\-]+")
+
+
+def _parse_email_comments(text: str) -> list[tuple[int | None, str]]:
+    """Extract (page|None, body) issues from the '## 3. 이메일 회신 내역' section."""
+    lines = text.splitlines()
+    start = next((idx for idx, ln in enumerate(lines) if _SECTION3_RE.match(ln)), None)
+    if start is None:
+        return []
+
+    out: list[tuple[int | None, str]] = []
+    buf: list[str] = []
+
+    def _flush() -> None:
+        if not buf:
+            return
+        body = " ".join(buf).strip()
+        buf.clear()
+        if len(body) < 6 or not _key_tokens(body):
+            return
+        pm = re.search(r"p\.?\s*(\d+)", body, re.IGNORECASE)
+        out.append((int(pm.group(1)) if pm else None, body))
+
+    i, n = start + 1, len(lines)
+    while i < n:
+        ln = lines[i]
+        if ln.startswith("### "):          # new e-mail -> flush previous body
+            _flush()
+            i += 1
+            continue
+        if _FENCE_RE.match(ln):            # fenced e-mail body
+            i += 1
+            while i < n and not _FENCE_RE.match(lines[i]):
+                raw = lines[i]
+                clean = _EMAIL_DROP_SUB.sub("", raw).strip(" *-–—•·\t")
+                # Keep substantive lines; drop only header/metadata lines. A
+                # purely-greeting e-mail is filtered later by the body-level
+                # _key_tokens check, so we don't drop greeting LINES here (the
+                # real finding often shares a line with a polite request).
+                if clean and not _EMAIL_META_RE.match(raw):
+                    buf.append(clean)
+                i += 1
+            if i < n:
+                i += 1                      # consume closing fence
+            _flush()                        # one issue per e-mail body
+            continue
+        i += 1
+    _flush()
+    return out
+
+
 # --------------------------------------------------------------------------- #
 # Topic clustering (DD1 = page × topic)
 # --------------------------------------------------------------------------- #
@@ -258,7 +319,13 @@ def parse_comments(case_id: str, work_dir: Path) -> list[dict]:
     if not path.exists():
         return []
     text = path.read_text(encoding="utf-8")
+    # GT source: the reviewer's PDF annotations ('## 1') when present; otherwise
+    # the non-conformity they raised by e-mail ('## 3'). Using e-mails only as a
+    # FALLBACK keeps annotation-rich cases clean (a manufacturer reply e-mail
+    # must not pollute a real annotation issue via topic clustering).
     raw = _parse_raw_comments(text)
+    if not raw:
+        raw = _parse_email_comments(text)
 
     clusters: list[dict] = []
     for page, body in raw:
@@ -825,7 +892,9 @@ def _render_md(agg: dict, gt_index: dict[str, dict[str, dict]]) -> str:
             idx = gt_index.get(pc["case_id"], {})
             for gid in pc["unmatched_gt_ids"]:
                 gi = idx.get(gid, {})
-                pages = ", ".join(f"p.{p}" for p in sorted(gi.get("pages", set())))
+                pages = ", ".join(
+                    f"p.{p}" for p in sorted(x for x in gi.get("pages", set()) if x is not None)
+                )
                 txt = (gi.get("text", "") or "").strip().replace("\n", " ")
                 if len(txt) > 120:
                     txt = txt[:117] + "..."
