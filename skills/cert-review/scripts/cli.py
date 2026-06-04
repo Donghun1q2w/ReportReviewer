@@ -7,7 +7,8 @@ Usage (Windows PowerShell):
     python -m scripts.cli evaluate --case 4
     python -m scripts.cli evaluate --all
 
-Run from `plugin/cert-review-skill/` with PYTHONIOENCODING=utf-8.
+Run from the plugin/skill directory (this file's parent) with
+PYTHONIOENCODING=utf-8.
 
 Exit codes:
     0 = success / PASS
@@ -26,24 +27,28 @@ from pathlib import Path
 PLUGIN_DIR = Path(__file__).resolve().parent.parent
 
 
+_DATASET_MARKER = "standard inspection Cert cleanup data"
+
+
 def _resolve_work_dir() -> Path:
     """Locate the working directory that holds the input dataset.
 
     Priority (so the deployed skill runs from an arbitrary user folder while the
-    in-repo testbed regression keeps working):
+    in-repo regression keeps working) — no hard-coded testbed path:
       1. env `CERT_REVIEW_WORKDIR` — explicit override.
-      2. testbed/dev layout — PLUGIN_DIR.parent.parent if it contains the
-         dataset dirs (keeps `plugin/cert-review-skill/` working in the testbed).
+      2. walk upward from CWD (and from the plugin dir) looking for a directory
+         that contains the cert-cleanup dataset folder. This makes the skill
+         self-contained regardless of how deeply the plugin is nested.
       3. current working directory (deployment default).
     """
     env = os.environ.get("CERT_REVIEW_WORKDIR")
     if env:
         return Path(env).resolve()
-    candidate = PLUGIN_DIR.parent.parent
-    if (candidate / "ref_code").exists() or (
-        candidate / "standard inspection Cert cleanup data"
-    ).exists():
-        return candidate
+
+    for start in (Path.cwd(), PLUGIN_DIR):
+        for cand in (start, *start.parents):
+            if (cand / _DATASET_MARKER).is_dir():
+                return cand
     return Path.cwd()
 
 

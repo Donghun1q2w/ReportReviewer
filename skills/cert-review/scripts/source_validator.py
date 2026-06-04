@@ -112,17 +112,22 @@ def _snippet_present(snippet: str, haystack: str) -> bool:
 
 
 _PLUGIN_DIR = Path(__file__).resolve().parent.parent
+# Frozen CSV provenance quotes this literal prefix in its `source_file` values,
+# so the string is kept verbatim for sha/match stability. It is a logical alias
+# that re-maps to the current plugin directory below (the plugin's physical path
+# changed, but the recorded provenance text did not).
 _PLUGIN_PREFIX = "plugin/cert-review-skill/"
 
 
 def _resolve_path(source_file: str, work_dir: Path) -> Path:
     """Resolve a provenance source_file path.
 
-    Primary anchor is the working dir (ref_code/, dataset dirs). In the deployed
-    layout the plugin no longer sits under the working dir, so paths recorded as
-    ``plugin/cert-review-skill/...`` (e.g. the frozen references) are re-resolved
-    against the plugin directory when the work-dir candidate is absent. The
-    testbed layout keeps working because the work-dir candidate is tried first.
+    Primary anchor is the working dir (ref_code/, dataset dirs). The plugin no
+    longer sits directly under the working dir, so paths recorded with the frozen
+    ``plugin/cert-review-skill/...`` provenance prefix (e.g. the frozen
+    references) are re-resolved against this plugin directory when the work-dir
+    candidate is absent. The work-dir candidate is tried first, so any layout
+    keeps working.
     """
     sf = source_file.replace("\\", "/")
     p = (work_dir / sf).resolve()

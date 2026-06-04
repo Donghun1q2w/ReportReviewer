@@ -1,6 +1,6 @@
 # Review Criteria (도메인 규칙 참조)
 
-본 문서는 **Claude 보조 판정 시점에만** 참조하는 도메인 규칙 정리본이다. 모든 수치는 `plugin/cert-review-skill/data/*.csv`의 출처 4종 메타데이터를 통해 ref_code/MPS에서 인용된 것이며, 본 문서에 적은 수치는 가독성을 위한 사본일 뿐 **런타임 판정에는 CSV만 사용**한다.
+본 문서는 **Claude compliance 판정 시점에만** 참조하는 도메인 규칙 정리본이다. 모든 수치는 플러그인의 `data/*.csv`의 출처 4종 메타데이터를 통해 ref_code/MPS에서 인용된 것이며, 본 문서에 적은 수치는 가독성을 위한 사본일 뿐 **런타임 판정에는 CSV만 사용**한다.
 
 > **출력 표기 규약**: 보고서 문구·findings·notes·doc_checks 등 모든 출력 문구에 절 기호(섹션 부호)를 사용하지 말 것. 본 문서의 기준 조항을 참조할 때는 `기준 3.1`, `기준 11.2`처럼 "기준 N" 형식으로 표기한다.
 
@@ -10,7 +10,7 @@
 |---|---|
 | CSV row import | 4종 메타(source_file/anchor/snippet/sha256) 없으면 거부 |
 | Python 결정적 판정 | CSV에서만 수치 인용. 코드에 하드코딩된 수치 사용 금지 |
-| Claude 보조 판정 | annotations.json / mps 텍스트에서 evidence를 인용하지 않으면 finding 작성 금지 |
+| Claude 보조 판정 | cert body / MPS 텍스트에서 evidence를 인용하지 않으면 finding 작성 금지 |
 | 출력 직전 검증 | source_validator가 evidence 없는 finding을 dropped_findings.json으로 격리 |
 
 ## 1. Grade 라우팅 (data/grade_routing.csv)
@@ -26,8 +26,8 @@
 | `P91`, `A335 P91`, `F91`, `WP91` | SA-335 P91 / SA-182 F91 / SA-234 WP91 | (동일) + MPS Restricted 적용 | |
 | `P92`, `F92`, `WP92` | SA-335 P92 / SA-182 F92 / SA-234 WP92 | (동일) | Trace elements MPS |
 | `A105`, `SA-105` | SA-105 | ASTM_A105_A105M_14 | |
-| `A193 B7` | SA-193 B7 | ASTM_A193_A193M_14 (rawdata) | 볼트 |
-| `A194 2H`, `A194 7` | SA-194 2H/7 | ASTM_A194_A194M_14a (rawdata) | 너트 |
+| `A193 B7` | SA-193 B7 | ASTM_A193_A193M_14 (ref_code 부재 시 MPS만) | 볼트 |
+| `A194 2H`, `A194 7` | SA-194 2H/7 | ASTM_A194_A194M_14a (ref_code 부재 시 MPS만) | 너트 |
 | `A672 B70` | SA-672 B70 | ASTM_A672_A672M_14 | Welded pipe |
 | `A182 F304` | SA-182 F304 | ASTM_A182_A182M_16a | Stainless |
 | `SCM435` | JIS G4105 SCM435 | (코드 없음 — MPS만) | Bolt material |
@@ -103,18 +103,20 @@ MPS가 Code보다 엄격한 항목 (MPS 우선):
 | PMI | 100% 수행 |
 | No Welding | MPS 금지 시 "NO WELDING REPAIR" 문구 확인 |
 
-## 7. Finding 카테고리 매핑 (GT 스키마 호환)
+## 7. Finding 카테고리 정의 (도메인 의미 기반)
 
-| Category | 검출 방식 (Python deterministic vs LLM) | 필수 evidence channel |
-|---|---|---|
-| Chemistry | Python (CSV 룩업) | body + mps/ref_code |
-| Mechanical | Python | body + mps/ref_code |
-| HeatTreatment | Python | body + mps/ref_code |
-| NDE | Python + LLM | body + (annotations) |
-| Microstructure | Python (수치) + LLM (사진 누락) | body 또는 annotations |
-| Identification | LLM | annotations 또는 mps |
-| DocumentError | LLM | annotations 또는 body |
-| Other | LLM | annotations (필수) |
+각 카테고리는 검토 대상 도메인 속성으로 정의한다. 검출 방식과 필수 evidence channel을 함께 명시한다.
+
+| Category | 도메인 의미 | 검출 방식 | 필수 evidence channel |
+|---|---|---|---|
+| Chemistry | 화학성분 값·범위·누락 | CSV 룩업 비교 | body + mps/ref_code |
+| Mechanical | 인장·항복·연신·경도·충격 | CSV 룩업 비교 | body + mps/ref_code |
+| HeatTreatment | 열처리 온도·시간·방법 | CSV 룩업 비교 | body + mps/ref_code |
+| NDE | UT/MT/PT/RT/Hydro 수행·조건 | 비교 + 본문 판독 | body 또는 mps |
+| Microstructure | δ-ferrite·grain size·대표 사진 | 수치 비교 + 본문 판독 | body 또는 mps |
+| Identification | 식별·적합성 속성 불일치 (PO/Heat/Spec/치수·수량 등) | 본문 ↔ MPS 대조 | mps 또는 body |
+| DocumentError | 성적서 내부 오류·누락 | 본문 판독 | body 또는 mps |
+| Other | 위 카테고리에 명확히 속하지 않는 이슈 | 본문 판독 | body |
 
 ## 8. Severity 결정 룰
 
@@ -127,9 +129,9 @@ MPS가 Code보다 엄격한 항목 (MPS 우선):
 
 값이 경계치 ±10% 이내이고 한계를 넘지 않으면 WARNING은 카테고리가 아니라 비고로만 기록.
 
-## 9. SEVERITY CALIBRATION (GT_Answer enum 정렬 기준)
+## 9. SEVERITY CALIBRATION (도메인 심각도 기준)
 
-본 섹션은 GT_Answer enum 값의 실제 적용 기준을 명확히 정의한다. GT 데이터를 직접 읽지 않아도 아래 규칙을 따르면 enum 값이 일치해야 한다.
+본 섹션은 severity 값(Reject / ActionRequired / Question / Minor)의 도메인 적용 기준을 정의한다. 아래 규칙은 측정값 위반·서류 누락·확인 요청·경미 오타 등 검토 상황별로 일관된 심각도를 부여하기 위한 것이다.
 
 ### 9.1 Reject
 
@@ -168,46 +170,46 @@ MPS가 Code보다 엄격한 항목 (MPS 우선):
 
 동일 항목에 복수 severity가 적용 가능하면 **더 높은 severity 하나만** 사용한다 (Reject > ActionRequired > Question > Minor). 동일 검토자 이슈를 두 개 finding으로 분리하지 말 것.
 
-## 10. PHASE 5 — LLM Finding 생성 가이드
+## 10. Claude 보조 Finding 생성 가이드
 
-Phase 5는 Python deterministic 판정(Phase 3)에서 감지되지 않은 **comment 기반 이슈**를 Claude가 직접 읽고 finding을 생성하는 단계다.
+CSV·도메인 룰 비교로 잡히지 않는 **본문/MPS 대조 기반 이슈**(식별 불일치, 서류 누락, 사진 누락 등)를 Claude가 직접 읽고 finding으로 생성하는 단계다.
 
 ### 10.1 입력 채널
 
-Claude는 다음 세 채널을 읽어 finding 후보를 식별한다:
+Claude는 다음 채널을 읽어 finding 후보를 식별한다:
 
 | 채널 키 | 소스 경로 | 내용 |
 |---|---|---|
-| `annotations` | `extracted.json` → `channels.annotations.items[]` | 성적서 PDF 주석 (검토자 메모, 스탬프 텍스트 등) |
-| `body` | `extracted.json` → `page_extraction[page]` | 성적서 페이지 본문 (cert page context) |
+| `body` | `extracted.json` → `page_extraction[page]` (channels.body) | 성적서 페이지 본문 (Claude Vision OCR 결과) |
+| `mps` | MPS 스캔 OCR 본문 | 발주 spec·요구사항 (식별·적합성 대조용) |
 
 ### 10.2 Grade 귀속 규칙
 
-annotation이 특정 페이지와 연결되어 있으면 **그 페이지의 `page_extraction[page].header.grade`** 값을 해당 finding의 `material_grade`로 사용한다. 페이지 연결 정보가 없는 경우에는 해당 case의 대표 grade를 사용한다.
+finding이 특정 페이지와 연결되어 있으면 **그 페이지의 `page_extraction[page].header.grade`** 값을 해당 finding의 `material_grade`로 사용한다. 페이지 연결 정보가 없는 경우에는 해당 case의 대표 grade를 사용한다.
 
 ### 10.3 Finding 생성 대상 카테고리
 
-Phase 5에서 생성하는 finding의 카테고리는 다음으로 제한한다:
+본 단계에서 생성하는 finding의 카테고리는 다음으로 제한한다:
 
-- `Identification` — 자재 식별 불일치 (PO 번호, Heat 번호, 자재 grade 불일치 등)
+- `Identification` — 자재 식별 불일치 (PO 번호, Heat 번호, 자재 grade·spec 불일치 등)
 - `DocumentError` — 서류 오류·누락 (Code Case 미기재, 재발행 필요 등)
 - `Microstructure` — 미세조직 관련 이슈 (delta ferrite 사진 누락, 값 미기재 등)
-- `NDE` — comment에서 파악된 NDE 이슈 (MT/PT 미수행 언급 등)
-- `Chemistry` — comment에서 파악된 화학성분 이슈 (N/Al 미기재 언급 등)
-- `Other` — 위 카테고리에 해당하지 않는 기타 검토자 이슈
+- `NDE` — 본문에서 파악된 NDE 이슈 (MT/PT 미수행 등)
+- `Chemistry` — 본문에서 파악된 화학성분 이슈 (N/Al 미기재 등)
+- `Other` — 위 카테고리에 해당하지 않는 기타 이슈
 
-> Python deterministic 판정(Phase 3)이 이미 수치 위반으로 잡은 항목과 **중복되는 finding은 생성하지 않는다** (deduplicate).
+> 수치 비교(CSV 룩업)가 이미 잡은 항목과 **중복되는 finding은 생성하지 않는다** (deduplicate).
 
-### 10.4 llm_findings.json 경량 스키마
+### 10.4 finding 경량 스키마
 
-출력 파일명: `<case_id>_llm_findings.json`
+각 보조 finding은 compliance `review.json`에 다음 형태로 기록한다:
 
 ```json
 {
   "case_id": "...",
   "findings": [
     {
-      "finding_id": "(선택) 문자열, 예: F-LLM-001",
+      "finding_id": "(선택) 문자열, 예: F-001",
       "category": "Identification|DocumentError|Microstructure|NDE|Chemistry|Other",
       "severity": "Reject|ActionRequired|Question|Minor",
       "material_grade": "성적서 페이지에서 귀속된 grade 문자열",
@@ -219,7 +221,7 @@ Phase 5에서 생성하는 finding의 카테고리는 다음으로 제한한다:
       "required_action": "제조사·공급사에 요구할 조치 내용",
       "evidence": [
         {
-          "channel": "annotations|body",
+          "channel": "body|mps",
           "cert_stem": "(선택) 해당 성적서 파일의 stem (확장자 제외)",
           "snippet": "<채널 원문에서 그대로 복사한 텍스트 — extracted.json 안에 literal로 존재해야 함>"
         }
@@ -241,9 +243,9 @@ Phase 5에서 생성하는 finding의 카테고리는 다음으로 제한한다:
 - **복수 Heat에 걸친 동일 이슈**: Heat별로 별도 finding을 생성하되, `heat_no`를 각각 명시한다.
 - **Python deterministic finding과 중복**: `issue_summary`나 `category`+`heat_no` 조합이 기존 numeric finding과 동일하면 LLM finding을 생성하지 않는다.
 
-## 11. CATEGORY CALIBRATION (enum 라벨 정렬)
+## 11. CATEGORY CALIBRATION (라벨 경계)
 
-검토자가 부여하는 category는 아래 경계를 따른다. 이슈를 정확히 찾았더라도 라벨이 틀리면 GT와 매칭되지 않으므로 아래 규칙을 엄격히 적용한다.
+category 라벨은 아래 도메인 경계를 따른다. 이슈를 정확히 찾았더라도 라벨이 일관되지 않으면 보고서 분류가 흔들리므로 아래 규칙을 엄격히 적용한다.
 
 | category | 적용 대상 (이 패턴이면 반드시 이 라벨) |
 |---|---|
@@ -277,20 +279,20 @@ MPS/PO 발주 spec과 성적서 기재 spec의 **표준 계열·접두어가 다
 - 화학·기계 기준값은 ASME SA-xxx ≈ ASTM A-xxx로 사실상 동일하므로 **기준값 비교는 통과**할 수 있으나, **표기/식별 검토(표기·형식 시트)에서 별도 FAIL** 항목으로 기록한다.
 - 단순 **판년도(edition) 차이**만 있는 경우(같은 표준 계열, 예: A106-2019 vs A106-2022)는 기준 13/Code Edition 규칙에 따라 **주의**로 처리(에러 아님). 표준 계열 자체가 다른 경우만 본 규칙(FAIL) 적용.
 
-> 결정적 엔진(compare_engine)은 MPS 발주 spec을 구조화 입력으로 갖지 않으므로 본 판정은 Phase 5(LLM)·compliance 검토 경로에서 cert.header.spec ↔ MPS 발주 spec 비교로 수행한다.
+> 본 판정은 compliance 검토 경로(Claude 보조)에서 cert.header.spec ↔ MPS 발주 spec 비교로 수행한다. CSV 룩업만으로는 발주 spec을 구조화 입력으로 갖지 않으므로 본문/MPS 대조가 필요하다.
 
 ## 12. PAGE 귀속 규칙 (page_ref 정합)
 
-- `page_ref`은 **주석(annotation)의 원본 페이지 번호**(`channels.annotations.items[].page`)를 사용한다. 이 번호는 rawdata 원본 PDF 기준이며 GT의 page 번호와 같은 체계다.
-- 렌더링된 cleanup PNG의 인덱스(부분 페이지 추출로 재번호된 값)를 page_ref로 쓰지 말 것. cleanup 본문은 원본의 일부 페이지만 담아 페이지가 어긋난다.
+- `page_ref`은 finding 근거가 위치한 **성적서 본문 페이지 번호**(cert cleanup PDF 기준, `channels.body.pages`)를 사용한다.
+- 렌더링된 PNG 파일 stem의 `_pNN` 인덱스와 본문 논리 페이지가 어긋날 수 있으므로, 본문에 실제로 표기된 페이지 번호를 우선한다.
 
 ## 13. 완전성 원칙 (Recall 우선)
 
-- **모든 distinct 검토자 표시를 finding으로 만든다**: 텍스트 주석, 마킹, zip 폴더명(이슈별 분류)을 빠짐없이 포착한다.
+- **모든 distinct 위반·불일치를 finding으로 만든다**: 본문 수치 위반, MPS 대조 불일치, 누락 항목을 빠짐없이 포착한다.
 - subtle 항목을 "노이즈"로 버리지 말 것:
-  - 값이 이상해 보여 확인 요청한 항목(예: 경도 22 HRB) → **Question/해당 category**
+  - 값이 이상해 보여 확인이 필요한 항목(예: 경도 22 HRB) → **Question/해당 category**
   - 모호한 표기(XXS vs S/160) → **Question/Identification**
   - 산술·표기 오기(Impact 평균) → **Minor/DocumentError**
   - remark란 Item No./수량 불일치 → **Minor/Identification** (spec 영향 없으면 Minor)
-- false positive 억제: 근거(annotation/zip 폴더명)가 없는 추정성 finding은 만들지 않는다. 모든 finding은 evidence snippet이 실재해야 한다.
+- false positive 억제: 본문/MPS 근거가 없는 추정성 finding은 만들지 않는다. 모든 finding은 evidence snippet이 실재해야 한다.
 - **포괄적 확인 메모 제외**: "성적서 확인 요청", "전반 확인 바람" 같이 **구체적 이슈를 특정하지 않는 전체 성적서 단위의 일반 확인 멘트**는 별도 finding으로 만들지 않는다 (precision을 떨어뜨리는 noise). 단, **특정 값/항목에 대한 확인 요청**(예: "경도 22 HRB로 낮음 — 확인 바람", "이 Heat의 N/Al 확인")은 Question finding으로 생성한다. 구분 기준: 확인 대상이 **구체적 측정값·항목·페이지**로 특정되면 finding, 성적서 전체에 대한 막연한 멘트면 제외.
