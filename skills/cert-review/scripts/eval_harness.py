@@ -346,6 +346,27 @@ def _predictions_from_review(data: dict) -> list[dict]:
     return out
 
 
+_PRED_PAGE_RE = re.compile(r"(?:p\.?|page|페이지|페)\s*(\d+(?:\s*[-~]\s*\d+)?)", re.IGNORECASE)
+_BARE_PAGE_RE = re.compile(r"^\s*\d+(?:\s*[-~]\s*\d+)?\s*$")
+
+
+def _extract_page(*candidates) -> str:
+    """Pull an explicit page token ('p.N' / 'page N' / a bare numeric ref) out
+    of a finding's page_ref/location. A verbose textual location ('성적서 N.D.E
+    칸 / ... Heat S85072') yields '' so the page gate is skipped rather than
+    misreading embedded heat/size digits as page numbers."""
+    for c in candidates:
+        if not c:
+            continue
+        s = str(c)
+        if _BARE_PAGE_RE.match(s):
+            return s.strip()
+        m = _PRED_PAGE_RE.search(s)
+        if m:
+            return "p." + re.sub(r"\s+", "", m.group(1))
+    return ""
+
+
 def _norm_prediction(f: dict, idx: int, default_grade: str | None) -> dict:
     """Normalise a raw finding dict to the prediction shape used by matching."""
     fid = f.get("finding_id") or (f"P{f['no']}" if f.get("no") is not None else f"P#{idx}")
@@ -356,8 +377,9 @@ def _norm_prediction(f: dict, idx: int, default_grade: str | None) -> dict:
         or f.get("category")
         or ""
     )
-    # page_ref: explicit, else parsed out of the 'location' string ('성적서 p.1 ...').
-    page_ref = f.get("page_ref") or f.get("location") or ""
+    # page_ref: an explicit 'p.N' token only; a verbose textual location yields
+    # '' so embedded heat/size digits are not misread as page numbers.
+    page_ref = _extract_page(f.get("page_ref"), f.get("location"))
     grade = f.get("material_grade") or default_grade
     return {
         "finding_id": str(fid),
@@ -433,13 +455,21 @@ def _pages(page_ref) -> set[int]:
 
 
 def _page_match(gt_ref, cert_ref) -> bool:
-    """Page-number overlap. If GT page set empty, the check is skipped (True)."""
+    """Page-number overlap, enforced ONLY when both sides cite a page.
+
+    - GT has no page constraint -> skip (True).
+    - Prediction carries no parseable page (its 'location' is a textual field
+      reference like '성적서 N.D.E 칸') -> do NOT penalize; let content/grade
+      gate the match. A correct finding that omits the exact page number must
+      not be scored as a miss.
+    - Both cite pages -> require a non-empty page-set intersection.
+    """
     gt_pages = _pages(gt_ref)
     if not gt_pages:
         return True
     cert_pages = _pages(cert_ref)
     if not cert_pages:
-        return False
+        return True
     return bool(gt_pages & cert_pages)
 
 
