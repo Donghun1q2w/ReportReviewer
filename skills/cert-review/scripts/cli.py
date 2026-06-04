@@ -218,20 +218,21 @@ def cmd_validate_refs(args: argparse.Namespace) -> int:
 
 
 def cmd_evaluate(args: argparse.Namespace) -> int:
-    """Phase 7: strict GT match + rubric diagnostic.
+    """Phase 7: GT match (per-case comments.md) + rubric diagnostic.
 
     eval_harness is the ONLY module permitted to read the GT directory; the CLI
-    merely passes the GT path through to it.
+    asks it for the case list (folder scan) and lets it read each case's
+    comments.md internally so the input guard is satisfied.
     """
-    from scripts.eval_harness import evaluate, gt_path_for, parse_gt  # noqa: PLC0415
-
-    gt_path = gt_path_for(WORK_DIR)
-    if not gt_path.exists():
-        print(f"[ERROR] GT file not found: {gt_path}", file=sys.stderr)
-        return 1
+    from scripts.eval_harness import evaluate, list_cases  # noqa: PLC0415
 
     if args.all:
-        case_ids = list(parse_gt(gt_path).keys())
+        case_ids = list_cases(WORK_DIR)
+        if not case_ids:
+            print(
+                f"[ERROR] no GT cases found under: {WORK_DIR}", file=sys.stderr
+            )
+            return 1
     else:
         case_ids = [args.case]
 
@@ -242,7 +243,6 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         case_ids=case_ids,
         work_dir=WORK_DIR,
         cache_root=CACHE_DIR,
-        gt_path=gt_path,
         stamp=stamp,
     )
 
@@ -257,9 +257,8 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     )
     print(
         f"     precision = {agg['total_matched_cert']}/{agg['total_cert']} "
-        f"= {agg['precision'] * 100:.1f}%  (target >= 90%)"
+        f"= {agg['precision'] * 100:.1f}%  (참고)"
     )
-    print(f"     dropped   = {agg['dropped_total']}  (target 0)")
     print(f"     verdict   = {agg['verdict']}")
     print(f"     report    : {agg['report_md']}")
     return 0 if agg["pass"] else 1

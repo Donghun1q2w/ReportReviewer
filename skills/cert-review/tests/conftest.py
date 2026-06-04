@@ -2,9 +2,10 @@
 standard-inspection dataset is not present (e.g. a fresh clone of this repo).
 
 Portable unit tests (test_no_python_ocr, test_source_validator) always run.
-The three integration tests below read the dataset (GT_Answer.md, ref_code/MPS
-source files for provenance); point CERT_REVIEW_WORKDIR at the dataset to run
-them, otherwise they are skipped.
+The integration tests below read the dataset (per-case
+`standard inspection GT data/<case>/comments.md`, ref_code/MPS source files for
+provenance); point CERT_REVIEW_WORKDIR at the dataset to run them, otherwise
+they are skipped.
 """
 
 from __future__ import annotations
