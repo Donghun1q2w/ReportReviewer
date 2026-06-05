@@ -110,8 +110,26 @@ _LABELS = ("텍스트 상자", "설명선", "메모", "memo")
 # Pure-noise phrases (reviewer housekeeping, not a substantive finding).
 _NOISE_EXACT = {
     "삭제 요청", "삭제요청", "삭제", "typo", "텍스트 상자", "설명선",
-    "메모", "memo", "참고",
+    "메모", "memo", "참고", "please explain", "check the value",
+    "확인", "확인요청", "확인 요청", "확인 바람", "해당 자재", "해당자재",
+    "현재", "참조", "재발행", "재발행 요청",
 }
+
+# Vague-request phrasing that carries no finding by itself ("X 확인 요청").
+_VAGUE_REQUEST_RE = re.compile(
+    r"(please\s+explain|check\s+the\s+value|확인\s*(요청|바랍|요망|바람)|"
+    r"참조\s*(바랍|요망|바람)|검토\s*(부탁|바랍|요청)|재발행\s*요청|부탁\s*드립)",
+    re.IGNORECASE,
+)
+# Keywords that mark a genuine non-conformity (kept even if phrasing is short).
+_FINDING_KW_RE = re.compile(
+    r"(불일치|누락|미\s*표시|미수행|미기재|미입력|미표기|초과|미달|미만|오류|오기|"
+    r"상이|불만족|불만|부적합|없음|결여|확인\s*불가|불가|중복|미언급|틀림|"
+    r"missing|exceed|below|above|non-?conform|fail|overlap|duplicate|"
+    r"required|require(?:ment)?|not\s+mentioned|less\s+than|wrong|incorrect|"
+    r"out\s+of\s+(?:range|spec))",
+    re.IGNORECASE,
+)
 
 
 def _strip_lead(rest: str) -> str:
@@ -137,7 +155,13 @@ def _strip_lead(rest: str) -> str:
 
 
 def _is_noise(text: str) -> bool:
-    """True if the comment text carries no substantive review content."""
+    """True if the comment text carries no substantive review content.
+
+    Drops reviewer housekeeping ('삭제 요청'), content-free margin scribbles
+    ('??? please explain', 'check the value'), and bare vague requests
+    ('확인 요청') — none of which name an actionable finding. A note that
+    carries a finding keyword (불일치/누락/미표시…) or a domain token is kept.
+    """
     t = text.strip()
     if not t:
         return True
@@ -147,7 +171,20 @@ def _is_noise(text: str) -> bool:
     # Author-name-only / e-mail-only residue.
     if re.fullmatch(r"[A-Za-z]+\.[A-Za-z]+", t):
         return True
+    # Explicit finding keyword or a domain token -> substantive, keep.
+    if _FINDING_KW_RE.search(t) or _key_tokens(t):
+        return False
+    # Strip vague-request phrasing; if nothing substantive remains, it is noise.
+    core = _VAGUE_REQUEST_RE.sub(" ", t)
+    core = re.sub(r"[?？.,。\-–—:：\s]+", "", core)
+    if len(core) < 6:
+        return True
     return False
+
+
+def _dedup_key(text: str) -> str:
+    """Normalised key for collapsing identical repeated comments."""
+    return re.sub(r"[^0-9a-z가-힣]", "", text.lower())
 
 
 def _parse_raw_comments(text: str) -> list[tuple[int, str]]:
@@ -263,7 +300,12 @@ def _parse_email_comments(text: str) -> list[tuple[int | None, str]]:
             return
         body = " ".join(buf).strip()
         buf.clear()
-        if len(body) < 6 or not _key_tokens(body):
+        if len(body) < 6:
+            return
+        # One issue per e-mail. Require either a stated non-conformity (finding
+        # keyword) or a concrete domain token, so pure cover/greeting mails that
+        # carry neither are dropped while real reported findings are kept.
+        if not (_FINDING_KW_RE.search(body) or _key_tokens(body)):
             return
         pm = re.search(r"p\.?\s*(\d+)", body, re.IGNORECASE)
         out.append((int(pm.group(1)) if pm else None, body))
@@ -330,23 +372,31 @@ def parse_comments(case_id: str, work_dir: Path) -> list[dict]:
     clusters: list[dict] = []
     for page, body in raw:
         sig = _key_tokens(body)
+        dk = _dedup_key(body)
         target: dict | None = None
-        if sig:
-            # Merge into an existing cluster that shares the topic signature.
-            for c in clusters:
-                if c["topic_tokens"] & sig:
-                    target = c
-                    break
+        for c in clusters:
+            # (a) identical repeated comment — the reviewer stamped the SAME
+            #     finding on many pages (e.g. 'Item No 불일치' on p.2..16).
+            if dk and dk in c["_dks"]:
+                target = c
+                break
+            # (b) shared topic signature.
+            if sig and (c["topic_tokens"] & sig):
+                target = c
+                break
         if target is None:
             clusters.append({
                 "pages": {page},
                 "topic_tokens": set(sig),
                 "_texts": [body],
+                "_dks": {dk} if dk else set(),
             })
         else:
             target["pages"].add(page)
             target["topic_tokens"] |= sig
             target["_texts"].append(body)
+            if dk:
+                target["_dks"].add(dk)
 
     issues: list[dict] = []
     for k, c in enumerate(clusters, start=1):
