@@ -668,6 +668,7 @@ _CANON_RE: list[tuple] = [
     (re.compile(r"code\s*case", re.I), "codecase"),
     (re.compile(r"product\s*(?:analysis|test)|제품\s*(?:분석|시험)", re.I), "productanalysis"),
     (re.compile(r"재질|재료|material", re.I), "material"),
+    (re.compile(r"화학\s*(?:성분|값|분석)|chemical\s*(?:comp|analysis)|composition", re.I), "chemistry"),
     (re.compile(r"spec(?:ification)?\s*(?:불일치|값|mismatch)|식별|identification", re.I), "specid"),
     (re.compile(r"cert(?:ificate)?\.?\s*no|성적서\s*번호", re.I), "certno"),
     (re.compile(r"mtc\.?\s*no|mtc\s*번호", re.I), "mtcno"),
