@@ -170,13 +170,15 @@ def test_match_empty_predictions():
     assert res["cert_total"] == 0
 
 
-def test_match_page_gate_blocks_wrong_page():
-    """Same content but a disjoint page -> no hit (page gate)."""
+def test_match_ignores_page_coordinate_mismatch():
+    """Page is NOT a gate: the GT page (rawdata original) and the prediction
+    page (re-paginated cert-cleanup PNG) are different coordinate systems, so a
+    content-related finding on a 'disjoint' page is still a HIT."""
     gt = [_issue("G-1", [5], "Pb 0.004 over MPS 0.001 non-conformity")]
     pred = [_pred("P1", "p.99", "Pb 0.004 over MPS limit 0.001")]
     res = match_case(gt, pred)
-    assert res["hits"] == 0
-    assert res["unmatched_gt_ids"] == ["G-1"]
+    assert res["hits"] == 1
+    assert res["matched_gt_ids"] == ["G-1"]
 
 
 # --------------------------------------------------------------------------- #

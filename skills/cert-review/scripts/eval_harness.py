@@ -302,10 +302,14 @@ def _parse_email_comments(text: str) -> list[tuple[int | None, str]]:
         buf.clear()
         if len(body) < 6:
             return
-        # One issue per e-mail. Require either a stated non-conformity (finding
-        # keyword) or a concrete domain token, so pure cover/greeting mails that
-        # carry neither are dropped while real reported findings are kept.
-        if not (_FINDING_KW_RE.search(body) or _key_tokens(body)):
+        # One issue per e-mail. Keep it only if it states a non-conformity
+        # (finding keyword) OR names a concrete domain concept (a _CANON_RE
+        # token: NDE / CEF / Heat No / Galvanizing / Impact / N-Al / Quantity
+        # ...). Pure transmittal/cover mails ('Comment 송부 드리니 회신 요청',
+        # 'I would like to send the MTC') name neither and are dropped — a bare
+        # number (PE100) does NOT qualify, so such covers no longer leak in.
+        has_concept = any(rx.search(body) for rx, _ in _CANON_RE)
+        if not (_FINDING_KW_RE.search(body) or has_concept):
             return
         pm = re.search(r"p\.?\s*(\d+)", body, re.IGNORECASE)
         out.append((int(pm.group(1)) if pm else None, body))
@@ -382,6 +386,13 @@ def parse_comments(case_id: str, work_dir: Path) -> list[dict]:
                 break
             # (b) shared topic signature.
             if sig and (c["topic_tokens"] & sig):
+                target = c
+                break
+            # (c) attach a CONTENT-FREE pointer note ('실측값은 범위 밖', 'Butt
+            #     welding end') to a content-bearing note on the SAME page — the
+            #     reviewer split one concern into two same-page annotations, one
+            #     stating the attribute (thickness / MT-PT) and one pointing.
+            if (not sig or not c["topic_tokens"]) and (page is not None) and (page in c["pages"]):
                 target = c
                 break
         if target is None:
@@ -631,21 +642,51 @@ _DOMAIN_WORDS = {
     "elongation", "impact", "microstructure", "thickness", "quantity",
     "dimension", "material", "heattreatment", "lead", "mtr",
 }
-_KO_SYNONYMS = {
-    "인장": "tensile", "항복": "yield", "경도": "hardness", "충격": "impact",
-    "연신": "elongation", "두께": "thickness", "열처리": "heattreatment",
-    "미세조직": "microstructure", "페라이트": "ferrite", "수량": "quantity",
-    "치수": "dimension", "재질": "material", "노멀라이": "normalizing",
-    "템퍼": "tempering",
-}
+# Canonical-concept normalisation: map the many ways a reviewer / the engine
+# phrase the SAME domain concept (English abbreviation, full word, Korean) to one
+# token, so a terse GT note and a verbose finding about the same thing share a
+# key token. This is general domain vocabulary, NOT answer-specific tuning.
+_CANON_RE: list[tuple] = [
+    (re.compile(r"\bt\.?\s*/?\s*s\b|tensile|인장", re.I), "tensile"),
+    (re.compile(r"\by\.?\s*/?\s*s\b|yield|항복", re.I), "yield"),
+    (re.compile(r"elongation|연신", re.I), "elongation"),
+    (re.compile(r"\bra\b|reduction of area|단면\s*수축", re.I), "reductionarea"),
+    (re.compile(r"hardness|경도|\bhrb\b|\bhrc\b|\bhbw?\b|\bhv\b", re.I), "hardness"),
+    (re.compile(r"impact|charpy|충격", re.I), "impact"),
+    (re.compile(r"wall\s*thickness|thickness|두께", re.I), "thickness"),
+    (re.compile(r"micro\s*structure|미세조직|delta[\s-]*ferrite|페라이트|ferrite|δ[\s-]*ferrite", re.I), "ferrite"),
+    (re.compile(r"\bn\s*/\s*al\b", re.I), "nal"),
+    (re.compile(r"holding\s*time|유지\s*시간", re.I), "holdingtime"),
+    (re.compile(r"normaliz|노멀라이|정규화", re.I), "normalizing"),
+    (re.compile(r"temper|템퍼", re.I), "tempering"),
+    (re.compile(r"code\s*case", re.I), "codecase"),
+    (re.compile(r"product\s*(?:analysis|test)|제품\s*(?:분석|시험)", re.I), "productanalysis"),
+    (re.compile(r"재질|재료|material", re.I), "material"),
+    (re.compile(r"spec(?:ification)?\s*(?:불일치|값|mismatch)|식별|identification", re.I), "specid"),
+    (re.compile(r"cert(?:ificate)?\.?\s*no|성적서\s*번호", re.I), "certno"),
+    (re.compile(r"mtc\.?\s*no|mtc\s*번호", re.I), "mtcno"),
+    (re.compile(r"heat\.?\s*no|heat\s*번호|heat\s*number", re.I), "heatno"),
+    (re.compile(r"item\.?\s*no|item\s*번호", re.I), "itemno"),
+    (re.compile(r"\blot\b", re.I), "lotno"),
+    (re.compile(r"중복|overlap|duplicat", re.I), "duplicate"),
+    (re.compile(r"발행\s*(?:일|날짜)|issue\s*date|날짜\s*오류", re.I), "issuedate"),
+    (re.compile(r"galvani|아연\s*도금|갈바|hot[\s-]*dip", re.I), "galvanizing"),
+    (re.compile(r"seamless|smls|무계목", re.I), "seamless"),
+    (re.compile(r"welded|용접|\befw\b|electric\s*fusion", re.I), "welded"),
+    (re.compile(r"\bce\b|carbon\s*equiv|탄소\s*당량|\bcef\b|\bcev\b|\bceq\b", re.I), "carbonequiv"),
+    (re.compile(r"\bpmi\b", re.I), "pmi"),
+    (re.compile(r"\b(?:mt|pt|ut|rt)\b|magnetic\s*particle|penetrant|ultrasonic|radiograph|n\.?\s*d\.?\s*e", re.I), "nde"),
+    (re.compile(r"\bboron\b", re.I), "boron"),
+    (re.compile(r"수량|quantity|\bqty\b", re.I), "quantity"),
+]
 
 
 def _key_tokens(s: str | None) -> set[str]:
     """Extract KEY tokens (topic signature) from a comment/finding text.
 
-    Key tokens = decimal/multi-digit numbers, element symbols, and domain
-    keywords (incl. multi-word phrases) + Korean->English canonical terms.
-    Lowercased; phrases keep their internal space.
+    Key tokens = decimal/multi-digit numbers, element symbols, domain keywords
+    (incl. multi-word phrases), and canonical domain concepts (_CANON_RE) that
+    normalise English abbreviations / full words / Korean to one token.
     """
     if not s:
         return set()
@@ -660,9 +701,9 @@ def _key_tokens(s: str | None) -> set[str]:
     for phrase in _DOMAIN_PHRASES:
         if phrase in low:
             keys.add(phrase)
-    for ko, en in _KO_SYNONYMS.items():
-        if ko in s:
-            keys.add(en)
+    for rx, canon in _CANON_RE:
+        if rx.search(s):
+            keys.add(canon)
     return keys
 
 
@@ -693,15 +734,16 @@ def _content_match(gt_summary: str | None, cert_summary: str | None) -> tuple[bo
 def match_case(gt_issues: list[dict], predictions: list[dict]) -> dict:
     """Match clustered GT issues against prediction findings.
 
-    A GT issue G is a HIT iff SOME prediction P satisfies BOTH:
-      1. content_related(G.text, P.issue_summary)  (_content_match: token
-         Jaccard >= 0.2 OR a shared KEY/topic token)
-      2. page overlap                              (G.pages vs P.page_ref;
-         skipped when G has no page constraint)
+    A GT issue G is a HIT iff SOME prediction P is content_related (token
+    Jaccard >= 0.2 OR a shared KEY/topic token).
 
-    comments.md has no category/severity enum, so matching is content + page
-    centred. material_grade is a DIAGNOSTIC dimension only (it does not gate),
-    matching the reviewer reality that a comment may name no grade.
+    Page number is NOT a gate: the GT page comes from the rawdata ORIGINAL PDF
+    the reviewer annotated, while a prediction's page comes from the cert-cleanup
+    PNG, which is re-paginated — the two are different coordinate systems and a
+    'p.2' on one side does not denote the same physical page on the other, so
+    page overlap is meaningless here (it remains a DIAGNOSTIC dimension only).
+    category/severity (absent in comments.md) and material_grade likewise do not
+    gate. Greedy one-to-one assignment bounds over-matching.
 
     Greedy one-to-one assignment: each prediction satisfies at most one GT
     issue. Returns hit/miss ids, precision bookkeeping, and a diagnostic rubric.
@@ -718,9 +760,8 @@ def match_case(gt_issues: list[dict], predictions: list[dict]) -> dict:
         gt_pages = gi.get("pages")
         gt_text = gi.get("text")
 
-        best_idx: int | None = None
-        best_score = -1.0
         diag_best = {"grade": 0, "page": 0, "content_ok": 0, "content_score": -1.0}
+        gi_hit = False
 
         for idx, pf in enumerate(predictions):
             pf_grade = pf.get("material_grade")
@@ -738,20 +779,19 @@ def match_case(gt_issues: list[dict], predictions: list[dict]) -> dict:
                     "content_score": content_score,
                 }
 
-            if idx in matched_pred_idx:
-                continue
-
-            if content_ok and page_ok:
-                if content_score > best_score:
-                    best_score = content_score
-                    best_idx = idx
+            # Standard recall: a GT issue is recalled if ANY prediction is
+            # content-related to it (non-exclusive — one consolidated finding may
+            # cover several reviewer notes about the same item). Page is not a
+            # gate (incompatible pagination — see docstring).
+            if content_ok:
+                gi_hit = True
+                matched_pred_idx.add(idx)  # precision bookkeeping
 
         rub["grade"] += diag_best["grade"]
         rub["page"] += diag_best["page"]
         rub["content"] += diag_best["content_ok"]
 
-        if best_idx is not None:
-            matched_pred_idx.add(best_idx)
+        if gi_hit:
             matched_gt_ids.append(gi_id)
         else:
             unmatched_gt_ids.append(gi_id)
