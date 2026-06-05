@@ -376,6 +376,9 @@ def parse_comments(case_id: str, work_dir: Path) -> list[dict]:
     clusters: list[dict] = []
     for page, body in raw:
         sig = _key_tokens(body)
+        # "concept" tokens = non-numeric key tokens (a bare number / value, like
+        # '932' or '94.7', is a pointer, not a self-standing concept).
+        concept = {t for t in sig if not _NUM_RE.fullmatch(t or "")}
         dk = _dedup_key(body)
         target: dict | None = None
         for c in clusters:
@@ -388,11 +391,14 @@ def parse_comments(case_id: str, work_dir: Path) -> list[dict]:
             if sig and (c["topic_tokens"] & sig):
                 target = c
                 break
-            # (c) attach a CONTENT-FREE pointer note ('실측값은 범위 밖', 'Butt
-            #     welding end') to a content-bearing note on the SAME page — the
-            #     reviewer split one concern into two same-page annotations, one
-            #     stating the attribute (thickness / MT-PT) and one pointing.
-            if (not sig or not c["topic_tokens"]) and (page is not None) and (page in c["pages"]):
+            # (c) attach a CONCEPT-FREE pointer note (no domain concept — empty
+            #     like 'Butt welding end' / '실측값은 범위 밖', or a bare value
+            #     like '932Mpa' / '94.7<=T<=96.9' / '0.15') to a concept-bearing
+            #     note on the SAME page: the reviewer split one concern into two
+            #     same-page annotations, one naming the attribute (thickness /
+            #     MT-PT / tensile) and one pointing at the value.
+            c_concept = any(not _NUM_RE.fullmatch(t or "") for t in c["topic_tokens"])
+            if (not concept or not c_concept) and (page is not None) and (page in c["pages"]):
                 target = c
                 break
         if target is None:
@@ -677,7 +683,7 @@ _CANON_RE: list[tuple] = [
     (re.compile(r"\bpmi\b", re.I), "pmi"),
     (re.compile(r"\b(?:mt|pt|ut|rt)\b|magnetic\s*particle|penetrant|ultrasonic|radiograph|n\.?\s*d\.?\s*e", re.I), "nde"),
     (re.compile(r"\bboron\b", re.I), "boron"),
-    (re.compile(r"수량|quantity|\bqty\b", re.I), "quantity"),
+    (re.compile(r"수량|quantity|\bqty\b|\d+\s*ea\b", re.I), "quantity"),
 ]
 
 
