@@ -8,8 +8,8 @@ Hard constraints (enforced by tests/test_no_python_ocr.py):
 - No read access to `rawdata/` from ANY module during operation — the
   rawdata originals carry live reviewer annotations (de-facto ground truth)
   that must never leak into findings.
-- All findings and reference rows must carry 4 provenance fields
-  (source_file, anchor, snippet, sha256).
+- All findings and reference rows must carry 3 provenance fields
+  (source_file, anchor, snippet).
 """
 
 from __future__ import annotations

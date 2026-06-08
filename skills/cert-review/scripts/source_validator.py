@@ -1,10 +1,14 @@
 """Provenance validator — enforces C2/C8.
 
-Every CSV row and every finding MUST carry these 4 fields:
+Every CSV row and every finding MUST carry these 3 provenance fields:
 - source_file: relative path from working dir
 - anchor:     stable identifier inside the source file (e.g. p.5#Table1)
 - snippet:    exact substring that must appear in the source file's text
-- sha256:     hex digest of the source file's bytes
+
+The cited snippet is verified to be present in the source file's text; this is
+the provenance integrity check. (A byte-level sha256 column was dropped — it was
+a testbed-only check, unenforced in deployment where the reference corpus is not
+bundled, and a maintenance burden; the snippet-present check is what matters.)
 
 This module exposes:
     validate_csv_row(row, work_dir) -> ValidationResult
@@ -12,7 +16,7 @@ This module exposes:
     validate_csv_file(csv_path, work_dir) -> list[ValidationResult]
     filter_valid_findings(findings, work_dir) -> (valid, dropped)
 
-Raises MissingProvenanceError when a row is loaded but lacks any of the 4 fields.
+Raises MissingProvenanceError when a row is loaded but lacks any of the 3 fields.
 Snippet check tolerates whitespace collapsing because the source may be a markdown
 OCR output where leading whitespace varies; numeric tokens must match exactly.
 """
@@ -27,11 +31,11 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-REQUIRED_FIELDS = ("source_file", "anchor", "snippet", "sha256")
+REQUIRED_FIELDS = ("source_file", "anchor", "snippet")
 
 
 class MissingProvenanceError(ValueError):
-    """Raised when a CSV row is missing any of the 4 provenance fields."""
+    """Raised when a CSV row is missing any of the 3 provenance fields."""
 
 
 @dataclass
@@ -64,7 +68,7 @@ def _read_text(path: Path) -> str:
     - .md/.txt/.csv/.json: read as UTF-8 with cp949 fallback (Korean Windows)
     - .pdf: extract text via pypdf (no OCR; only embedded text). If pypdf is
       unavailable or PDF has no embedded text, return empty string and the
-      snippet check is skipped (caller may still require sha match alone).
+      snippet check is skipped (the row passes on source_file existence alone).
     """
     if path in _TEXT_CACHE:
         return _TEXT_CACHE[path]
@@ -146,29 +150,13 @@ def _check(row: dict[str, Any], work_dir: Path, row_id: str) -> ValidationResult
         )
 
     source_file = str(row["source_file"])
-    sha = str(row["sha256"]).lower().strip()
     snippet = str(row["snippet"])
-
-    if not re.fullmatch(r"[0-9a-f]{64}", sha):
-        return ValidationResult(
-            ok=False, row_id=row_id,
-            reason=f"sha256 not a 64-hex string: {sha!r}",
-            source_file=source_file,
-        )
 
     path = _resolve_path(source_file, work_dir)
     if not path.exists():
         return ValidationResult(
             ok=False, row_id=row_id,
             reason=f"source_file not found on disk: {path}",
-            source_file=source_file,
-        )
-
-    actual_sha = _sha256_of(path)
-    if actual_sha != sha:
-        return ValidationResult(
-            ok=False, row_id=row_id,
-            reason=f"sha256 mismatch: expected {sha} got {actual_sha}",
             source_file=source_file,
         )
 

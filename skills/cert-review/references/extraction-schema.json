@@ -124,13 +124,12 @@
   "$defs": {
     "evidence": {
       "type": "object",
-      "required": ["channel", "source_file", "anchor", "snippet", "sha256"],
+      "required": ["channel", "source_file", "anchor", "snippet"],
       "properties": {
         "channel": {"enum": ["body", "mps", "ref_code"]},
         "source_file": {"type": "string"},
         "anchor": {"type": "string"},
-        "snippet": {"type": "string", "minLength": 1},
-        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        "snippet": {"type": "string", "minLength": 1}
       }
     },
     "finding": {

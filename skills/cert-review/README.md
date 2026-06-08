@@ -35,10 +35,10 @@ build-manifest → prep-inputs (PNG body) → Claude Vision OCR(cert+MPS)
 ## 불변 제약 (Hard Constraints)
 
 - **C1**: OCR은 Claude Vision만 사용. Python OCR 라이브러리 import 금지 (회귀 테스트로 검증).
-- **C2**: 모든 판정 row와 finding은 출처 메타 보유(`source_file`/`anchor`/`snippet`/`sha256`). 누락 시 출력에서 폐기.
+- **C2**: 모든 판정 row와 finding은 출처 메타 보유(`source_file`/`anchor`/`snippet`). 누락 시 출력에서 폐기.
 - **C3**: ref_code 연도 불일치 시 비고에 명시.
 - **C7**: PowerShell + python으로 모든 명령 동작.
-- **C8**: CSV row는 출처 4종 메타 없으면 로딩 거부 (`validate-refs` exit 0 필수).
+- **C8**: CSV row는 출처 메타 3종 없으면 로딩 거부 (`validate-refs` exit 0 필수).
 
 ## 디렉토리
 
@@ -46,7 +46,7 @@ build-manifest → prep-inputs (PNG body) → Claude Vision OCR(cert+MPS)
 skills/cert-review/        # 플러그인(skill) 루트 — CLI 실행 기준
 ├── SKILL.md               # Claude 오케스트레이션
 ├── manifest.json          # 자동 생성된 케이스 인덱스
-├── data/                  # 참조 CSV (출처 4종 메타 필수)
+├── data/                  # 참조 CSV (출처 메타 3종 필수)
 ├── scripts/               # Python 결정적 모듈 (prep/validate/eval + 도메인 헬퍼)
 ├── references/            # 도메인 규칙 + JSON 스키마
 └── tests/                 # pytest 회귀

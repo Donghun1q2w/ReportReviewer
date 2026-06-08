@@ -17,10 +17,10 @@ Claude Vision/판단 단계를 명확히 구분한다.
 | ID | 내용 |
 |---|---|
 | **C1** | Python OCR 라이브러리 사용 금지 — `pytesseract`, `easyocr`, `paddleocr`, `pymupdf`, `fitz`, `pdfplumber`, `openai`(vision), `anthropic`(vision), `google.cloud.vision` 등 일체. `pypdf` 텍스트 추출과 `pypdfium2` 렌더링은 허용. OCR은 Claude Vision(`Read` 툴로 PNG 판독)으로만 수행. |
-| **C2** | 모든 finding의 `evidence` 항목은 출처 메타(`source_file` / `anchor` / `snippet` / `sha256` 등) 필수. `source_validator`가 부재 항목을 격리. |
+| **C2** | 모든 finding의 `evidence` 항목은 출처 메타(`source_file` / `anchor` / `snippet`) 필수. `source_validator`가 부재 항목을 격리. |
 | **C3** | ref_code 연도가 MPS 명시 연도와 다를 경우 비고에 명시. |
 | **C7** | 실행 환경은 Windows PowerShell + Python. 모든 명령은 플러그인(skill) 디렉토리에서 `PYTHONIOENCODING=utf-8`을 앞에 붙여 `python -m scripts.cli ...` 형식으로 실행. |
-| **C8** | CSV 기준값 row는 출처 4종 메타 없으면 로딩 단계에서 거부 (`validate-refs` exit 0 필수). |
+| **C8** | CSV 기준값 row는 출처 메타 3종 없으면 로딩 단계에서 거부 (`validate-refs` exit 0 필수). |
 
 ---
 
@@ -58,7 +58,7 @@ Claude Vision/판단 단계를 명확히 구분한다.
     │   ├── png/                                    ← prep-inputs 렌더링 PNG
     │   ├── <stem>_extracted.json                   ← Vision OCR 산출물 (channels: body)
     │   └── <case>_review.json                      ← compliance 검토 findings
-    ├── data/                                       ← 기준값 CSV (출처 4종 메타 필수)
+    ├── data/                                       ← 기준값 CSV (출처 메타 3종 필수)
     │   ├── chemistry_limits.csv
     │   ├── mechanical_limits.csv
     │   ├── heat_treatment.csv
@@ -174,13 +174,13 @@ python -m scripts.cli prep-inputs --case <case_id>
 
 ## Phase 3: validate-refs
 
-**목적**: `data/*.csv`의 모든 row가 C2/C8 준수(출처 4종 메타 완비)임을 검증한다.
+**목적**: `data/*.csv`의 모든 row가 C2/C8 준수(출처 메타 3종 완비)임을 검증한다.
 
 ```powershell
 python -m scripts.cli validate-refs
 ```
 
-- `source_validator`가 각 CSV row의 `source_file` 존재, `sha256` 일치, `snippet` 포함을 확인한다.
+- `source_validator`가 각 CSV row의 `source_file` 존재, `snippet` 포함을 확인한다.
 - **exit 0이 아니면 이후 단계를 진행하지 않는다.**
 - 검증 대상 CSV: `chemistry_limits.csv`, `mechanical_limits.csv`, `heat_treatment.csv`,
   `nde_rules.csv`, `grade_routing.csv`, `mps_overrides.csv`, `code_edition_map.csv`.

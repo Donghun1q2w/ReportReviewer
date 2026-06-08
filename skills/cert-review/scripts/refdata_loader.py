@@ -21,7 +21,7 @@ from .source_validator import (
 def load_csv(csv_path: Path, work_dir: Path, *, strict: bool = True) -> list[dict[str, Any]]:
     """Return list of validated rows.
 
-    Each row dict includes the 4 provenance fields plus the data columns.
+    Each row dict includes the 3 provenance fields plus the data columns.
     If strict=True and any row fails validation, raises MissingProvenanceError.
     """
     if not csv_path.exists():

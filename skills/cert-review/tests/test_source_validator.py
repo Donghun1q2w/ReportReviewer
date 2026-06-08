@@ -27,13 +27,12 @@ def _make_source(tmp_path: Path, content: str, name: str = "ref.md") -> tuple[Pa
 
 
 def test_missing_field_rejected(tmp_path: Path):
-    src, sha = _make_source(tmp_path, "Mn 0.30 ~ 0.60")
+    _make_source(tmp_path, "Mn 0.30 ~ 0.60")
     for missing in REQUIRED_FIELDS:
         row = {
-            "source_file": src.name,
+            "source_file": "ref.md",
             "anchor": "p.1",
             "snippet": "Mn 0.30 ~ 0.60",
-            "sha256": sha,
         }
         row[missing] = ""
         res = validate_csv_row(row, tmp_path, row_id=f"missing-{missing}")
@@ -41,38 +40,11 @@ def test_missing_field_rejected(tmp_path: Path):
         assert "missing" in res.reason
 
 
-def test_sha_mismatch_rejected(tmp_path: Path):
-    src, _ = _make_source(tmp_path, "P 0.020 max")
-    row = {
-        "source_file": src.name,
-        "anchor": "p.1",
-        "snippet": "P 0.020 max",
-        "sha256": "0" * 64,
-    }
-    res = validate_csv_row(row, tmp_path, "sha-test")
-    assert not res.ok
-    assert "sha256 mismatch" in res.reason
-
-
-def test_bad_sha_format_rejected(tmp_path: Path):
-    src, _ = _make_source(tmp_path, "x")
-    row = {
-        "source_file": src.name,
-        "anchor": "p.1",
-        "snippet": "x",
-        "sha256": "not-a-hash",
-    }
-    res = validate_csv_row(row, tmp_path, "fmt-test")
-    assert not res.ok
-    assert "sha256 not a 64-hex" in res.reason
-
-
 def test_missing_source_file_rejected(tmp_path: Path):
     row = {
         "source_file": "nonexistent.md",
         "anchor": "p.1",
         "snippet": "anything",
-        "sha256": "a" * 64,
     }
     res = validate_csv_row(row, tmp_path, "missing-file")
     assert not res.ok
@@ -80,12 +52,11 @@ def test_missing_source_file_rejected(tmp_path: Path):
 
 
 def test_snippet_not_in_source_rejected(tmp_path: Path):
-    src, sha = _make_source(tmp_path, "Carbon 0.05 ~ 0.15")
+    src, _ = _make_source(tmp_path, "Carbon 0.05 ~ 0.15")
     row = {
         "source_file": src.name,
         "anchor": "p.1",
         "snippet": "Sulfur 0.005 max",  # not in source
-        "sha256": sha,
     }
     res = validate_csv_row(row, tmp_path, "snippet-test")
     assert not res.ok
@@ -94,24 +65,22 @@ def test_snippet_not_in_source_rejected(tmp_path: Path):
 
 def test_valid_row_accepted(tmp_path: Path):
     content = "## Table 1\nC 0.08–0.12\nMn 0.30–0.60\nP 0.020 max\n"
-    src, sha = _make_source(tmp_path, content)
+    src, _ = _make_source(tmp_path, content)
     row = {
         "source_file": src.name,
         "anchor": "Table1#Mn",
         "snippet": "Mn 0.30–0.60",
-        "sha256": sha,
     }
     res = validate_csv_row(row, tmp_path, "ok-test")
     assert res.ok, res.reason
 
 
 def test_whitespace_normalized_for_snippet(tmp_path: Path):
-    src, sha = _make_source(tmp_path, "C\t 0.08    – 0.12")
+    src, _ = _make_source(tmp_path, "C\t 0.08    – 0.12")
     row = {
         "source_file": src.name,
         "anchor": "Table1#C",
         "snippet": "C 0.08 – 0.12",
-        "sha256": sha,
     }
     res = validate_csv_row(row, tmp_path, "ws-test")
     assert res.ok
@@ -131,7 +100,7 @@ def test_finding_without_evidence_rejected(tmp_path: Path):
 
 
 def test_filter_valid_findings_splits_dropped(tmp_path: Path):
-    src, sha = _make_source(tmp_path, "Pb 0.004", "cert.md")
+    src, _ = _make_source(tmp_path, "Pb 0.004", "cert.md")
     good = {
         "finding_id": "F-good",
         "category": "Chemistry",
@@ -142,7 +111,6 @@ def test_filter_valid_findings_splits_dropped(tmp_path: Path):
             "source_file": src.name,
             "anchor": "p.1",
             "snippet": "Pb 0.004",
-            "sha256": sha,
         }],
     }
     bad = {

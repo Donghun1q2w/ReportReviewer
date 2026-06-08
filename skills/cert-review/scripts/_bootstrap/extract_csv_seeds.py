@@ -2,7 +2,7 @@
 
 Parses ASME SEC II Part A markdown files (already OCR'd) to extract chemical
 composition and mechanical property tables, then writes two seed CSVs with full
-provenance (source_file, anchor, snippet, sha256) per row.
+provenance (source_file, anchor, snippet) per row.
 
 CLI:
     cd plugin/cert-review-skill
@@ -29,7 +29,7 @@ _PLUGIN = _PKG.parent                             # plugin/cert-review-skill/
 if str(_PKG) not in sys.path:
     sys.path.insert(0, str(_PKG.parent))          # add plugin/ so "scripts." works
 
-from scripts.source_validator import compute_sha256, validate_csv_row  # noqa: E402
+from scripts.source_validator import validate_csv_row  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -126,7 +126,6 @@ def _rel_path(md_path: Path, work_dir: Path) -> str:
 def _parse_sa335(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any]]:
     """Parse SA-335 TABLE 1 Chemical Requirements (one row per grade)."""
     rows: list[dict[str, Any]] = []
-    sha = compute_sha256(md_path)
     src = _rel_path(md_path, work_dir)
 
     # Find TABLE 1 block
@@ -194,7 +193,6 @@ def _parse_sa335(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any
                 "source_file": src,
                 "anchor": anchor,
                 "snippet": snippet,
-                "sha256": sha,
             })
 
     return rows
@@ -206,7 +204,6 @@ def _parse_sa335(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any
 
 def _parse_sa106(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    sha = compute_sha256(md_path)
     src = _rel_path(md_path, work_dir)
 
     # TABLE 1 is a 4-column table: Element | Grade A | Grade B | Grade C
@@ -270,7 +267,6 @@ def _parse_sa106(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any
                 "source_file": src,
                 "anchor": anchor,
                 "snippet": snippet,
-                "sha256": sha,
             })
 
     return rows
@@ -282,7 +278,6 @@ def _parse_sa106(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any
 
 def _parse_sa105(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    sha = compute_sha256(md_path)
     src = _rel_path(md_path, work_dir)
 
     tbl_match = re.search(r"TABLE 1 Chemical Requirements", text)
@@ -330,7 +325,6 @@ def _parse_sa105(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any
             "source_file": src,
             "anchor": anchor,
             "snippet": actual_snippet,
-            "sha256": sha,
         })
 
     return rows
@@ -343,7 +337,6 @@ def _parse_sa105(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any
 def _parse_sa182(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any]]:
     """Parse SA-182 TABLE 2 (alloy steel chemical) rows that are present."""
     rows: list[dict[str, Any]] = []
-    sha = compute_sha256(md_path)
     src = _rel_path(md_path, work_dir)
 
     # Column layout from TABLE 2 header (page 271+):
@@ -398,7 +391,6 @@ def _parse_sa182(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any
                 "source_file": src,
                 "anchor": anchor,
                 "snippet": snippet,
-                "sha256": sha,
             })
 
     return rows
@@ -410,7 +402,6 @@ def _parse_sa182(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any
 
 def _parse_sa234(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    sha = compute_sha256(md_path)
     src = _rel_path(md_path, work_dir)
 
     # TABLE 1 col layout:
@@ -475,7 +466,6 @@ def _parse_sa234(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any
                 "source_file": src,
                 "anchor": anchor,
                 "snippet": snippet,
-                "sha256": sha,
             })
 
     return rows
@@ -487,7 +477,6 @@ def _parse_sa234(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any
 
 def _parse_sa335_mech(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    sha = compute_sha256(md_path)
     src = _rel_path(md_path, work_dir)
 
     tbl_match = re.search(r"\*\*TABLE 3 Tensile Requirements\*\*", text)
@@ -589,7 +578,6 @@ def _parse_sa335_mech(text: str, md_path: Path, work_dir: Path) -> list[dict[str
                     "source_file": src,
                     "anchor": anchor,
                     "snippet": snippet,
-                    "sha256": sha,
                 })
 
     return rows
@@ -601,7 +589,6 @@ def _parse_sa335_mech(text: str, md_path: Path, work_dir: Path) -> list[dict[str
 
 def _parse_sa106_mech(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    sha = compute_sha256(md_path)
     src = _rel_path(md_path, work_dir)
 
     tbl_match = re.search(r"\*\*TABLE 2 Tensile Requirements\*\*", text)
@@ -668,7 +655,6 @@ def _parse_sa106_mech(text: str, md_path: Path, work_dir: Path) -> list[dict[str
                 "source_file": src,
                 "anchor": anchor,
                 "snippet": snippet,
-                "sha256": sha,
             })
 
     return rows
@@ -680,7 +666,6 @@ def _parse_sa106_mech(text: str, md_path: Path, work_dir: Path) -> list[dict[str
 
 def _parse_sa234_mech(text: str, md_path: Path, work_dir: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    sha = compute_sha256(md_path)
     src = _rel_path(md_path, work_dir)
 
     tbl_match = re.search(r"\*\*TABLE 2 Tensile Requirements\*\*", text)
@@ -743,7 +728,6 @@ def _parse_sa234_mech(text: str, md_path: Path, work_dir: Path) -> list[dict[str
                 "source_file": src,
                 "anchor": anchor,
                 "snippet": snippet,
-                "sha256": sha,
             })
 
     return rows
@@ -769,9 +753,9 @@ _MECH_PARSERS = {
 
 # CSV column headers
 _CHEM_HEADERS = ["grade", "element", "analysis", "min", "max",
-                 "source_file", "anchor", "snippet", "sha256"]
+                 "source_file", "anchor", "snippet"]
 _MECH_HEADERS = ["grade", "property", "unit", "min", "max",
-                 "source_file", "anchor", "snippet", "sha256"]
+                 "source_file", "anchor", "snippet"]
 
 
 # ---------------------------------------------------------------------------

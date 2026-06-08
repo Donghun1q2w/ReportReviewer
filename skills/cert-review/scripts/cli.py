@@ -163,7 +163,7 @@ def cmd_prep_inputs(args: argparse.Namespace) -> int:
 
 
 def cmd_validate_refs(args: argparse.Namespace) -> int:
-    """Phase 3: validate all CSV rows carry 4 provenance fields."""
+    """Phase 3: validate all CSV rows carry 3 provenance fields."""
     import csv as _csv
     from scripts.source_validator import validate_csv_row  # noqa: PLC0415
 

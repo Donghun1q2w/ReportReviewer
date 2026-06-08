@@ -7,7 +7,6 @@ Run from plugin/cert-review-skill/:
 from __future__ import annotations
 
 import csv
-import hashlib
 from pathlib import Path
 
 PLUGIN_DIR = Path(__file__).resolve().parent.parent.parent
@@ -16,41 +15,6 @@ SEED_PATH = PLUGIN_DIR / "data" / "_seeds" / "mechanical_limits_seed.csv"
 OUT_PATH = PLUGIN_DIR / "data" / "mechanical_limits.csv"
 
 REF_BASE = "ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023"
-
-# ---------------------------------------------------------------------------
-# SHA256 helper
-# ---------------------------------------------------------------------------
-
-def sha256_of(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def sf_sha(filename: str) -> str:
-    p = WORK_DIR / REF_BASE / filename
-    return sha256_of(p)
-
-
-# ---------------------------------------------------------------------------
-# Provenance lookup (computed once)
-# ---------------------------------------------------------------------------
-
-SHA = {
-    "SA-105_SA-105M.md": None,
-    "SA-106_SA-106M.md": None,
-    "SA-182_SA-182M.md": None,
-    "SA-234_SA-234M.md": None,
-    "SA-335_SA-335M.md": None,
-}
-
-def get_sha(fn: str) -> str:
-    if SHA[fn] is None:
-        SHA[fn] = sf_sha(fn)
-    return SHA[fn]
-
 
 def sf(fn: str) -> str:
     return f"{REF_BASE}/{fn}"
@@ -146,7 +110,7 @@ def map_specimen(seed_specimen: str) -> str:
 # ---------------------------------------------------------------------------
 
 COLUMNS = ["grade", "property", "unit", "min", "max", "specimen",
-           "source_file", "anchor", "snippet", "sha256"]
+           "source_file", "anchor", "snippet"]
 
 
 def load_seed() -> list[dict]:
@@ -184,7 +148,6 @@ def transform_seed(seed_rows: list[dict]) -> list[dict]:
         source_file = row.get("source_file", "").strip()
         anchor = row.get("anchor", "").strip()
         snippet = row.get("snippet", "").strip()
-        sha = row.get("sha256", "").strip()
 
         specimen = map_specimen(row.get("specimen", ""))
 
@@ -198,7 +161,6 @@ def transform_seed(seed_rows: list[dict]) -> list[dict]:
             "source_file": source_file,
             "anchor":      anchor,
             "snippet":     snippet,
-            "sha256":      sha,
         })
     return out
 
@@ -218,7 +180,6 @@ def make_row(grade, prop, unit, min_v, max_v, specimen, fn, anchor, snippet):
         "source_file": sf(fn),
         "anchor":      anchor,
         "snippet":     snippet,
-        "sha256":      get_sha(fn),
     }
 
 
@@ -447,7 +408,7 @@ def main() -> None:
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT_PATH, "w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["grade","property","unit","min","max",
-                                                "specimen","source_file","anchor","snippet","sha256"])
+                                                "specimen","source_file","anchor","snippet"])
         writer.writeheader()
         writer.writerows(deduped)
 

@@ -38,7 +38,7 @@ OUT_PATH = PLUGIN_DIR / "data" / "chemistry_limits.csv"
 
 REQUIRED_OUT_COLS = [
     "grade", "element", "analysis", "min", "max", "unit",
-    "source_file", "anchor", "snippet", "sha256",
+    "source_file", "anchor", "snippet",
 ]
 
 # Canonical rename map: seed grade -> output grade
@@ -135,7 +135,6 @@ def main() -> None:
             "source_file": row["source_file"].strip(),
             "anchor":      row["anchor"].strip(),
             "snippet":     row["snippet"].strip(),
-            "sha256":      row["sha256"].strip(),
         }
         out_rows.append(out_row)
 

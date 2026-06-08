@@ -1,114 +1,114 @@
-grade,property,unit,min,max,specimen,source_file,anchor,snippet,sha256
-SA-105,EL,%,22,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table2#Grade=SA-105#Property=EL#%,22,8b9c18275c955e6143271fd3649cd9606933fa87d51770dd02d4f7840902e1ac
-SA-105,TS,ksi,70,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table2#Grade=SA-105#Property=TS#ksi,70 | 40,8b9c18275c955e6143271fd3649cd9606933fa87d51770dd02d4f7840902e1ac
-SA-105,YS,ksi,36,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table2#Grade=SA-105#Property=YS#ksi,"Yield strength, min. (ksi [MPa]) | 30 (205)",8b9c18275c955e6143271fd3649cd9606933fa87d51770dd02d4f7840902e1ac
-SA-106-A,TS,ksi,48000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=A#Property=UTS#ksi,48 000 [330],82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
-SA-106-A,YS,ksi,30000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=A#Property=YS#ksi,30 000 [205],82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
-SA-106-B,TS,ksi,60000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=B#Property=UTS#ksi,60 000 [415],82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
-SA-106-B,YS,ksi,35000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=B#Property=YS#ksi,35 000 [240],82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
-SA-106-C,TS,ksi,70000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=C#Property=UTS#ksi,70 000 [485],82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
-SA-106-C,YS,ksi,40000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=C#Property=YS#ksi,40 000 [275],82f1a9a6130964e5a724664361a6882f0998d3571c2f9f99e8b73d05abbcbf0e
-SA-182-F11,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F11Class2#Property=EL#%,F 11 Class 2 | 70 [480] | 40 [275] | 20 | 45 | 143–207,f787bebf23103703e09ff4c14e8db931b4fa56da0f7723cb58ebe2fc2d0ea027
-SA-182-F11,HARDNESS_HBW,HBW,143,207,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F11Class2#Property=HBW,F 11 Class 2 | 70 [480] | 40 [275] | 20 | 45 | 143–207,f787bebf23103703e09ff4c14e8db931b4fa56da0f7723cb58ebe2fc2d0ea027
-SA-182-F11,RA,%,45,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F11Class2#Property=RA#%,F 11 Class 2 | 70 [480] | 40 [275] | 20 | 45 | 143–207,f787bebf23103703e09ff4c14e8db931b4fa56da0f7723cb58ebe2fc2d0ea027
-SA-182-F11,TS,ksi,70,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F11Class2#Property=TS#ksi,F 11 Class 2 | 70 [480] | 40 [275] | 20 | 45 | 143–207,f787bebf23103703e09ff4c14e8db931b4fa56da0f7723cb58ebe2fc2d0ea027
-SA-182-F11,YS,ksi,40,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F11Class2#Property=YS#ksi,F 11 Class 2 | 70 [480] | 40 [275] | 20 | 45 | 143–207,f787bebf23103703e09ff4c14e8db931b4fa56da0f7723cb58ebe2fc2d0ea027
-SA-182-F22,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=EL#%,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207,f787bebf23103703e09ff4c14e8db931b4fa56da0f7723cb58ebe2fc2d0ea027
-SA-182-F22,HARDNESS_HBW,HBW,156,207,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=HBW,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207,f787bebf23103703e09ff4c14e8db931b4fa56da0f7723cb58ebe2fc2d0ea027
-SA-182-F22,RA,%,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=RA#%,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207,f787bebf23103703e09ff4c14e8db931b4fa56da0f7723cb58ebe2fc2d0ea027
-SA-182-F22,TS,ksi,75,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=TS#ksi,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207,f787bebf23103703e09ff4c14e8db931b4fa56da0f7723cb58ebe2fc2d0ea027
-SA-182-F22,YS,ksi,45,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=YS#ksi,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207,f787bebf23103703e09ff4c14e8db931b4fa56da0f7723cb58ebe2fc2d0ea027
-SA-182-F91,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=EL#%,20,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-182-F91,TS,MPa,585,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=TS#MPa,585,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-182-F91,TS,ksi,85,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=TS#ksi,85,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-182-F91,YS,MPa,415,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=YS#MPa,415,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-182-F91,YS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=YS#ksi,60,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-182-F92,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=EL#%,20,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-182-F92,TS,MPa,620,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=TS#MPa,620,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-182-F92,TS,ksi,90,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=TS#ksi,90,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-182-F92,YS,MPa,440,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=YS#MPa,440,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-182-F92,YS,ksi,64,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=YS#ksi,64,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-234-WP1,EL,%,22,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP1#Property=El#%,22,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP1,TS,ksi,55,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP1#Property=UTS#ksi,55 [380],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP1,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP1#Property=YS#ksi,30 [205],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP11,EL,%,22,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP11CL1,CL2,CL3#Property=El#%",22,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP11,TS,ksi,75,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP11CL1,CL2,CL3#Property=UTS#ksi",75 [515],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP11,YS,ksi,45,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP11CL1,CL2,CL3#Property=YS#ksi",45 [310],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP115-CL1,EL,%,15,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP115CL1#Property=El#%,15,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP115-CL1,TS,ksi,85,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP115CL1#Property=UTS#ksi,85 [585],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP115-CL1,YS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP115CL1#Property=YS#ksi,60 [415],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP12-CL1,EL,%,22,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP12CL1#Property=El#%,22,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP12-CL1,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP12CL1#Property=UTS#ksi,60 [415],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP12-CL1,YS,ksi,32,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP12CL1#Property=YS#ksi,32 [220],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP12-CL2,EL,%,22,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP12CL2#Property=El#%,22,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP12-CL2,TS,ksi,65,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP12CL2#Property=UTS#ksi,65 [450],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP12-CL2,YS,ksi,35,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP12CL2#Property=YS#ksi,35 [240],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP22,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP22CL1,CL3#Property=El#%",20,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP22,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP22CL1,CL3#Property=UTS#ksi",60 [415],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP22,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP22CL1,CL3#Property=YS#ksi",30 [205],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP24,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP24#Property=El#%,20,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP24,TS,ksi,85,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP24#Property=UTS#ksi,85 [585],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP24,YS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP24#Property=YS#ksi,60 [415],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP5,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP5#Property=El#%,20,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP5,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP5#Property=UTS#ksi,60 [415],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP5,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP5#Property=YS#ksi,30 [205],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP9,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP9#Property=El#%,20,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP9,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP9#Property=UTS#ksi,60 [415],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP9,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP9#Property=YS#ksi,30 [205],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP91,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP91Type1andType2,WP911#Property=El#%",20,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP91,TS,ksi,90,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP91Type1andType2,WP911#Property=UTS#ksi",90 [620],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP91,YS,ksi,64,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP91Type1andType2,WP911#Property=YS#ksi",64 [440],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP92,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP92#Property=El#%,20,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP92,TS,ksi,85,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP92#Property=UTS#ksi,85 [585],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WP92,YS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP92#Property=YS#ksi,60 [415],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WPB,EL,%,22,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WPB#Property=El#%,22,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WPB,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WPB#Property=UTS#ksi,60 [415],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WPB,YS,ksi,35,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WPB#Property=YS#ksi,35 [240],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WPC,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WPC#Property=El#%,20,6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WPC,TS,ksi,70,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WPC#Property=UTS#ksi,70 [485],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-234-WPC,YS,ksi,40,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WPC#Property=YS#ksi,40 [275],6dd5573369a6f79a7c079ed4403be08c22cd06ea4f9aec7f5e0bf47879409301
-SA-335-P1,TS,MPa,380,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P1#Property=UTS#MPa,380,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P1,TS,ksi,55,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P1#Property=UTS#ksi,55,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P1,YS,MPa,205,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P1#Property=YS#MPa,205,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P1,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P1#Property=YS#ksi,30,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P11,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P11#Property=EL#%,20,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P11,TS,MPa,415,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P11#Property=TS#MPa,415,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P11,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P11#Property=TS#ksi,60,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P11,YS,MPa,205,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P11#Property=YS#MPa,205,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P11,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P11#Property=YS#ksi,30,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P12,TS,MPa,415,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P12#Property=UTS#MPa,415,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P12,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P12#Property=UTS#ksi,60,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P12,YS,MPa,220,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P12#Property=YS#MPa,220,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P12,YS,ksi,32,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P12#Property=YS#ksi,32,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P122,TS,MPa,620,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P122#Property=UTS#MPa,620,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P122,TS,ksi,90,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P122#Property=UTS#ksi,90,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P122,YS,MPa,400,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P122#Property=YS#MPa,400,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P122,YS,ksi,58,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P122#Property=YS#ksi,58,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P2,TS,MPa,380,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P2#Property=UTS#MPa,380,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P2,TS,ksi,55,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P2#Property=UTS#ksi,55,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P2,YS,MPa,205,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P2#Property=YS#MPa,205,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P2,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P2#Property=YS#ksi,30,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P22,TS,MPa,415,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P22#Property=UTS#MPa,415,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P22,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P22#Property=UTS#ksi,60,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P22,YS,MPa,205,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P22#Property=YS#MPa,205,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P22,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P22#Property=YS#ksi,30,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P24,TS,MPa,585,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P24#Property=UTS#MPa,585,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P24,TS,ksi,85,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P24#Property=UTS#ksi,85,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P24,YS,MPa,415,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P24#Property=YS#MPa,415,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P24,YS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P24#Property=YS#ksi,60,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P36-CL2,TS,MPa,660,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P36Class2#Property=UTS#MPa,660,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P36-CL2,TS,ksi,95.5,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P36Class2#Property=UTS#ksi,95.5,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P36-CL2,YS,MPa,460,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P36Class2#Property=YS#MPa,460,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P36-CL2,YS,ksi,68.3,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P36Class2#Property=YS#ksi,68.3,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P91,TS,MPa,585,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=UTS#MPa,585,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P91,TS,ksi,85,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=UTS#ksi,85,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P91,YS,MPa,415,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=YS#MPa,415,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P91,YS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=YS#ksi,60,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P911,TS,MPa,620,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P911P36ClassI#Property=UTS#MPa,620,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P911,TS,ksi,90,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P911P36ClassI#Property=UTS#ksi,90,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P911,YS,MPa,440,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P911P36ClassI#Property=YS#MPa,440,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P911,YS,ksi,64,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P911P36ClassI#Property=YS#ksi,64,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P92,TS,MPa,620,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=UTS#MPa,620,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P92,TS,ksi,90,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=UTS#ksi,90,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P92,YS,MPa,440,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=YS#MPa,440,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
-SA-335-P92,YS,ksi,64,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=YS#ksi,64,ffb6d4fee55e0feaf7e6b24b8b919962aecf4663ba18260f61fd27d0ec54f7e5
+grade,property,unit,min,max,specimen,source_file,anchor,snippet
+SA-105,EL,%,22,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table2#Grade=SA-105#Property=EL#%,22
+SA-105,TS,ksi,70,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table2#Grade=SA-105#Property=TS#ksi,70 | 40
+SA-105,YS,ksi,36,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-105_SA-105M.md,Table2#Grade=SA-105#Property=YS#ksi,"Yield strength, min. (ksi [MPa]) | 30 (205)"
+SA-106-A,TS,ksi,48000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=A#Property=UTS#ksi,48 000 [330]
+SA-106-A,YS,ksi,30000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=A#Property=YS#ksi,30 000 [205]
+SA-106-B,TS,ksi,60000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=B#Property=UTS#ksi,60 000 [415]
+SA-106-B,YS,ksi,35000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=B#Property=YS#ksi,35 000 [240]
+SA-106-C,TS,ksi,70000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=C#Property=UTS#ksi,70 000 [485]
+SA-106-C,YS,ksi,40000,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-106_SA-106M.md,Table2#Grade=C#Property=YS#ksi,40 000 [275]
+SA-182-F11,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F11Class2#Property=EL#%,F 11 Class 2 | 70 [480] | 40 [275] | 20 | 45 | 143–207
+SA-182-F11,HARDNESS_HBW,HBW,143,207,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F11Class2#Property=HBW,F 11 Class 2 | 70 [480] | 40 [275] | 20 | 45 | 143–207
+SA-182-F11,RA,%,45,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F11Class2#Property=RA#%,F 11 Class 2 | 70 [480] | 40 [275] | 20 | 45 | 143–207
+SA-182-F11,TS,ksi,70,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F11Class2#Property=TS#ksi,F 11 Class 2 | 70 [480] | 40 [275] | 20 | 45 | 143–207
+SA-182-F11,YS,ksi,40,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F11Class2#Property=YS#ksi,F 11 Class 2 | 70 [480] | 40 [275] | 20 | 45 | 143–207
+SA-182-F22,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=EL#%,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207
+SA-182-F22,HARDNESS_HBW,HBW,156,207,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=HBW,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207
+SA-182-F22,RA,%,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=RA#%,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207
+SA-182-F22,TS,ksi,75,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=TS#ksi,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207
+SA-182-F22,YS,ksi,45,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=YS#ksi,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207
+SA-182-F91,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=EL#%,20
+SA-182-F91,TS,MPa,585,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=TS#MPa,585
+SA-182-F91,TS,ksi,85,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=TS#ksi,85
+SA-182-F91,YS,MPa,415,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=YS#MPa,415
+SA-182-F91,YS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=YS#ksi,60
+SA-182-F92,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=EL#%,20
+SA-182-F92,TS,MPa,620,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=TS#MPa,620
+SA-182-F92,TS,ksi,90,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=TS#ksi,90
+SA-182-F92,YS,MPa,440,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=YS#MPa,440
+SA-182-F92,YS,ksi,64,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=YS#ksi,64
+SA-234-WP1,EL,%,22,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP1#Property=El#%,22
+SA-234-WP1,TS,ksi,55,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP1#Property=UTS#ksi,55 [380]
+SA-234-WP1,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP1#Property=YS#ksi,30 [205]
+SA-234-WP11,EL,%,22,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP11CL1,CL2,CL3#Property=El#%",22
+SA-234-WP11,TS,ksi,75,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP11CL1,CL2,CL3#Property=UTS#ksi",75 [515]
+SA-234-WP11,YS,ksi,45,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP11CL1,CL2,CL3#Property=YS#ksi",45 [310]
+SA-234-WP115-CL1,EL,%,15,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP115CL1#Property=El#%,15
+SA-234-WP115-CL1,TS,ksi,85,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP115CL1#Property=UTS#ksi,85 [585]
+SA-234-WP115-CL1,YS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP115CL1#Property=YS#ksi,60 [415]
+SA-234-WP12-CL1,EL,%,22,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP12CL1#Property=El#%,22
+SA-234-WP12-CL1,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP12CL1#Property=UTS#ksi,60 [415]
+SA-234-WP12-CL1,YS,ksi,32,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP12CL1#Property=YS#ksi,32 [220]
+SA-234-WP12-CL2,EL,%,22,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP12CL2#Property=El#%,22
+SA-234-WP12-CL2,TS,ksi,65,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP12CL2#Property=UTS#ksi,65 [450]
+SA-234-WP12-CL2,YS,ksi,35,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP12CL2#Property=YS#ksi,35 [240]
+SA-234-WP22,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP22CL1,CL3#Property=El#%",20
+SA-234-WP22,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP22CL1,CL3#Property=UTS#ksi",60 [415]
+SA-234-WP22,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP22CL1,CL3#Property=YS#ksi",30 [205]
+SA-234-WP24,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP24#Property=El#%,20
+SA-234-WP24,TS,ksi,85,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP24#Property=UTS#ksi,85 [585]
+SA-234-WP24,YS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP24#Property=YS#ksi,60 [415]
+SA-234-WP5,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP5#Property=El#%,20
+SA-234-WP5,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP5#Property=UTS#ksi,60 [415]
+SA-234-WP5,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP5#Property=YS#ksi,30 [205]
+SA-234-WP9,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP9#Property=El#%,20
+SA-234-WP9,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP9#Property=UTS#ksi,60 [415]
+SA-234-WP9,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP9#Property=YS#ksi,30 [205]
+SA-234-WP91,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP91Type1andType2,WP911#Property=El#%",20
+SA-234-WP91,TS,ksi,90,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP91Type1andType2,WP911#Property=UTS#ksi",90 [620]
+SA-234-WP91,YS,ksi,64,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,"Table2#Grade=WP91Type1andType2,WP911#Property=YS#ksi",64 [440]
+SA-234-WP92,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP92#Property=El#%,20
+SA-234-WP92,TS,ksi,85,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP92#Property=UTS#ksi,85 [585]
+SA-234-WP92,YS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WP92#Property=YS#ksi,60 [415]
+SA-234-WPB,EL,%,22,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WPB#Property=El#%,22
+SA-234-WPB,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WPB#Property=UTS#ksi,60 [415]
+SA-234-WPB,YS,ksi,35,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WPB#Property=YS#ksi,35 [240]
+SA-234-WPC,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WPC#Property=El#%,20
+SA-234-WPC,TS,ksi,70,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WPC#Property=UTS#ksi,70 [485]
+SA-234-WPC,YS,ksi,40,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-234_SA-234M.md,Table2#Grade=WPC#Property=YS#ksi,40 [275]
+SA-335-P1,TS,MPa,380,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P1#Property=UTS#MPa,380
+SA-335-P1,TS,ksi,55,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P1#Property=UTS#ksi,55
+SA-335-P1,YS,MPa,205,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P1#Property=YS#MPa,205
+SA-335-P1,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P1#Property=YS#ksi,30
+SA-335-P11,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P11#Property=EL#%,20
+SA-335-P11,TS,MPa,415,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P11#Property=TS#MPa,415
+SA-335-P11,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P11#Property=TS#ksi,60
+SA-335-P11,YS,MPa,205,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P11#Property=YS#MPa,205
+SA-335-P11,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P11#Property=YS#ksi,30
+SA-335-P12,TS,MPa,415,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P12#Property=UTS#MPa,415
+SA-335-P12,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P12#Property=UTS#ksi,60
+SA-335-P12,YS,MPa,220,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P12#Property=YS#MPa,220
+SA-335-P12,YS,ksi,32,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P12#Property=YS#ksi,32
+SA-335-P122,TS,MPa,620,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P122#Property=UTS#MPa,620
+SA-335-P122,TS,ksi,90,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P122#Property=UTS#ksi,90
+SA-335-P122,YS,MPa,400,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P122#Property=YS#MPa,400
+SA-335-P122,YS,ksi,58,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P122#Property=YS#ksi,58
+SA-335-P2,TS,MPa,380,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P2#Property=UTS#MPa,380
+SA-335-P2,TS,ksi,55,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P2#Property=UTS#ksi,55
+SA-335-P2,YS,MPa,205,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P2#Property=YS#MPa,205
+SA-335-P2,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P2#Property=YS#ksi,30
+SA-335-P22,TS,MPa,415,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P22#Property=UTS#MPa,415
+SA-335-P22,TS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P22#Property=UTS#ksi,60
+SA-335-P22,YS,MPa,205,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P22#Property=YS#MPa,205
+SA-335-P22,YS,ksi,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P22#Property=YS#ksi,30
+SA-335-P24,TS,MPa,585,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P24#Property=UTS#MPa,585
+SA-335-P24,TS,ksi,85,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P24#Property=UTS#ksi,85
+SA-335-P24,YS,MPa,415,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P24#Property=YS#MPa,415
+SA-335-P24,YS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P24#Property=YS#ksi,60
+SA-335-P36-CL2,TS,MPa,660,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P36Class2#Property=UTS#MPa,660
+SA-335-P36-CL2,TS,ksi,95.5,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P36Class2#Property=UTS#ksi,95.5
+SA-335-P36-CL2,YS,MPa,460,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P36Class2#Property=YS#MPa,460
+SA-335-P36-CL2,YS,ksi,68.3,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P36Class2#Property=YS#ksi,68.3
+SA-335-P91,TS,MPa,585,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=UTS#MPa,585
+SA-335-P91,TS,ksi,85,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=UTS#ksi,85
+SA-335-P91,YS,MPa,415,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=YS#MPa,415
+SA-335-P91,YS,ksi,60,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=YS#ksi,60
+SA-335-P911,TS,MPa,620,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P911P36ClassI#Property=UTS#MPa,620
+SA-335-P911,TS,ksi,90,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P911P36ClassI#Property=UTS#ksi,90
+SA-335-P911,YS,MPa,440,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P911P36ClassI#Property=YS#MPa,440
+SA-335-P911,YS,ksi,64,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P911P36ClassI#Property=YS#ksi,64
+SA-335-P92,TS,MPa,620,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=UTS#MPa,620
+SA-335-P92,TS,ksi,90,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=UTS#ksi,90
+SA-335-P92,YS,MPa,440,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=YS#MPa,440
+SA-335-P92,YS,ksi,64,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P92#Property=YS#ksi,64

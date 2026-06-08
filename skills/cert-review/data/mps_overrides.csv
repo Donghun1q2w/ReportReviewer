@@ -1,24 +1,24 @@
-mps_id,grade,category,parameter,operator,value,unit,source_file,anchor,snippet,sha256
-MPS-ANDRES-335P91-Mn,SA-335-P91,Chemistry,Mn_max,<=,0.50,%,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Restricted_Chemistry#Mn_max, ,f8d18ab649a085e5f9c92fc4a94cabc47972e77a1d12a7578ecdb264d201f387
-MPS-ANDRES-335P91-S,SA-335-P91,Chemistry,S_max,<=,0.005,%,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Restricted_Chemistry#S_max, ,f8d18ab649a085e5f9c92fc4a94cabc47972e77a1d12a7578ecdb264d201f387
-MPS-ANDRES-335P91-Ni,SA-335-P91,Chemistry,Ni_max,<=,0.20,%,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Restricted_Chemistry#Ni_max, ,f8d18ab649a085e5f9c92fc4a94cabc47972e77a1d12a7578ecdb264d201f387
-MPS-ANDRES-335P91-TS,SA-335-P91,Mechanical,TS_min,>=,630,MPa,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Mechanical#TS_min, ,f8d18ab649a085e5f9c92fc4a94cabc47972e77a1d12a7578ecdb264d201f387
-MPS-ANDRES-335P91-NT,SA-335-P91,HeatTreatment,Normalizing_temp,range,1040-1080,C,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Heat_Treatment#Normalizing, ,f8d18ab649a085e5f9c92fc4a94cabc47972e77a1d12a7578ecdb264d201f387
-MPS-ANDRES-335P91-TT,SA-335-P91,HeatTreatment,Tempering_temp,range,750-780,C,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Heat_Treatment#Tempering, ,f8d18ab649a085e5f9c92fc4a94cabc47972e77a1d12a7578ecdb264d201f387
-MPS-ANDRES-335P91-DF,SA-335-P91,Microstructure,delta_ferrite_max,<=,5,%,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Microstructure#delta_ferrite_max, ,f8d18ab649a085e5f9c92fc4a94cabc47972e77a1d12a7578ecdb264d201f387
-MPS-ANDRES-335P91-NAl,SA-335-P91,TraceElement,N_Al_ratio_min,>=,4,,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Restricted_Chemistry#N_Al_ratio_min, ,f8d18ab649a085e5f9c92fc4a94cabc47972e77a1d12a7578ecdb264d201f387
-MPS-ANDRES-335P91-HB,SA-335-P91,Mechanical,Hardness_HBW,range,200-248,HBW,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Mechanical#Hardness_HBW, ,f8d18ab649a085e5f9c92fc4a94cabc47972e77a1d12a7578ecdb264d201f387
-MPS-ANDRES-335P92-Pb,SA-335-P92,TraceElement,Pb_max,<=,0.001,%,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Restricted_Chemistry#Pb_max, ,1e77d9b3a8889c84eb6a7c1426ffdff701a3ba20db9dc2307ab461dd90c0754d
-MPS-ANDRES-335P92-Sn,SA-335-P92,TraceElement,Sn_max,<=,0.01,%,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Restricted_Chemistry#Sn_max, ,1e77d9b3a8889c84eb6a7c1426ffdff701a3ba20db9dc2307ab461dd90c0754d
-MPS-ANDRES-335P92-As,SA-335-P92,TraceElement,As_max,<=,0.02,%,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Restricted_Chemistry#As_max, ,1e77d9b3a8889c84eb6a7c1426ffdff701a3ba20db9dc2307ab461dd90c0754d
-MPS-ANDRES-335P92-Sb,SA-335-P92,TraceElement,Sb_max,<=,0.003,%,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Restricted_Chemistry#Sb_max, ,1e77d9b3a8889c84eb6a7c1426ffdff701a3ba20db9dc2307ab461dd90c0754d
-MPS-ANDRES-335P92-Bi,SA-335-P92,TraceElement,Bi_max,<=,0.01,%,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Restricted_Chemistry#Bi_max, ,1e77d9b3a8889c84eb6a7c1426ffdff701a3ba20db9dc2307ab461dd90c0754d
-MPS-ANDRES-335P92-DF,SA-335-P92,Microstructure,delta_ferrite_max,<=,2.5,%,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Microstructure#delta_ferrite_max, ,1e77d9b3a8889c84eb6a7c1426ffdff701a3ba20db9dc2307ab461dd90c0754d
-MPS-ANDRES-335P92-NAl,SA-335-P92,TraceElement,N_Al_ratio_min,>=,4,,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Restricted_Chemistry#N_Al_ratio_min, ,1e77d9b3a8889c84eb6a7c1426ffdff701a3ba20db9dc2307ab461dd90c0754d
-MPS-ANDRES-335P92-NT,SA-335-P92,HeatTreatment,Normalizing_temp,range,1050-1080,C,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Heat_Treatment#Normalizing, ,1e77d9b3a8889c84eb6a7c1426ffdff701a3ba20db9dc2307ab461dd90c0754d
-MPS-ANDRES-335P92-TT,SA-335-P92,HeatTreatment,Tempering_temp,range,760-780,C,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Heat_Treatment#Tempering, ,1e77d9b3a8889c84eb6a7c1426ffdff701a3ba20db9dc2307ab461dd90c0754d
-MPS-ANDRES-335P92-TS,SA-335-P92,Mechanical,TS_min,>=,620,MPa,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Mechanical#TS_min, ,1e77d9b3a8889c84eb6a7c1426ffdff701a3ba20db9dc2307ab461dd90c0754d
-MPS-ANDRES-335P92-HB,SA-335-P92,Mechanical,Hardness_HBW,range,200-248,HBW,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Mechanical#Hardness_HBW, ,1e77d9b3a8889c84eb6a7c1426ffdff701a3ba20db9dc2307ab461dd90c0754d
-MPS-SH-MNA-A335P22-CEF,SA-106-X,Chemistry,CEF_max,<=,0.10,%,standard inspection MPS cleanup data/20/MPS-SH-MNA-A335P22_Rev.0.pdf,Chemistry#CEF_max, ,079494157019200d88169517bc7ebdccd95b488c5df8f6c6309d5abeb004d7c5
-MPS-SH-MNA-A105-MT,SA-105,NDE,MT_butt_weld,==,required,,standard inspection MPS cleanup data/11/MPS-SH-MNA-A105_Rev.0.pdf,NDE#MT_butt_weld, ,733633d80e807276834b804173986de593ca17d12a889e2149842de434c31619
-MPS-SH-MNA-A105-PT,SA-105,NDE,PT_butt_weld,==,required,,standard inspection MPS cleanup data/11/MPS-SH-MNA-A105_Rev.0.pdf,NDE#PT_butt_weld, ,733633d80e807276834b804173986de593ca17d12a889e2149842de434c31619
+mps_id,grade,category,parameter,operator,value,unit,source_file,anchor,snippet
+MPS-ANDRES-335P91-Mn,SA-335-P91,Chemistry,Mn_max,<=,0.50,%,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Restricted_Chemistry#Mn_max, 
+MPS-ANDRES-335P91-S,SA-335-P91,Chemistry,S_max,<=,0.005,%,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Restricted_Chemistry#S_max, 
+MPS-ANDRES-335P91-Ni,SA-335-P91,Chemistry,Ni_max,<=,0.20,%,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Restricted_Chemistry#Ni_max, 
+MPS-ANDRES-335P91-TS,SA-335-P91,Mechanical,TS_min,>=,630,MPa,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Mechanical#TS_min, 
+MPS-ANDRES-335P91-NT,SA-335-P91,HeatTreatment,Normalizing_temp,range,1040-1080,C,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Heat_Treatment#Normalizing, 
+MPS-ANDRES-335P91-TT,SA-335-P91,HeatTreatment,Tempering_temp,range,750-780,C,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Heat_Treatment#Tempering, 
+MPS-ANDRES-335P91-DF,SA-335-P91,Microstructure,delta_ferrite_max,<=,5,%,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Microstructure#delta_ferrite_max, 
+MPS-ANDRES-335P91-NAl,SA-335-P91,TraceElement,N_Al_ratio_min,>=,4,,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Restricted_Chemistry#N_Al_ratio_min, 
+MPS-ANDRES-335P91-HB,SA-335-P91,Mechanical,Hardness_HBW,range,200-248,HBW,standard inspection MPS cleanup data/4/16. MPS-ANDRES-335P91.pdf,Mechanical#Hardness_HBW, 
+MPS-ANDRES-335P92-Pb,SA-335-P92,TraceElement,Pb_max,<=,0.001,%,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Restricted_Chemistry#Pb_max, 
+MPS-ANDRES-335P92-Sn,SA-335-P92,TraceElement,Sn_max,<=,0.01,%,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Restricted_Chemistry#Sn_max, 
+MPS-ANDRES-335P92-As,SA-335-P92,TraceElement,As_max,<=,0.02,%,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Restricted_Chemistry#As_max, 
+MPS-ANDRES-335P92-Sb,SA-335-P92,TraceElement,Sb_max,<=,0.003,%,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Restricted_Chemistry#Sb_max, 
+MPS-ANDRES-335P92-Bi,SA-335-P92,TraceElement,Bi_max,<=,0.01,%,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Restricted_Chemistry#Bi_max, 
+MPS-ANDRES-335P92-DF,SA-335-P92,Microstructure,delta_ferrite_max,<=,2.5,%,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Microstructure#delta_ferrite_max, 
+MPS-ANDRES-335P92-NAl,SA-335-P92,TraceElement,N_Al_ratio_min,>=,4,,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Restricted_Chemistry#N_Al_ratio_min, 
+MPS-ANDRES-335P92-NT,SA-335-P92,HeatTreatment,Normalizing_temp,range,1050-1080,C,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Heat_Treatment#Normalizing, 
+MPS-ANDRES-335P92-TT,SA-335-P92,HeatTreatment,Tempering_temp,range,760-780,C,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Heat_Treatment#Tempering, 
+MPS-ANDRES-335P92-TS,SA-335-P92,Mechanical,TS_min,>=,620,MPa,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Mechanical#TS_min, 
+MPS-ANDRES-335P92-HB,SA-335-P92,Mechanical,Hardness_HBW,range,200-248,HBW,standard inspection MPS cleanup data/4/17. MPS-ANDRES-335P92.pdf,Mechanical#Hardness_HBW, 
+MPS-SH-MNA-A335P22-CEF,SA-106-X,Chemistry,CEF_max,<=,0.10,%,standard inspection MPS cleanup data/20/MPS-SH-MNA-A335P22_Rev.0.pdf,Chemistry#CEF_max, 
+MPS-SH-MNA-A105-MT,SA-105,NDE,MT_butt_weld,==,required,,standard inspection MPS cleanup data/11/MPS-SH-MNA-A105_Rev.0.pdf,NDE#MT_butt_weld, 
+MPS-SH-MNA-A105-PT,SA-105,NDE,PT_butt_weld,==,required,,standard inspection MPS cleanup data/11/MPS-SH-MNA-A105_Rev.0.pdf,NDE#PT_butt_weld, 

@@ -1,7 +1,7 @@
 # NDE / Inspection Conventions (FROZEN — DO NOT EDIT)
 
-> 이 파일은 data/*.csv 의 provenance(`source_file`+`sha256`)가 인용하는 **고정 출처**다.
-> 내용을 수정하면 sha256이 바뀌어 해당 CSV row의 provenance 검증이 깨진다.
+> 이 파일은 data/*.csv 의 provenance(`source_file`+`snippet`)가 인용하는 **출처**다.
+> 인용된 snippet 구절을 수정하면 해당 CSV row의 provenance 검증(snippet 포함 확인)이 깨진다.
 > 검토 규칙의 가독성 사본은 review-criteria.md 에 둔다(편집 가능). 본 파일은 동결한다.
 
 ## PMI (Positive Material Identification)

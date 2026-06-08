@@ -1,6 +1,6 @@
 # Review Criteria (도메인 규칙 참조)
 
-본 문서는 **Claude compliance 판정 시점에만** 참조하는 도메인 규칙 정리본이다. 모든 수치는 플러그인의 `data/*.csv`의 출처 4종 메타데이터를 통해 ref_code/MPS에서 인용된 것이며, 본 문서에 적은 수치는 가독성을 위한 사본일 뿐 **런타임 판정에는 CSV만 사용**한다.
+본 문서는 **Claude compliance 판정 시점에만** 참조하는 도메인 규칙 정리본이다. 모든 수치는 플러그인의 `data/*.csv`의 출처 메타데이터(3종)를 통해 ref_code/MPS에서 인용된 것이며, 본 문서에 적은 수치는 가독성을 위한 사본일 뿐 **런타임 판정에는 CSV만 사용**한다.
 
 > **출력 표기 규약**: 보고서 문구·findings·notes·doc_checks 등 모든 출력 문구에 절 기호(섹션 부호)를 사용하지 말 것. 본 문서의 기준 조항을 참조할 때는 `기준 3.1`, `기준 11.2`처럼 "기준 N" 형식으로 표기한다.
 
@@ -8,7 +8,7 @@
 
 | 단계 | 규칙 |
 |---|---|
-| CSV row import | 4종 메타(source_file/anchor/snippet/sha256) 없으면 거부 |
+| CSV row import | 메타 3종(source_file/anchor/snippet) 없으면 거부 |
 | Python 결정적 판정 | CSV에서만 수치 인용. 코드에 하드코딩된 수치 사용 금지 |
 | Claude 보조 판정 | cert body / MPS 텍스트에서 evidence를 인용하지 않으면 finding 작성 금지 |
 | 출력 직전 검증 | source_validator가 evidence 없는 finding을 dropped_findings.json으로 격리 |
