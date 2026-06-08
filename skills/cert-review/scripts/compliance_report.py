@@ -150,6 +150,26 @@ def _merge_label(ws, start: int, end: int, label: str) -> None:
     ws.cell(row=start, column=1).alignment = Alignment(wrap_text=True, vertical="center")
 
 
+def _finalize_cells(ws) -> None:
+    """Vertically CENTER every populated cell and enable text WRAPPING, keeping
+    each cell's existing horizontal alignment and column widths unchanged.
+
+    openpyxl leaves cells with no explicit `vertical` rendering as bottom in
+    Excel; data cells were written without alignment, so the whole report body
+    was bottom-aligned and long text overflowed. This pass fixes both.
+    """
+    for row in ws.iter_rows():
+        for cell in row:
+            if cell.value in (None, ""):
+                continue
+            cur = cell.alignment
+            cell.alignment = Alignment(
+                horizontal=cur.horizontal,   # preserve existing left/right alignment
+                vertical="center",           # bottom -> middle
+                wrap_text=True,              # wrap long text within the column
+            )
+
+
 def build_compliance_report(review_path: Path, out_path: Path) -> Path:
     review = json.loads(Path(review_path).read_text(encoding="utf-8"))
     case_id = review.get("case_id", "")
@@ -250,6 +270,11 @@ def build_compliance_report(review_path: Path, out_path: Path) -> Path:
         cc.alignment = Alignment(wrap_text=True)
         ws.cell(row=r, column=6).value = f.get("action", "")
         r += 1
+
+    # Vertically center + wrap every populated cell across all sheets
+    # (column widths and horizontal alignment are left unchanged).
+    for ws in wb.worksheets:
+        _finalize_cells(ws)
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
