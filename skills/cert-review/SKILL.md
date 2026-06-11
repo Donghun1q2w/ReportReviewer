@@ -151,24 +151,43 @@ python -m scripts.cli prep-inputs --case <case_id>
 
 ### 절차
 
-1. `.cache/<case>/png/` 아래의 모든 cert PNG를 `Read` 툴로 하나씩 연다.
-2. 필요 시 `standard inspection MPS cleanup data/<case>/`의 MPS 스캔도 `Read`로 판독한다(식별·적합성 대조용).
-3. 각 페이지에서 다음 항목을 판독하여 구조화 JSON으로 기록한다:
+1. **[전 페이지 의무]** `.cache/<case>/png/` 아래의 **모든** cert 페이지 PNG(`<stem>_pNN.png`)를 `Read` 툴로 빠짐없이 연다. 표가 없는 페이지(사진·첨부·표지)도 건너뛰지 말고 entry를 만들고 `remarks`에 그 성격을 기록한다(예: `"(첨부 사진 페이지 — 표 데이터 없음)"`). **일부 페이지만 골라 읽는 대표 샘플링 금지** — 후반 페이지의 치수표·NDE 첨부·이종 grade 품목이 누락되는 주 원인이다.
+2. **[대형 cert 분할]** 페이지가 15장을 넘으면 페이지 구간을 나눠 서브에이전트로 병렬 추출하고(구간당 ≤15p), 구간 결과를 `page_extraction`에 병합한다. 병합 후 페이지 수가 PNG 수와 일치해야 한다.
+3. 필요 시 `standard inspection MPS cleanup data/<case>/`의 MPS 스캔도 `Read`로 판독한다(식별·적합성 대조용).
+4. 각 페이지에서 다음 항목을 판독하여 구조화 JSON으로 기록한다:
    - `header`: PO번호, 성적서번호, vendor, spec, grade, heat_no, 치수(OD×WT), 수량, 길이
    - `chemistry`: Heat/Product Analysis 구분, 원소별 값 (단위: %)
    - `mechanical`: TS/YS(MPa), EL(%), RA(%), 경도(HBW/HRC), impact(J at °C)
    - `heat_treatment`: 각 단계별 온도(°C), 유지시간(min), 냉각 방법
    - `nde`: UT/MT/PT/PMI 등 수행 여부, notch 규격, 결과
-   - `remarks`: 특기사항 텍스트 목록
+   - `remarks`: 특기사항 텍스트 목록 — **Remark/각주/별표(①②·^주석)·범례(legend) 줄을 반드시 포함**한다. PMI·ferrite·Code Case·열처리 세부조건은 표가 아니라 Remark/각주에 기재되는 관행이 있다.
    - `confidence`: `high` / `medium` / `low`
-4. 산출물 형식은 `references/extraction-schema.json`을 따른다.
+5. **[spec 번호 verbatim 전사 — 자동 보정 금지]** 성적서에 인용된 모든 표준 규격 번호(제품 spec, 원소재 spec, 시험규격)는 **화면에 보이는 문자 그대로** 전사한다. 존재하지 않는 규격으로 보여도 사전지식으로 비슷한 유효 규격에 맞춰 고치지 말 것 — 오기 자체가 검토 대상 신호다. 추정 정규화가 필요하면 `remarks`에 `"표기 원문: <보이는 그대로> (<유효 규격> 오기 추정)"` 식으로 원문과 추정을 분리 기록한다.
+6. **[(Grade, Class, Heat) 전수 인벤토리]** 추출 완료 후 전 페이지 header를 종합해 `(grade, class, heat_no)` 고유 조합 목록을 만든다. 멀티 품목 성적서에서 Grade가 같아도 Class가 다르면 별개 품목이다. 이 인벤토리는 Phase 4에서 materials[] 커버리지 검증에 사용한다.
+7. 산출물 형식은 `references/extraction-schema.json`을 따른다.
    파일명: `.cache/<case>/<cert_stem>_extracted.json`. `channels` 섹션은 **`body`만** 사용한다:
-   - `body.engine = "claude-vision"`, `body.pages = [1, 2, ...]`
-5. **화학성분 컬럼 정합성 검증** (OCR 직후 수행):
+   - `body.engine = "claude-vision"`, `body.pages = [1, 2, ...]` (= page_extraction이 커버하는 전 페이지)
+8. **화학성분 컬럼 정합성 검증** (OCR 직후 수행):
    - 각 원소값이 해당 grade의 통상 범위와 물리적으로 부합하는지 확인
      (예: P91의 Cr ≈ 8–9%, P22의 Cr ≈ 2%, A106의 C < 0.35%).
    - Cev 표기가 있으면 역산 일치 확인: `Cev = C + Mn/6 + (Cr+Mo+V)/5 + (Ni+Cu)/15`
    - 불일치 시 OCR 재시도 대신 **해당 PNG를 다시 `Read`로 열어 명시 재판독**하고 `confidence: "low"` 기록.
+   - 한 글자가 판정을 가르는 값(H/N, 0/O, 1/I, 5/6 혼동, 컬럼 정렬)은 해당 셀을 **crop/zoom 재판독**으로 확정한다.
+
+---
+
+## Phase 2.5: check-extraction (완전성 게이트)
+
+**목적**: Phase 2가 모든 렌더 페이지를 실제로 추출했는지 결정적으로 검증한다. **이 게이트를 통과하기 전에는 Phase 4 검토를 시작하지 않는다.**
+
+```powershell
+python -m scripts.cli check-extraction --case <case_id>
+# 전체 케이스
+python -m scripts.cli check-extraction --all
+```
+
+- 각 cert PDF에 대해: `page_extraction`이 모든 렌더 페이지 번호를 커버하고, `channels.body.pages`가 커버 페이지와 일치해야 exit 0.
+- 빈 추출(`page_extraction: []`) 또는 페이지 누락 시 exit 1 — **Phase 2로 돌아가 누락 페이지를 추출**한다.
 
 ---
 
@@ -208,7 +227,12 @@ findings를 생성한다. Claude가 직접 판단하는 compliance 단일 경로
 - **기준 3.1**: A106/SA-106 C/Mn 각주 조정 Mn max 적용 (오탐 금지).
 - **기준 11.2**: cert.header.spec ↔ MPS 발주 spec 표준 계열 불일치(ASME SA vs ASTM A)는 `Identification` FAIL.
 - **MPS 우선**: ASTM/ASME 기준과 MPS가 다르면 MPS 우선(`mps_overrides.csv`).
-- 카테고리/severity/누락 vs 불일치 판정은 `references/review-criteria.md` 참조.
+- **기준 14 (자체 인쇄 기준 자기정합)**: 성적서가 스스로 인쇄한 기준값(Standard value/Spec min·max 행)이 있으면 **모든 결과값 행을 그 인쇄 기준과 행·열 단위로 1:1 대조**한다. 결과값이 자체 표기 기준을 벗어나면 — 외부 Code CSV 기준으로 합격이라도 — `기준 미달` 또는 `기준값 오기`로 FAIL/DocumentError 보고. 더 느슨한 Code 값으로 묵시 대체 판정 금지.
+- **기준 15 (spec 표기 검증)**: 추출된 verbatim 규격 번호를 보유 카탈로그(`grade_routing.csv`, `code_edition_map.csv`)와 대조한다. 카탈로그·실존 표준 목록에 없는 규격 번호는 유사 규격으로 치환하지 말고 `DocumentError — 존재하지 않거나 확인 불가한 규격 표기(재발행 대상)`로 보고한다.
+- **기준 16 (Class 제한 및 인벤토리 커버리지)**: Phase 2의 (Grade, Class, Heat) 인벤토리 전 조합이 materials[]에 매핑됐는지 검증한다. MPS의 Class 제한 문구('특정 Class만 허용' / '타 Class 불허' 류)와 수기/적색 개정 노트는 체크리스트로 승격해, 측정값뿐 아니라 품목의 Class 표기와 인쇄 수검기준 범위 자체를 MPS와 대조한다.
+- **NDE 적용성 분리 보고**: NDE 요건이 제품 형상(단부 구성 등)으로 트리거되는 경우, (a) "해당 제품이 트리거 특성(예: butt welding end)을 가짐"이라는 적용성 판정과 (b) "요건 미이행"이라는 위반 판정을 **각각 별도 finding으로** 기재한다.
+- **교차대조 인계 노트**: 보고서 헤더에 MTC/Cert No., PO, 발행일, Heat와 함께 Denoted/Detail List가 커버하는 **PO Item 번호 전체와 수량을 빠짐없이** 열거하고, `MTC 번호-커버 항목 매핑은 동일 PO의 타 MTC와 교차 대조 필요` INFO 노트를 출력한다 (단일 케이스 입력으로 잡을 수 없는 MTC 번호 중복·재사용을 사람이 잡을 수 있게).
+- 카테고리/severity/누락 vs 불일치 판정과 **finding 발행 게이트(기준 17)·검토자 표준 어휘(기준 18)**는 `references/review-criteria.md` 참조.
 
 ### 출처 인용 규칙 (C2)
 
@@ -267,16 +291,18 @@ python -m scripts.cli evaluate --all
 ## 전체 실행 흐름 요약
 
 ```
-Phase 0  build-manifest          → manifest.json (cert/MPS 인덱스)
-Phase 1  prep-inputs --case <id> → .cache/<id>/png/*.png (body)
-Phase 2  [CLAUDE VISION OCR]     → .cache/<id>/*_extracted.json (channels: body)
-          Read PNG(cert+MPS) → transcribe  (Python OCR 금지)
-Phase 3  validate-refs           → exit 0 필수
-Phase 4  [COMPLIANCE 검토]        → .cache/<id>/<id>_review.json
-          CSV/ref_code/MPS 비교 + 도메인 규칙(기준 3.1·11.2·MPS 우선), evidence 필수
-Phase 5  [compliance_report]     → output/reports/<id>/<id>_MTC_Review.xlsx (6 시트)
-Phase 6  evaluate --case <id>    → output/eval/<id>_eval.json
-          (또는 --all)              comments.md 기준 recall/precision/case_pass
+Phase 0   build-manifest          → manifest.json (cert/MPS 인덱스)
+Phase 1   prep-inputs --case <id> → .cache/<id>/png/*.png (body)
+Phase 2   [CLAUDE VISION OCR]     → .cache/<id>/*_extracted.json (channels: body)
+           전 페이지 Read(cert+MPS) → transcribe  (Python OCR 금지, 대표 샘플링 금지)
+Phase 2.5 check-extraction        → exit 0 필수 (전 페이지 추출 게이트)
+Phase 3   validate-refs           → exit 0 필수
+Phase 4   [COMPLIANCE 검토]        → .cache/<id>/<id>_review.json
+           CSV/ref_code/MPS 비교 + 도메인 규칙(기준 3.1·11.2·14·15·16·MPS 우선)
+           + finding 발행 게이트(기준 17) + 표준 어휘(기준 18), evidence 필수
+Phase 5   [compliance_report]     → output/reports/<id>/<id>_MTC_Review.xlsx (6 시트)
+Phase 6   evaluate --case <id>    → output/eval/<id>_eval.json
+           (또는 --all)              comments.md 기준 recall/precision/case_pass
 ```
 
 ---

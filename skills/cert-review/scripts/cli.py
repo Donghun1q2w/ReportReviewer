@@ -222,6 +222,49 @@ def cmd_validate_refs(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_check_extraction(args: argparse.Namespace) -> int:
+    """Phase 2.5: extraction completeness gate.
+
+    Verifies every rendered cert page has a page_extraction entry before the
+    compliance review (Phase 4) runs. Exit 0 only when ALL checked certs are
+    fully covered — the review must not proceed on a partial extraction.
+    """
+    from scripts.extraction_check import check_cases  # noqa: PLC0415
+
+    if args.all:
+        if not CERT_DIR.exists():
+            print(f"[ERROR] Cert dir not found: {CERT_DIR}", file=sys.stderr)
+            return 1
+        case_ids = sorted(
+            [p.name for p in CERT_DIR.iterdir() if p.is_dir()],
+            key=_case_sort_key,
+        )
+    else:
+        case_ids = [args.case]
+
+    agg = check_cases(case_ids, CACHE_DIR)
+    for case in agg["cases"]:
+        status = "OK" if case["ok"] else "FAIL"
+        line = f"[{status}] case {case['case_id']}:"
+        details = []
+        for c in case["certs"]:
+            details.append(
+                f"{c['stem'][:40]}… {c['extracted_pages']}/{c['png_pages']}p"
+                if len(c["stem"]) > 40 else
+                f"{c['stem']} {c['extracted_pages']}/{c['png_pages']}p"
+            )
+        print(line, "; ".join(details) if details else "(no certs)")
+        for issue in case["issues"]:
+            print(f"     issue: {issue}")
+        for c in case["certs"]:
+            for issue in c["issues"]:
+                print(f"     {c['stem']}: {issue}")
+
+    verdict = "OK" if agg["ok"] else "FAIL"
+    print(f"[{verdict}] check-extraction: {agg['n_cases'] - agg['n_failed']}/{agg['n_cases']} case(s) complete")
+    return 0 if agg["ok"] else 1
+
+
 def cmd_evaluate(args: argparse.Namespace) -> int:
     """Phase 7: GT match (per-case comments.md) + rubric diagnostic.
 
@@ -301,6 +344,12 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_prep_inputs)
 
     sub.add_parser("validate-refs", help="Validate provenance of all reference CSVs").set_defaults(func=cmd_validate_refs)
+
+    p = sub.add_parser("check-extraction", help="Gate: every rendered page must be extracted")
+    group = p.add_mutually_exclusive_group(required=True)
+    group.add_argument("--case")
+    group.add_argument("--all", action="store_true")
+    p.set_defaults(func=cmd_check_extraction)
 
     p = sub.add_parser("evaluate", help="Evaluate against GT (strict + rubric)")
     group = p.add_mutually_exclusive_group(required=True)

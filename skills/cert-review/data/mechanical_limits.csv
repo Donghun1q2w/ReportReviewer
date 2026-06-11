@@ -13,11 +13,16 @@ SA-182-F11,HARDNESS_HBW,HBW,143,207,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_P
 SA-182-F11,RA,%,45,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F11Class2#Property=RA#%,F 11 Class 2 | 70 [480] | 40 [275] | 20 | 45 | 143–207
 SA-182-F11,TS,ksi,70,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F11Class2#Property=TS#ksi,F 11 Class 2 | 70 [480] | 40 [275] | 20 | 45 | 143–207
 SA-182-F11,YS,ksi,40,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F11Class2#Property=YS#ksi,F 11 Class 2 | 70 [480] | 40 [275] | 20 | 45 | 143–207
-SA-182-F22,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=EL#%,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207
-SA-182-F22,HARDNESS_HBW,HBW,156,207,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=HBW,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207
-SA-182-F22,RA,%,30,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=RA#%,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207
-SA-182-F22,TS,ksi,75,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=TS#ksi,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207
-SA-182-F22,YS,ksi,45,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-182_SA-182M.md,Table3#Grade=F22Class1#Property=YS#ksi,F 22 Class 1 | 75 [515] | 45 [310] | 20 | 30 | 156–207
+SA-182-F22CL1,TS,ksi,60,,,ref_code/output_astm/ASTM_A182_A182M_14b/raw_pages/pages_0009-0010.md,Table2#Grade=F22Class1#Property=TS,| F 22 Class 1 | 60 [415] | 30 [205] | 20 | 45 | 170 max |
+SA-182-F22CL1,YS,ksi,30,,,ref_code/output_astm/ASTM_A182_A182M_14b/raw_pages/pages_0009-0010.md,Table2#Grade=F22Class1#Property=YS,| F 22 Class 1 | 60 [415] | 30 [205] | 20 | 45 | 170 max |
+SA-182-F22CL1,EL,%,20,,,ref_code/output_astm/ASTM_A182_A182M_14b/raw_pages/pages_0009-0010.md,Table2#Grade=F22Class1#Property=EL,| F 22 Class 1 | 60 [415] | 30 [205] | 20 | 45 | 170 max |
+SA-182-F22CL1,RA,%,45,,,ref_code/output_astm/ASTM_A182_A182M_14b/raw_pages/pages_0009-0010.md,Table2#Grade=F22Class1#Property=RA,| F 22 Class 1 | 60 [415] | 30 [205] | 20 | 45 | 170 max |
+SA-182-F22CL1,HARDNESS_HBW,HBW,,170,,ref_code/output_astm/ASTM_A182_A182M_14b/raw_pages/pages_0009-0010.md,Table2#Grade=F22Class1#Property=HARDNESS_HBW,| F 22 Class 1 | 60 [415] | 30 [205] | 20 | 45 | 170 max |
+SA-182-F22CL3,TS,ksi,75,,,ref_code/output_astm/ASTM_A182_A182M_14b/raw_pages/pages_0009-0010.md,Table2#Grade=F22Class3#Property=TS,| F 22 Class 3 | 75 [515] | 45 [310] | 20 | 30 | 156–207 |
+SA-182-F22CL3,YS,ksi,45,,,ref_code/output_astm/ASTM_A182_A182M_14b/raw_pages/pages_0009-0010.md,Table2#Grade=F22Class3#Property=YS,| F 22 Class 3 | 75 [515] | 45 [310] | 20 | 30 | 156–207 |
+SA-182-F22CL3,EL,%,20,,,ref_code/output_astm/ASTM_A182_A182M_14b/raw_pages/pages_0009-0010.md,Table2#Grade=F22Class3#Property=EL,| F 22 Class 3 | 75 [515] | 45 [310] | 20 | 30 | 156–207 |
+SA-182-F22CL3,RA,%,30,,,ref_code/output_astm/ASTM_A182_A182M_14b/raw_pages/pages_0009-0010.md,Table2#Grade=F22Class3#Property=RA,| F 22 Class 3 | 75 [515] | 45 [310] | 20 | 30 | 156–207 |
+SA-182-F22CL3,HARDNESS_HBW,HBW,156,207,,ref_code/output_astm/ASTM_A182_A182M_14b/raw_pages/pages_0009-0010.md,Table2#Grade=F22Class3#Property=HARDNESS_HBW,| F 22 Class 3 | 75 [515] | 45 [310] | 20 | 30 | 156–207 |
 SA-182-F91,EL,%,20,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=EL#%,20
 SA-182-F91,TS,MPa,585,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=TS#MPa,585
 SA-182-F91,TS,ksi,85,,,ref_code/output_sec2_pta_1of2/ASME_SEC_II_PTA_1of2_2023/SA-335_SA-335M.md,Table3#Grade=P91Type1andType2#Property=TS#ksi,85

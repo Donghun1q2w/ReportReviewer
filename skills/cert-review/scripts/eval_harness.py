@@ -391,9 +391,9 @@ def parse_comments(case_id: str, work_dir: Path) -> list[dict]:
             if sig and (c["topic_tokens"] & sig):
                 target = c
                 break
-            # (c) attach a CONCEPT-FREE pointer note (no domain concept — empty
-            #     like 'Butt welding end' / '실측값은 범위 밖', or a bare value
-            #     like '932Mpa' / '94.7<=T<=96.9' / '0.15') to a concept-bearing
+            # (c) attach a CONCEPT-FREE pointer note (no domain concept — a
+            #     short phrase naming no attribute, or a bare value/range
+            #     like '932Mpa' / '12.3<=T<=45.6') to a concept-bearing
             #     note on the SAME page: the reviewer split one concern into two
             #     same-page annotations, one naming the attribute (thickness /
             #     MT-PT / tensile) and one pointing at the value.

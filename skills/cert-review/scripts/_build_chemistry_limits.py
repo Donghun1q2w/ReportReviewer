@@ -11,7 +11,9 @@ Grade normalisation map (seed grade -> canonical ASME spec grade):
   F11CL2    -> SA-182-F11   (standard class)
   WP11CL1   -> SA-234-WP11  (CL1 is the common class used in piping)
   WP22CL1   -> SA-234-WP22
-  WP911     -> SA-234-WP91  (SA-234 grade, has full P/S/Ni rows)
+  WP911     -> SA-234-WP911 (Grade 911 = 9Cr-1Mo-1W; a DIFFERENT grade from
+               WP91 — do NOT merge into SA-234-WP91, its Cr 8.5 floor and
+               C 0.09 floor would misjudge real WP91 certs)
   WP92      -> SA-234-WP92
   SA-105, SA-106-A/B/C -> kept as-is
 
@@ -54,7 +56,7 @@ GRADE_RENAME: dict[str, str] = {
     # SA-234 fittings
     "WP11CL1": "SA-234-WP11",
     "WP22CL1": "SA-234-WP22",
-    "WP911":   "SA-234-WP91",
+    "WP911":   "SA-234-WP911",
     "WP92":    "SA-234-WP92",
 }
 
