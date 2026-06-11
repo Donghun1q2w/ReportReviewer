@@ -13,6 +13,27 @@ python -m scripts.cli build-manifest
 python -m scripts.cli evaluate --all
 ```
 
+## 속도 최적화 서브커맨드 (반복 루프용)
+
+```powershell
+# 캐시 게이트: 추출 신선도 판정 (fresh | legacy | stale | missing)
+#   fresh/legacy = Phase 1·2 스킵(기존 추출 재사용), stale/missing = 재추출
+python -m scripts.cli cache-status --all
+
+# prep-inputs: PDF sha256+dpi 사이드카 기록, 무변경 시 렌더 스킵 (--force로 강제, --dpi로 해상도 지정)
+python -m scripts.cli prep-inputs --case 4 --dpi 200
+
+# crop: 모호 셀 영역만 고DPI 재렌더 (bbox는 0.0~1.0 분수 좌표, 좌상단 원점)
+python -m scripts.cli crop --case 4 --stem <stem> --page 2 --bbox 0.10,0.42,0.55,0.50 --dpi 300
+
+# limits: 케이스별 관련 기준값 행만 provenance 포함으로 추출 (Phase 4 컨텍스트 다이어트)
+python -m scripts.cli limits --case 4
+```
+
+> 다중 케이스(`--all`)는 Phase 0(build-manifest)·Phase 3(validate-refs)을 1회 선실행한 뒤,
+> 케이스 단위 서브에이전트로 동시성 6~10 fan-out하여 wall-clock을 단축한다. 자세한 규칙은 `SKILL.md`의
+> **병렬 실행 규칙** 절 참조. 품질 의무(전 페이지 의무·verbatim 전사·evidence 필수)는 그대로 유지된다.
+
 ## 입력 (3폴더만)
 
 | 입력 | 출처 | 도구 | 산출물 |

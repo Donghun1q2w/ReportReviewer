@@ -140,4 +140,172 @@ def check_cases(case_ids: list[str], cache_root: Path) -> dict:
     }
 
 
-__all__ = ["check_case", "check_cases"]
+# ---------------------------------------------------------------------------
+# Cache freshness status (speed-optimization gate)
+# ---------------------------------------------------------------------------
+#
+# Per cert PDF, decide whether Phase-1/Phase-2 may be skipped on a re-run:
+#   missing : no _extracted.json, or page_extraction is empty.
+#   stale   : sidecar sha256 != current PDF sha256, OR the PNG set is incomplete.
+#   legacy  : extraction is complete (coverage OK) but there is no sidecar — the
+#             sidecar is backfilled from the current PDF sha256 and reported.
+#   fresh   : extraction complete + sidecar present + sidecar sha256 matches.
+#
+# Resolving the current PDF sha256 needs the cert PDF, whose work-dir-relative
+# path is recorded in the extracted JSON's ``cert_file``. Reading the cert PDF is
+# inside the input whitelist (cert cleanup + .cache only).
+
+def _resolve_cert_pdf(data: dict, work_dir: Path | None) -> Path | None:
+    """Resolve the cert PDF path from an extracted JSON's ``cert_file`` field."""
+    if work_dir is None:
+        return None
+    cert_file = data.get("cert_file")
+    if not isinstance(cert_file, str) or not cert_file:
+        return None
+    return (Path(work_dir) / cert_file.replace("\\", "/")).resolve()
+
+
+def cache_status_case(
+    case_id: str,
+    cache_root: Path,
+    work_dir: Path | None = None,
+    *,
+    backfill: bool = True,
+) -> dict:
+    """Classify each cert PDF in a case as missing/stale/legacy/fresh.
+
+    Reuses ``check_case`` for the page-coverage verdict (no duplicate logic) and
+    adds the sidecar/sha256/PNG-set checks. When ``backfill`` is True a complete
+    extraction that lacks a sidecar gets one written (``backfilled: true``,
+    ``dpi: null``) and is reported as ``legacy``.
+    """
+    from scripts.prep_inputs import (  # noqa: PLC0415
+        expected_pngs,
+        load_sidecar,
+        sidecar_path,
+    )
+    from scripts.source_validator import compute_sha256_fresh  # noqa: PLC0415
+
+    case_cache = Path(cache_root) / str(case_id)
+    png_dir = case_cache / "png"
+
+    coverage = check_case(case_id, cache_root)
+    cov_by_stem = {c["stem"]: c for c in coverage["certs"]}
+
+    certs: list[dict] = []
+    for stem, cov in sorted(cov_by_stem.items()):
+        extracted_path = case_cache / f"{stem}_extracted.json"
+        data: dict = {}
+        if extracted_path.exists():
+            try:
+                data = json.loads(extracted_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                data = {}
+
+        extraction_complete = bool(cov["ok"])
+        has_extracted = extracted_path.exists() and bool(data.get("page_extraction"))
+
+        scar_path = sidecar_path(case_cache, stem)
+        sidecar = load_sidecar(scar_path)
+
+        cur_sha = ""
+        cert_pdf = _resolve_cert_pdf(data, work_dir)
+        if cert_pdf is not None and cert_pdf.exists():
+            cur_sha = compute_sha256_fresh(cert_pdf)
+
+        # PNG completeness vs the sidecar's recorded rendered_pages.
+        png_set_ok = True
+        if sidecar and isinstance(sidecar.get("rendered_pages"), int):
+            png_set_ok = all(
+                p.exists()
+                for p in expected_pngs(png_dir, stem, sidecar["rendered_pages"])
+            )
+
+        sha_matches = bool(sidecar) and bool(cur_sha) and sidecar.get("pdf_sha256") == cur_sha
+        backfilled = False
+
+        if not has_extracted:
+            status = "missing"
+        elif sidecar is None:
+            if extraction_complete:
+                status = "legacy"
+                if backfill:
+                    scar_path.write_text(
+                        json.dumps(
+                            {
+                                "pdf_sha256": cur_sha,
+                                "dpi": None,
+                                "rendered_pages": cov["png_pages"],
+                                "backfilled": True,
+                            },
+                            ensure_ascii=False,
+                            indent=2,
+                        ),
+                        encoding="utf-8",
+                    )
+                    backfilled = True
+            else:
+                status = "stale"
+        elif (cur_sha and not sha_matches) or not png_set_ok:
+            status = "stale"
+        elif extraction_complete:
+            status = "fresh"
+        else:
+            status = "stale"
+
+        certs.append({
+            "stem": stem,
+            "status": status,
+            "png_pages": cov["png_pages"],
+            "extracted_pages": cov["extracted_pages"],
+            "coverage_ok": extraction_complete,
+            "sidecar": bool(sidecar) or backfilled,
+            "backfilled": backfilled,
+            "sha_matches": sha_matches,
+        })
+
+    case_issues = list(coverage["issues"])
+    return {
+        "case_id": str(case_id),
+        "certs": certs,
+        "issues": case_issues,
+        "counts": _status_counts(certs),
+    }
+
+
+def _status_counts(certs: list[dict]) -> dict[str, int]:
+    counts = {"fresh": 0, "stale": 0, "legacy": 0, "missing": 0}
+    for c in certs:
+        counts[c["status"]] = counts.get(c["status"], 0) + 1
+    return counts
+
+
+def cache_status_cases(
+    case_ids: list[str],
+    cache_root: Path,
+    work_dir: Path | None = None,
+    *,
+    backfill: bool = True,
+) -> dict:
+    """Aggregate cache-status across cases."""
+    results = [
+        cache_status_case(c, cache_root, work_dir, backfill=backfill)
+        for c in case_ids
+    ]
+    totals = {"fresh": 0, "stale": 0, "legacy": 0, "missing": 0}
+    for r in results:
+        for k, v in r["counts"].items():
+            totals[k] = totals.get(k, 0) + v
+    return {
+        "n_cases": len(results),
+        "totals": totals,
+        "cases": results,
+    }
+
+
+__all__ = [
+    "check_case",
+    "check_cases",
+    "cache_status_case",
+    "cache_status_cases",
+]

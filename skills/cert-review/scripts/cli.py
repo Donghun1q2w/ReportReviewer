@@ -146,16 +146,21 @@ def cmd_prep_inputs(args: argparse.Namespace) -> int:
         case_id=args.case,
         work_dir=WORK_DIR,
         cache_root=CACHE_DIR,
-        dpi=200,
+        dpi=args.dpi,
+        force=args.force,
     )
 
     total_pngs = sum(c["png_count"] for c in summary["certs"])
+    n_rendered = sum(1 for c in summary["certs"] if c.get("rendered"))
+    n_skipped = len(summary["certs"]) - n_rendered
     print(
         f"[OK] prep-inputs --case {args.case}: "
-        f"{len(summary['certs'])} cert(s), {total_pngs} PNG(s)"
+        f"{len(summary['certs'])} cert(s), {total_pngs} PNG(s) "
+        f"({n_rendered} rendered, {n_skipped} cached)"
     )
     for c in summary["certs"]:
-        print(f"     {c['cert_pdf']} -> {c['png_count']} png")
+        tag = "render" if c.get("rendered") else "cached"
+        print(f"     [{tag}] {c['cert_pdf']} -> {c['png_count']} png")
         print(f"        skeleton: {c['skeleton_path']}")
     for note in summary["notes"]:
         print(f"     note: {note}")
@@ -265,6 +270,112 @@ def cmd_check_extraction(args: argparse.Namespace) -> int:
     return 0 if agg["ok"] else 1
 
 
+def cmd_cache_status(args: argparse.Namespace) -> int:
+    """Report per-cert cache freshness (missing/stale/legacy/fresh).
+
+    Reuses extraction_check's coverage logic and adds the sidecar/sha256/PNG
+    checks. A complete extraction without a sidecar is backfilled (legacy). The
+    machine-readable verdict is written to .cache/cache_status.json. Exit 0
+    unless an I/O error prevents reporting.
+    """
+    from scripts.extraction_check import cache_status_cases  # noqa: PLC0415
+
+    if args.all:
+        if not CERT_DIR.exists():
+            print(f"[ERROR] Cert dir not found: {CERT_DIR}", file=sys.stderr)
+            return 1
+        case_ids = sorted(
+            [p.name for p in CERT_DIR.iterdir() if p.is_dir()],
+            key=_case_sort_key,
+        )
+    else:
+        case_ids = [args.case]
+
+    try:
+        agg = cache_status_cases(case_ids, CACHE_DIR, WORK_DIR)
+    except OSError as e:
+        print(f"[ERROR] cache-status I/O failure: {e}", file=sys.stderr)
+        return 1
+
+    for case in agg["cases"]:
+        for c in case["certs"]:
+            stem = c["stem"]
+            label = f"{stem[:46]}…" if len(stem) > 46 else stem
+            print(
+                f"[{c['status']:7}] case {case['case_id']:>7}  "
+                f"{c['extracted_pages']}/{c['png_pages']}p  {label}"
+            )
+        for issue in case["issues"]:
+            print(f"     case {case['case_id']} issue: {issue}")
+
+    t = agg["totals"]
+    print(
+        f"[OK] cache-status: {agg['n_cases']} case(s) — "
+        f"fresh={t['fresh']} legacy={t['legacy']} stale={t['stale']} missing={t['missing']}"
+    )
+
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        status_path = CACHE_DIR / "cache_status.json"
+        status_path.write_text(
+            json.dumps(agg, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        print(f"     report: {status_path}")
+    except OSError as e:
+        print(f"[ERROR] could not write cache_status.json: {e}", file=sys.stderr)
+        return 1
+
+    return 0
+
+
+def cmd_crop(args: argparse.Namespace) -> int:
+    """High-DPI crop of a fractional bbox region of one cert page."""
+    from scripts.crop import crop_region  # noqa: PLC0415
+
+    try:
+        out_path = crop_region(
+            case_id=args.case,
+            stem=args.stem,
+            page=args.page,
+            bbox=args.bbox,
+            work_dir=WORK_DIR,
+            cache_root=CACHE_DIR,
+            dpi=args.dpi,
+        )
+    except (FileNotFoundError, ValueError) as e:
+        print(f"[ERROR] crop: {e}", file=sys.stderr)
+        return 1
+
+    print(f"[OK] crop --case {args.case} --stem {args.stem} --page {args.page}")
+    print(str(out_path))
+    return 0
+
+
+def cmd_limits(args: argparse.Namespace) -> int:
+    """Emit the per-case reference-limit pack (relevant CSV rows only)."""
+    from scripts.refpack import build_limits_pack  # noqa: PLC0415
+
+    try:
+        pack = build_limits_pack(
+            case_id=args.case,
+            work_dir=WORK_DIR,
+            cache_root=CACHE_DIR,
+            data_dir=PLUGIN_DIR / "data",
+        )
+    except FileNotFoundError as e:
+        print(f"[ERROR] limits: {e}", file=sys.stderr)
+        return 1
+
+    print(f"[OK] limits --case {args.case}:")
+    for name in sorted(pack["limits"]):
+        print(f"     {name}: {len(pack['limits'][name])} row(s)")
+    if pack["unrouted"]:
+        print(f"     unrouted grades: {pack['unrouted']}")
+    print(f"     report: {pack['output_path']}")
+    return 0
+
+
 def cmd_evaluate(args: argparse.Namespace) -> int:
     """Phase 7: GT match (per-case comments.md) + rubric diagnostic.
 
@@ -341,6 +452,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("prep-inputs", help="Prepare body (PNG) inputs for a case")
     p.add_argument("--case", required=True)
+    p.add_argument("--dpi", type=int, default=200, help="Render DPI (default 200)")
+    p.add_argument("--force", action="store_true", help="Re-render even if cached")
     p.set_defaults(func=cmd_prep_inputs)
 
     sub.add_parser("validate-refs", help="Validate provenance of all reference CSVs").set_defaults(func=cmd_validate_refs)
@@ -350,6 +463,24 @@ def main(argv: list[str] | None = None) -> int:
     group.add_argument("--case")
     group.add_argument("--all", action="store_true")
     p.set_defaults(func=cmd_check_extraction)
+
+    p = sub.add_parser("cache-status", help="Per-cert cache freshness (missing/stale/legacy/fresh)")
+    group = p.add_mutually_exclusive_group(required=True)
+    group.add_argument("--case")
+    group.add_argument("--all", action="store_true")
+    p.set_defaults(func=cmd_cache_status)
+
+    p = sub.add_parser("crop", help="High-DPI crop of a fractional bbox region of a cert page")
+    p.add_argument("--case", required=True)
+    p.add_argument("--stem", required=True)
+    p.add_argument("--page", type=int, required=True)
+    p.add_argument("--bbox", required=True, help="x0,y0,x1,y1 as 0.0-1.0 fractions")
+    p.add_argument("--dpi", type=int, default=300, help="Render DPI (default 300)")
+    p.set_defaults(func=cmd_crop)
+
+    p = sub.add_parser("limits", help="Per-case reference-limit pack (relevant CSV rows)")
+    p.add_argument("--case", required=True)
+    p.set_defaults(func=cmd_limits)
 
     p = sub.add_parser("evaluate", help="Evaluate against GT (strict + rubric)")
     group = p.add_mutually_exclusive_group(required=True)

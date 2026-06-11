@@ -42,6 +42,32 @@ Claude Vision/판단 단계를 명확히 구분한다.
 
 ---
 
+## 병렬 실행 규칙 (다중 케이스 fan-out)
+
+> **[MANDATORY — 다중 케이스 실행 시 본 절을 먼저 적용한다.]** 단일 케이스 실행은 기존 Phase 0→6 순차 흐름을 그대로 따른다.
+
+지배적 비용은 Phase 2 Claude Vision OCR(케이스당 약 11~12분)이며, 케이스 간에는 의존이 없다. 따라서 다중 케이스(`--all` 또는 케이스 묶음) 실행 시 **케이스 단위 서브에이전트 fan-out**으로 wall-clock을 단축한다. 토큰량·절차·품질 의무는 단일 케이스와 동일하다 — 병렬화는 속도 규칙일 뿐 어떤 품질 의무도 대체하지 않는다.
+
+| 단계 | 실행 위치 | 사유 |
+|---|---|---|
+| **Phase 0 build-manifest** | **fan-out 이전에 1회** | `manifest.json`은 공유 단일 파일 — 동시 쓰기 충돌 방지 |
+| **Phase 3 validate-refs** | **fan-out 이전에 1회** | `data/*.csv` 출처 검증은 전 케이스 공통, exit 0 선결 게이트 |
+| **Phase 1→2→2.5→4** | **케이스별 서브에이전트가 자기완결 수행** | 산출물이 `.cache/<case>/`로 분리되어 충돌 없음 |
+| **게이트 수합** | **본 루프** | 각 케이스 에이전트의 Phase 2.5 / Phase 4 게이트 결과만 모아 집계 |
+
+### 절차
+
+1. **공유 단계 선실행**: fan-out 이전에 `build-manifest`(Phase 0)와 `validate-refs`(Phase 3)를 **각각 1회** 실행한다. `validate-refs` exit 0이 아니면 fan-out을 시작하지 않는다.
+2. **케이스 단위 fan-out**: manifest의 케이스를 **동시성 6~10**으로 케이스별 서브에이전트에 배분한다. 각 서브에이전트는 자기 케이스의 Phase 1→2→2.5→4를 자기완결로 수행한다. 케이스별 산출물(`.cache/<case>/png/`, `<stem>_extracted.json`, `<case>_review.json` 등)은 경로가 분리되어 있어 쓰기 충돌이 없다.
+3. **게이트만 수합**: 본 루프는 각 케이스 에이전트로부터 Phase 2.5(check-extraction)·Phase 4(review.json 산출) 결과만 수합해 집계한다. 케이스 내부의 전사·판독 세부는 서브에이전트 책임이다.
+4. **케이스 에이전트 전달 컨텍스트(최소)**: 다음만 전달하면 자기완결 실행이 가능하다.
+   - **케이스 id** (예: `--case 4`)
+   - **플러그인(skill) 디렉토리 경로** (CLI 실행 기준, `scripts/cli.py`의 부모)
+   - **준수 제약**: 불변 제약 C1~C8, 입력 3폴더 화이트리스트, 본 SKILL.md의 Phase 1→2→2.5→4 절차 전체(전 페이지 의무·verbatim 전사·evidence 필수 포함)
+5. **Phase 5·6은 수합 후**: 보고서(Phase 5)·평가(Phase 6)는 전 케이스 review.json이 모인 뒤 본 루프 또는 `evaluate --all`로 일괄 수행한다.
+
+---
+
 ## Directory Layout (디렉토리 구조)
 
 ```
@@ -56,8 +82,12 @@ Claude Vision/판단 단계를 명확히 구분한다.
     ├── manifest.json                               ← build-manifest 산출물 (자동 생성)
     ├── .cache/<case>/                              ← 중간 산출물
     │   ├── png/                                    ← prep-inputs 렌더링 PNG
+    │   ├── <stem>_prep.json                        ← prep-inputs 사이드카 (PDF sha256 + dpi, 캐시 게이트용)
+    │   ├── crops/                                  ← crop CLI 고DPI 영역 PNG (모호 셀 재판독)
     │   ├── <stem>_extracted.json                   ← Vision OCR 산출물 (channels: body)
+    │   ├── <case>_limits.json                      ← limits CLI 산출 (관련 기준값 행 + provenance)
     │   └── <case>_review.json                      ← compliance 검토 findings
+    ├── .cache/cache_status.json                    ← cache-status 산출 (케이스별 fresh/legacy/stale/missing)
     ├── data/                                       ← 기준값 CSV (출처 메타 3종 필수)
     │   ├── chemistry_limits.csv
     │   ├── mechanical_limits.csv
@@ -98,10 +128,23 @@ Set-Location "<플러그인 디렉토리: 본 SKILL.md가 있는 곳>"
 python -m scripts.cli build-manifest
 
 # Phase 1: 단일 케이스 입력 준비 (cert cleanup → PNG body)
+#   PDF sha256+dpi 사이드카(<stem>_prep.json) 기록, 무변경 시 렌더 스킵
 python -m scripts.cli prep-inputs --case 4
+#   강제 재렌더 / DPI 지정
+python -m scripts.cli prep-inputs --case 4 --dpi 200 --force
+
+# 캐시 게이트: 케이스별 추출 신선도 판정 (fresh | legacy | stale | missing)
+python -m scripts.cli cache-status --case 4
+python -m scripts.cli cache-status --all
+
+# 모호 셀 재판독: 고DPI 영역 crop (bbox는 0.0~1.0 분수 좌표, 좌상단 원점)
+python -m scripts.cli crop --case 4 --stem <stem> --page 2 --bbox 0.10,0.42,0.55,0.50 --dpi 300
 
 # Phase 3: 참조 CSV 출처 검증
 python -m scripts.cli validate-refs
+
+# Phase 4: 케이스별 관련 기준값 행만 추출 (provenance 3종 포함)
+python -m scripts.cli limits --case 4
 
 # Phase 6: 단일 케이스 평가 (comments.md 기준)
 python -m scripts.cli evaluate --case 4
@@ -131,13 +174,31 @@ python -m scripts.cli build-manifest
 
 **목적**: 케이스별 성적서 PDF를 페이지별 PNG로 렌더링하여 body 채널 입력을 준비한다.
 
+> **[MANDATORY — 캐시 게이트] Phase 1 이전에 `cache-status`를 먼저 실행한다.**
+>
+> ```powershell
+> python -m scripts.cli cache-status --case <case_id>
+> ```
+>
+> | 상태 | 의미 | 처리 |
+> |---|---|---|
+> | `fresh` | PDF sha256+dpi 일치, 추출 완전 | **Phase 1·2를 스킵**하고 기존 `<stem>_extracted.json`을 그대로 사용 |
+> | `legacy` | 추출은 완전하나 구버전 사이드카(자동 backfill됨) | `fresh`와 **동일 취급** — Phase 1·2 스킵 |
+> | `stale` | PDF sha256 불일치(원본이 바뀜) 또는 dpi 불일치 | Phase 1·2 **수행**(재렌더 + 재추출) |
+> | `missing` | 추출 산출물 없음 | Phase 1·2 **수행** |
+>
+> - PDF가 바뀌면 `<stem>_prep.json`의 sha256과 현재 PDF가 불일치하여 자동으로 `stale`이 되고, 재추출이 강제된다. 즉 낡은 추출이 묵시 재사용되지 않는다.
+> - **Phase 2.5 check-extraction 게이트는 캐시 히트(fresh/legacy) 여부와 무관하게 항상 실행한다.** 캐시 스킵이 완전성 검증을 면제하지 않는다.
+> - 입력 무변경 재실행(evaluate 반복, 기준 개정 후 Phase 4만 재실행)에서는 전 케이스가 `fresh`/`legacy`가 되어 OCR Read가 0회로 떨어진다.
+
 ```powershell
 python -m scripts.cli prep-inputs --case <case_id>
 ```
 
 - `standard inspection Cert cleanup data/<case>/*.pdf`를 `pypdfium2`로 렌더링하여
-  `.cache/<case>/png/<stem>_p01.png`, `_p02.png`, … 를 생성한다 (DPI 200).
+  `.cache/<case>/png/<stem>_p01.png`, `_p02.png`, … 를 생성한다 (DPI 200, `--dpi`로 변경 가능).
 - 케이스별 추출 스켈레톤 JSON(`<stem>_extracted.json`)을 함께 작성한다 (Phase 2 Vision이 채움).
+- PDF의 `sha256`과 렌더 `dpi`를 사이드카 `.cache/<case>/<stem>_prep.json`에 기록한다. 동일 sha256+dpi이고 PNG가 모두 존재하면 재렌더를 스킵한다(`--force`로 강제 재렌더).
 - **cert cleanup 폴더만 읽는다.** rawdata 원본은 가드가 차단한다.
 
 ---
@@ -149,10 +210,12 @@ python -m scripts.cli prep-inputs --case <case_id>
 > **Python OCR 라이브러리는 사용 금지. 모델(Claude CLI 에이전트)이 PNG 이미지를 `Read` 툴로 직접
 > 열어 판독한다. `pytesseract`, `easyocr`, `paddleocr`, vision API 등 어떤 Python OCR도 호출 금지.**
 
+> **[캐시 게이트]** Phase 1의 `cache-status`가 `fresh`/`legacy`인 cert는 Phase 2를 **스킵**하고 기존 `<stem>_extracted.json`을 그대로 사용한다. `stale`/`missing`인 cert만 아래 절차를 수행한다. (스킵 여부와 무관하게 **Phase 2.5 게이트는 항상 실행**한다.)
+
 ### 절차
 
-1. **[전 페이지 의무]** `.cache/<case>/png/` 아래의 **모든** cert 페이지 PNG(`<stem>_pNN.png`)를 `Read` 툴로 빠짐없이 연다. 표가 없는 페이지(사진·첨부·표지)도 건너뛰지 말고 entry를 만들고 `remarks`에 그 성격을 기록한다(예: `"(첨부 사진 페이지 — 표 데이터 없음)"`). **일부 페이지만 골라 읽는 대표 샘플링 금지** — 후반 페이지의 치수표·NDE 첨부·이종 grade 품목이 누락되는 주 원인이다.
-2. **[대형 cert 분할]** 페이지가 15장을 넘으면 페이지 구간을 나눠 서브에이전트로 병렬 추출하고(구간당 ≤15p), 구간 결과를 `page_extraction`에 병합한다. 병합 후 페이지 수가 PNG 수와 일치해야 한다.
+1. **[전 페이지 의무 + 배치 Read]** `.cache/<case>/png/` 아래의 **모든** cert 페이지 PNG(`<stem>_pNN.png`)를 `Read` 툴로 빠짐없이 연다. **PNG는 한 메시지에 4~6장씩 병렬 `Read`로 연다**(페이지당 왕복을 4~6페이지당 1회로 줄인다). 단, **전사(transcribe)는 페이지별 entry로 빠짐없이 기록**한다 — 배치로 열어도 페이지 단위 기록 의무는 그대로다. 표가 없는 페이지(사진·첨부·표지)도 건너뛰지 말고 entry를 만들고 `remarks`에 그 성격을 기록한다(예: `"(첨부 사진 페이지 — 표 데이터 없음)"`). **일부 페이지만 골라 읽는 대표 샘플링 금지** — 후반 페이지의 치수표·NDE 첨부·이종 grade 품목이 누락되는 주 원인이다.
+2. **[대형 cert 분할]** 페이지가 8장을 넘으면 페이지 구간을 나눠 서브에이전트로 병렬 추출하고(구간당 ≤8p), 구간 결과를 `page_extraction`에 병합한다. 병합 후 페이지 수가 PNG 수와 일치해야 한다.
 3. 필요 시 `standard inspection MPS cleanup data/<case>/`의 MPS 스캔도 `Read`로 판독한다(식별·적합성 대조용).
 4. 각 페이지에서 다음 항목을 판독하여 구조화 JSON으로 기록한다:
    - `header`: PO번호, 성적서번호, vendor, spec, grade, heat_no, 치수(OD×WT), 수량, 길이
@@ -172,7 +235,11 @@ python -m scripts.cli prep-inputs --case <case_id>
      (예: P91의 Cr ≈ 8–9%, P22의 Cr ≈ 2%, A106의 C < 0.35%).
    - Cev 표기가 있으면 역산 일치 확인: `Cev = C + Mn/6 + (Cr+Mo+V)/5 + (Ni+Cu)/15`
    - 불일치 시 OCR 재시도 대신 **해당 PNG를 다시 `Read`로 열어 명시 재판독**하고 `confidence: "low"` 기록.
-   - 한 글자가 판정을 가르는 값(H/N, 0/O, 1/I, 5/6 혼동, 컬럼 정렬)은 해당 셀을 **crop/zoom 재판독**으로 확정한다.
+   - 한 글자가 판정을 가르는 값(H/N, 0/O, 1/I, 5/6 혼동, 컬럼 정렬)은 임시 스크립트를 작성하지 말고 **`crop` CLI로 해당 셀 영역만 고DPI 재렌더**하여 확정한다. bbox는 0.0~1.0 분수 좌표(좌상단 원점)다.
+     ```powershell
+     python -m scripts.cli crop --case <case_id> --stem <stem> --page <n> --bbox x0,y0,x1,y1 --dpi 300
+     ```
+     출력된 절대경로의 crop PNG(`.cache/<case>/crops/`)를 `Read`로 재판독하고, 재판독 결과와 `confidence`를 해당 셀에 기록한다.
 
 ---
 
@@ -210,6 +277,16 @@ python -m scripts.cli validate-refs
 
 **목적**: Phase 2 추출값을 ref_code/CSV 기준값 및 MPS 한계와 비교하고, 도메인 규칙을 적용하여
 findings를 생성한다. Claude가 직접 판단하는 compliance 단일 경로다.
+
+> **[비교 기준값 조회] Phase 4 시작 시 `limits --case <id>`를 먼저 실행한다.**
+>
+> ```powershell
+> python -m scripts.cli limits --case <case_id>
+> ```
+>
+> - 케이스 추출 인벤토리(grade·class)를 기반으로 관련 CSV 행만 추려 provenance 3종(`source_file`/`anchor`/`snippet`) 포함 JSON으로 `.cache/<case>/<case>_limits.json`에 산출한다. **수치는 여전히 CSV 유래이며 snippet/anchor가 보존되어 C2/C8을 충족한다.** CSV 원본 전체(590줄)를 스캔할 필요가 없다.
+> - 비교에는 `<case>_limits.json`의 행만 사용한다.
+> - 산출 JSON의 `unrouted`에 grade 라우팅 실패가 명시되면, **그 grade에 한해서만** CSV 원본(`data/*.csv`)·`references/review-criteria.md`로 수동 라우팅한다. (라우팅 성공 grade는 CSV 원본 재스캔 불필요.)
 
 ### 비교 대상
 
@@ -291,15 +368,23 @@ python -m scripts.cli evaluate --all
 ## 전체 실행 흐름 요약
 
 ```
-Phase 0   build-manifest          → manifest.json (cert/MPS 인덱스)
-Phase 1   prep-inputs --case <id> → .cache/<id>/png/*.png (body)
+[다중 케이스] Phase 0·3을 fan-out 이전에 1회 → 케이스별 서브에이전트 fan-out(동시성 6~10) → 게이트 수합
+[단일 케이스] 아래 순차 흐름
+
+Phase 0   build-manifest          → manifest.json (cert/MPS 인덱스)   ※ fan-out 전 1회
+Phase 3   validate-refs           → exit 0 필수                        ※ fan-out 전 1회
+──── 이하 케이스별(서브에이전트 자기완결) ────
+[GATE]    cache-status --case <id> → fresh/legacy = Phase 1·2 스킵, stale/missing = 수행
+Phase 1   prep-inputs --case <id> → .cache/<id>/png/*.png (body) + <stem>_prep.json (sha256+dpi)
 Phase 2   [CLAUDE VISION OCR]     → .cache/<id>/*_extracted.json (channels: body)
-           전 페이지 Read(cert+MPS) → transcribe  (Python OCR 금지, 대표 샘플링 금지)
-Phase 2.5 check-extraction        → exit 0 필수 (전 페이지 추출 게이트)
-Phase 3   validate-refs           → exit 0 필수
-Phase 4   [COMPLIANCE 검토]        → .cache/<id>/<id>_review.json
-           CSV/ref_code/MPS 비교 + 도메인 규칙(기준 3.1·11.2·14·15·16·MPS 우선)
+           PNG 4~6장씩 배치 Read(cert+MPS) → 페이지별 transcribe  (Python OCR 금지, 대표 샘플링 금지)
+           대형 cert(>8p) 구간 분할(≤8p) 병렬 추출 → 병합, 모호 셀은 crop CLI 고DPI 재판독
+Phase 2.5 check-extraction        → exit 0 필수 (전 페이지 추출 게이트, 캐시 히트와 무관하게 항상 실행)
+Phase 4   limits --case <id>      → .cache/<id>/<id>_limits.json (관련 기준값 행 + provenance)
+          [COMPLIANCE 검토]        → .cache/<id>/<id>_review.json
+           limits 행으로 비교 + 도메인 규칙(기준 3.1·11.2·14·15·16·MPS 우선)
            + finding 발행 게이트(기준 17) + 표준 어휘(기준 18), evidence 필수
+──── 이하 수합 후 일괄 ────
 Phase 5   [compliance_report]     → output/reports/<id>/<id>_MTC_Review.xlsx (6 시트)
 Phase 6   evaluate --case <id>    → output/eval/<id>_eval.json
            (또는 --all)              comments.md 기준 recall/precision/case_pass

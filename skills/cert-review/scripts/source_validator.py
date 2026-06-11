@@ -50,14 +50,24 @@ _SHA_CACHE: dict[Path, str] = {}
 _TEXT_CACHE: dict[Path, str] = {}
 
 
-def _sha256_of(path: Path) -> str:
-    if path in _SHA_CACHE:
-        return _SHA_CACHE[path]
+def _sha256_uncached(path: Path) -> str:
+    """Hash a file's bytes without consulting the module cache.
+
+    Reference source files are immutable within a run, so _sha256_of memoizes
+    them. Cert PDFs, however, can be replaced in place (cache-freshness checks
+    must notice the change), so that path is hashed fresh every time.
+    """
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(65536), b""):
             h.update(chunk)
-    digest = h.hexdigest()
+    return h.hexdigest()
+
+
+def _sha256_of(path: Path) -> str:
+    if path in _SHA_CACHE:
+        return _SHA_CACHE[path]
+    digest = _sha256_uncached(path)
     _SHA_CACHE[path] = digest
     return digest
 
@@ -215,8 +225,17 @@ def filter_valid_findings(
 
 
 def compute_sha256(path: Path) -> str:
-    """Public helper used by bootstrap scripts."""
+    """Public helper used by bootstrap scripts (memoized per path)."""
     return _sha256_of(path)
+
+
+def compute_sha256_fresh(path: Path) -> str:
+    """Hash a (possibly mutated) file's current bytes, bypassing the cache.
+
+    Use this for change-detection on mutable inputs such as cert PDFs, where the
+    memoized compute_sha256 would return a stale digest after an in-place edit.
+    """
+    return _sha256_uncached(path)
 
 
 __all__ = [
@@ -228,4 +247,5 @@ __all__ = [
     "validate_finding",
     "filter_valid_findings",
     "compute_sha256",
+    "compute_sha256_fresh",
 ]
