@@ -215,7 +215,7 @@ python -m scripts.cli prep-inputs --case <case_id>
 ### 절차
 
 1. **[전 페이지 의무 + 배치 Read]** `.cache/<case>/png/` 아래의 **모든** cert 페이지 PNG(`<stem>_pNN.png`)를 `Read` 툴로 빠짐없이 연다. **PNG는 한 메시지에 4~6장씩 병렬 `Read`로 연다**(페이지당 왕복을 4~6페이지당 1회로 줄인다). 단, **전사(transcribe)는 페이지별 entry로 빠짐없이 기록**한다 — 배치로 열어도 페이지 단위 기록 의무는 그대로다. 표가 없는 페이지(사진·첨부·표지)도 건너뛰지 말고 entry를 만들고 `remarks`에 그 성격을 기록한다(예: `"(첨부 사진 페이지 — 표 데이터 없음)"`). **일부 페이지만 골라 읽는 대표 샘플링 금지** — 후반 페이지의 치수표·NDE 첨부·이종 grade 품목이 누락되는 주 원인이다.
-2. **[대형 cert 분할]** 페이지가 8장을 넘으면 페이지 구간을 나눠 서브에이전트로 병렬 추출하고(구간당 ≤8p), 구간 결과를 `page_extraction`에 병합한다. 병합 후 페이지 수가 PNG 수와 일치해야 한다.
+2. **[대형 cert 분할]** 페이지가 8장을 넘으면 페이지 구간을 나눠 서브에이전트로 병렬 추출한다(구간당 ≤8p). 각 서브에이전트는 구간 결과를 `.cache/<case>/parts/<stem>__pSSS-EEE.json` fragment(`{"stem", "pages_covered", "page_extraction"}`)로 저장하고, 전 구간 완료 후 `python -m scripts.cli merge-parts --case <case_id>`로 결정적 병합한다(스켈레톤 top-level 보존, 페이지 중복 시 사전순 뒤 fragment 우선·issue 보고). 병합 후 페이지 수가 PNG 수와 일치해야 한다(Phase 2.5 게이트가 검증).
 3. 필요 시 `standard inspection MPS cleanup data/<case>/`의 MPS 스캔도 `Read`로 판독한다(식별·적합성 대조용).
 4. 각 페이지에서 다음 항목을 판독하여 구조화 JSON으로 기록한다:
    - `header`: PO번호, 성적서번호, vendor, spec, grade, heat_no, 치수(OD×WT), 수량, 길이

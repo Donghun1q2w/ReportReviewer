@@ -376,6 +376,32 @@ def cmd_limits(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_merge_parts(args: argparse.Namespace) -> int:
+    """Merge chunked Vision OCR fragments into <stem>_extracted.json."""
+    from scripts.merge_parts import merge_case  # noqa: PLC0415
+
+    try:
+        summary = merge_case(
+            case_id=args.case,
+            cache_root=CACHE_DIR,
+            stem=args.stem,
+            extracted_at=_iso_now(),
+        )
+    except (FileNotFoundError, OSError) as e:
+        print(f"[ERROR] merge-parts: {e}", file=sys.stderr)
+        return 1
+
+    print(f"[OK] merge-parts --case {args.case}: {len(summary['stems'])} stem(s)")
+    for r in summary["stems"]:
+        pages = r["pages"]
+        span = f"{pages[0]}-{pages[-1]}" if pages else "(none)"
+        print(f"     {r['stem']}: {r['fragments']} fragment(s) -> {len(pages)} page(s) [{span}]")
+        print(f"        written: {r['written']}")
+    for issue in summary["issues"]:
+        print(f"     issue: {issue}")
+    return 0
+
+
 def cmd_evaluate(args: argparse.Namespace) -> int:
     """Phase 7: GT match (per-case comments.md) + rubric diagnostic.
 
@@ -481,6 +507,11 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("limits", help="Per-case reference-limit pack (relevant CSV rows)")
     p.add_argument("--case", required=True)
     p.set_defaults(func=cmd_limits)
+
+    p = sub.add_parser("merge-parts", help="Merge chunked Vision fragments into <stem>_extracted.json")
+    p.add_argument("--case", required=True)
+    p.add_argument("--stem", help="Merge only this cert stem (default: all stems with fragments)")
+    p.set_defaults(func=cmd_merge_parts)
 
     p = sub.add_parser("evaluate", help="Evaluate against GT (strict + rubric)")
     group = p.add_mutually_exclusive_group(required=True)
