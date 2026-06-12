@@ -64,6 +64,17 @@ def test_no_python_ocr_imports():
     assert not violations, "C1 violation — Python OCR libs detected:\n" + "\n".join(violations)
 
 
+def test_no_stray_python_at_skill_root():
+    """Agent-debris guard: no loose .py may sit at the skill root.
+
+    All Python belongs in scripts/ or tests/. A loose root-level .py (e.g. a
+    scratch helper an OCR agent leaves behind) would dodge the C1 scan above,
+    which only walks scripts/.
+    """
+    stray = sorted(p.name for p in PLUGIN_DIR.glob("*.py"))
+    assert not stray, "stray .py at skill root (C1 scan bypass risk): " + ", ".join(stray)
+
+
 def test_gt_data_path_not_referenced_outside_eval():
     """C4: 'standard inspection GT data' must only appear in eval_harness.py."""
     needle = "standard inspection GT data"

@@ -100,7 +100,7 @@ def prep_case(
     case_id: str,
     work_dir: Path,
     cache_root: Path,
-    dpi: int = 200,
+    dpi: int = 300,
     force: bool = False,
 ) -> dict:
     """Produce the deterministic (non-Vision) body inputs for a case and write a

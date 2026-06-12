@@ -402,6 +402,52 @@ def cmd_merge_parts(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_merge_reviews(args: argparse.Namespace) -> int:
+    """Merge per-domain partial reviews into <case>_review.json."""
+    from scripts.merge_reviews import merge_all, merge_case  # noqa: PLC0415
+
+    def _print_case(r: dict) -> None:
+        print(
+            f"[OK] merge-reviews --case {r['case_id']}: "
+            f"{len(r['sources'])} partial(s) -> "
+            f"{r['n_materials']} material(s), {r['n_findings']} finding(s)"
+        )
+        print(f"     sources: {', '.join(r['sources'])}")
+        if r["missing_domains"]:
+            print(f"     missing domains: {', '.join(r['missing_domains'])}")
+        print(f"     written: {r['written']}")
+        if r["backup"]:
+            print(f"     backup:  {r['backup']}")
+        for issue in r["issues"]:
+            print(f"     issue: {issue}")
+
+    if args.all:
+        try:
+            summary = merge_all(CACHE_DIR, MANIFEST_PATH)
+        except (FileNotFoundError, OSError, ValueError) as e:
+            print(f"[FAIL] merge-reviews: {e}", file=sys.stderr)
+            return 1
+        for r in summary["cases"]:
+            _print_case(r)
+        n = len(summary["cases"])
+        if n == 0:
+            print("[FAIL] merge-reviews --all: no case had partial reviews", file=sys.stderr)
+            return 1
+        print(
+            f"[OK] merge-reviews --all: {n} case(s) merged, "
+            f"{len(summary['skipped'])} skipped (no partials)"
+        )
+        return 0
+
+    try:
+        r = merge_case(args.case, CACHE_DIR)
+    except (FileNotFoundError, OSError, ValueError) as e:
+        print(f"[FAIL] merge-reviews --case {args.case}: {e}", file=sys.stderr)
+        return 1
+    _print_case(r)
+    return 0
+
+
 def cmd_evaluate(args: argparse.Namespace) -> int:
     """Phase 7: GT match (per-case comments.md) + rubric diagnostic.
 
@@ -478,7 +524,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("prep-inputs", help="Prepare body (PNG) inputs for a case")
     p.add_argument("--case", required=True)
-    p.add_argument("--dpi", type=int, default=200, help="Render DPI (default 200)")
+    p.add_argument("--dpi", type=int, default=300, help="Render DPI (default 300)")
     p.add_argument("--force", action="store_true", help="Re-render even if cached")
     p.set_defaults(func=cmd_prep_inputs)
 
@@ -512,6 +558,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--case", required=True)
     p.add_argument("--stem", help="Merge only this cert stem (default: all stems with fragments)")
     p.set_defaults(func=cmd_merge_parts)
+
+    p = sub.add_parser("merge-reviews", help="Merge per-domain partial reviews into <case>_review.json")
+    group = p.add_mutually_exclusive_group(required=True)
+    group.add_argument("--case")
+    group.add_argument("--all", action="store_true", help="Merge every manifest case that has partials")
+    p.set_defaults(func=cmd_merge_reviews)
 
     p = sub.add_parser("evaluate", help="Evaluate against GT (strict + rubric)")
     group = p.add_mutually_exclusive_group(required=True)
