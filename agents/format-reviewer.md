@@ -43,7 +43,9 @@ model: claude-opus-4-8
 
 - `.cache/<case>/<stem>_extracted.json` — 본 에이전트가 보는 것은 **자기 블록(`doc_checks` 관련 header·spec·식별 필드) + header + remarks + 성적서가 자체 인쇄한 기준값 행**이다.
 - `.cache/<case>/<case>_limits.json` — 기본은 **자기 영역 행만** 사용한다: `limits.grade_routing.csv` 행 + `limits.code_edition_map.csv` 행(+ 라우팅 검증을 위한 `inventory`/`unrouted`). **예외(기준 14 한정)**: 인쇄 기준값 오기 라벨 판정을 위해 chemistry_limits/mechanical_limits/heat_treatment 행을 **대조용으로만** 열람할 수 있다 — 측정값 PASS/FAIL 판정은 여전히 화학/기계/열처리 에이전트 소관이며 본 에이전트는 수행하지 않는다.
-- 필요 시 `standard inspection MPS cleanup data/<case>/`의 MPS PNG를 직접 `Read`로 열어 발주 spec, Class 제한 문구, 문서요건표를 확인한다.
+- `.cache/<case>/<case>_mps_digest.json` — **자기 영역 블록(`document_requirements`)만** 읽어 발주 spec·Class 제한 문구·문서요건표 등 MPS 특별요구 evidence로 사용한다.
+
+> **MPS 특별요구는 공유 digest에서 읽는다**: `.cache/<case>/<case>_mps_digest.json`(mps-extractor가 1회 추출, 각 항목에 원문 source+verbatim 인용 포함)에서 **자기 영역 블록(`document_requirements`)**만 읽어 evidence로 사용한다. **원본 MPS PDF/PNG(`standard inspection MPS cleanup data/`)는 열지 않는다** — digest에 해당 grade 요구가 없을 때만 폴백으로 연다. 수치 기준값은 여전히 `<case>_limits.json`(CSV 유래) 우선, MPS 특별요구 텍스트는 digest. crop은 cert 셀에만 사용한다.
 
 > `<case>_limits.json`의 `unrouted`에 grade 라우팅 실패가 명시되면 그 grade에 한해서만 `data\grade_routing.csv`·`data\code_edition_map.csv` 원본·`references/review-criteria.md` 기준 1 카탈로그로 수동 보강한다.
 
@@ -60,7 +62,7 @@ python -m scripts.cli crop --case <id> --stem <stem> --page <n> --bbox x0,y0,x1,
 **시간 예산 (정확도 최우선 · 복잡도 비례)**
 - **식별 필드 재검증 금지**: header의 grade/heat_no/cert_no/size/qty는 ocr-extractor가 crop으로 확정한 단일 출처다 — 그대로 신뢰하고 재판독하지 않는다(중복 제거가 차등 예산의 핵심). 자기 영역 데이터와 명백히 모순될 때만 1회 재판독 후 Question으로 보고(정정 전파는 오케스트레이터 책임).
 - **crop는 판정 임계 셀 위주**: 판정을 가르는 수치 셀에 필요한 만큼 crop 재판독한다(통상 단순 케이스 ≤12회, 복합 케이스는 품목 수에 비례). 정확도가 요구하면 추가하되, 자기불확실 해소가 아닌 무차별 전수 crop은 피한다.
-- **MPS는 자기 영역 요구 페이지만 선별 판독**(전 페이지 통독 금지).
+- **MPS는 digest 소비**: 자기 영역 MPS 특별요구(발주 spec·Class 제한·문서요건표)는 mps_digest.json의 `document_requirements` 블록에서 읽는다 — 원본 MPS PDF/PNG를 직접 통독하지 않는다(digest 부재 시에만 자기 영역 요구 페이지만 선별 폴백 판독).
 
 ## 표기형식·식별 검토 규칙
 
@@ -103,8 +105,8 @@ python -m scripts.cli crop --case <id> --stem <stem> --page <n> --bbox x0,y0,x1,
 
 ### 문서 요건 대조 (MPS 문서요건표)
 
-- MPS 문서요건표를 근거로 문서 요건을 대조한다: EN 10204 3.1 인증서, mill date(발행일이 MPS 기간 조항 내인지), raw material 원산지(예: 중국/인도산 금지), Witness/Hold point, Statement of Conformity 등.
-- 요건 마크 확인(기준 17.1): 해당 행이 `(X)`로 마크됐는지 crop 판독으로 확인한다. 빈 괄호 `( )`는 요구사항이 아니므로 누락 finding을 발행하지 않는다. 보고요구 컬럼과 witness/hold 컬럼을 혼동하지 않는다.
+- MPS 문서요건표를 근거로 문서 요건을 대조한다: EN 10204 3.1 인증서, mill date(발행일이 MPS 기간 조항 내인지), raw material 원산지(예: 중국/인도산 금지), Witness/Hold point, Statement of Conformity 등. 이 문서요건표 항목은 mps_digest.json의 `document_requirements` 블록에서 읽는다(mps-extractor가 요건 마크까지 추출·인용; digest 부재 시에만 원본 MPS PDF 폴백).
+- 요건 마크 확인(기준 17.1): 해당 행이 `(X)`로 마크됐는지 digest의 해당 항목으로 확인한다(digest는 원문 verbatim 인용 포함). 빈 괄호 `( )`는 요구사항이 아니므로 누락 finding을 발행하지 않는다. 보고요구 컬럼과 witness/hold 컬럼을 혼동하지 않는다.
 - 형식과 항목 패턴은 `.cache/10/10_review.json`의 `doc_checks` 실물 예시를 따른다.
 
 ## 판정 규약 (게이트·어휘)

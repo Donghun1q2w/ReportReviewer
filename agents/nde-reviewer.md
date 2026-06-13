@@ -54,9 +54,11 @@ cert-review 스킬의 compliance 검토 중 **NDE/특별요구 영역만** 담�
 |---|---|
 | `.cache/<case>/<stem>_extracted.json` | `nde` 블록 + `remarks`(PMI/ferrite/Code Case는 각주 기재 관행이므로 remarks를 반드시 함께 본다) |
 | `.cache/<case>/<case>_limits.json` | 그중 **`nde_rules`·`mps_overrides`의 NDE/Microstructure category 행만** 사용(provenance 3종 포함) |
-| MPS PNG (`standard inspection MPS cleanup data/<case>/`) | 근거가 MPS 본문에만 있을 때 직접 `Read` |
+| MPS digest (`.cache/<case>/<case>_mps_digest.json`) | **자기 영역 블록(`nde_microstructure`)만** 읽어 MPS 특별요구(NDE·δ-ferrite·Code Case·PMI 요구) evidence로 사용 |
 
-> **grade 정정·미라우팅 시 보강 범위**: limits 팩의 `unrouted` 처리 또는 crop 재판독으로 grade가 정정된 경우, `data\nde_rules.csv`의 해당 grade 행만이 아니라 **`data\mps_overrides.csv`에서 해당 grade의 NDE·Microstructure category 행 전부**와 해당 MPS PDF 원문 특별요구를 함께 보강해 대조한다. MPS 우선 원칙은 수동 라우팅 경로에서도 동일하게 적용된다.
+> **MPS 특별요구는 공유 digest에서 읽는다**: `.cache/<case>/<case>_mps_digest.json`(mps-extractor가 1회 추출, 각 항목에 원문 source+verbatim 인용 포함)에서 **자기 영역 블록(`nde_microstructure`)**만 읽어 evidence로 사용한다. **원본 MPS PDF/PNG(`standard inspection MPS cleanup data/`)는 열지 않는다** — digest에 해당 grade 요구가 없을 때만 폴백으로 연다. 수치 기준값은 여전히 `<case>_limits.json`(CSV 유래) 우선, MPS 특별요구 텍스트는 digest. crop은 cert 셀에만 사용한다.
+
+> **grade 정정·미라우팅 시 보강 범위**: limits 팩의 `unrouted` 처리 또는 crop 재판독으로 grade가 정정된 경우, `data\nde_rules.csv`의 해당 grade 행만이 아니라 **`data\mps_overrides.csv`에서 해당 grade의 NDE·Microstructure category 행 전부**와 **mps_digest.json의 `nde_microstructure` 블록 특별요구**(digest에 해당 grade 요구가 없을 때만 원본 MPS PDF 폴백)를 함께 보강해 대조한다. MPS 우선 원칙은 수동 라우팅 경로에서도 동일하게 적용된다.
 
 ---
 
@@ -103,7 +105,7 @@ python -m scripts.cli crop --case <id> --stem <stem> --page <n> --bbox x0,y0,x1,
 **시간 예산 (정확도 최우선 · 복잡도 비례)**
 - **식별 필드 재검증 금지**: header의 grade/heat_no/cert_no/size/qty는 ocr-extractor가 crop으로 확정한 단일 출처다 — 그대로 신뢰하고 재판독하지 않는다(중복 제거가 차등 예산의 핵심). 자기 영역 데이터와 명백히 모순될 때만 1회 재판독 후 Question으로 보고(정정 전파는 오케스트레이터 책임).
 - **crop는 판정 임계 셀 위주**: 판정을 가르는 수치 셀에 필요한 만큼 crop 재판독한다(통상 단순 케이스 ≤12회, 복합 케이스는 품목 수에 비례). 정확도가 요구하면 추가하되, 자기불확실 해소가 아닌 무차별 전수 crop은 피한다.
-- **MPS는 자기 영역 요구 페이지만 선별 판독**(전 페이지 통독 금지).
+- **MPS는 digest 소비**: 자기 영역 MPS 특별요구는 mps_digest.json의 `nde_microstructure` 블록에서 읽는다 — 원본 MPS PDF/PNG를 직접 통독하지 않는다(digest 부재 시에만 자기 영역 요구 페이지만 선별 폴백 판독).
 
 ---
 

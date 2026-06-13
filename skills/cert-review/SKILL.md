@@ -48,11 +48,12 @@ Python 결정적 모듈(`scripts/`)과 서브에이전트 위임 단계를 명�
 
 ## 서브에이전트 (`agents/`)
 
-검토 작업은 **6개 플러그인 서브에이전트**에 위임한다. 각자 부분 산출물만 작성하고 오케스트레이터가 결정적 CLI로 병합한다. **세부 절차(전사 규칙·영역별 판정 룰)는 각 에이전트 문서 소관 — 본 SKILL.md에 중복 기재하지 않는다.**
+검토 작업은 **7개 플러그인 서브에이전트**에 위임한다. 각자 부분 산출물만 작성하고 오케스트레이터가 결정적 CLI로 병합한다. **세부 절차(전사 규칙·영역별 판정 룰)는 각 에이전트 문서 소관 — 본 SKILL.md에 중복 기재하지 않는다.**
 
 | 에이전트 | model | 역할 | 부분 산출물 |
 |---|---|---|---|
 | `ocr-extractor` | claude-opus-4-8 | Phase 2 Vision **타일 판독** 전사 전용 (full / fragment 두 모드) | `<stem>_extracted.json` 또는 `parts/<stem>__pSSS-EEE.json` |
+| `mps-extractor` | claude-opus-4-8 | Phase 4 직전 MPS 스캔 **1회 추출** → 검토 5에이전트가 소비하는 공유 digest 산출 | `<case>_mps_digest.json` |
 | `chemistry-reviewer` | claude-opus-4-8 | Phase 4 화학성분 검토 | `<case>_review_chemistry.json` |
 | `mechanical-reviewer` | claude-opus-4-8 | Phase 4 기계적 성질 검토 | `<case>_review_mechanical.json` |
 | `heat-treatment-reviewer` | claude-opus-4-8 | Phase 4 열처리 검토 | `<case>_review_heat_treatment.json` |
@@ -63,6 +64,7 @@ Python 결정적 모듈(`scripts/`)과 서브에이전트 위임 단계를 명�
 - **타일 판독**: `ocr-extractor`는 전체 페이지 PNG 대신 페이지당 **2×2 중첩 타일**(`.cache/<case>/tiles/`)을 판독한다. 모델이 PNG를 Read할 때 긴 변 ~1568px로 다운샘플되어 전체 페이지(~3500px)는 작은 숫자가 뭉개지지만, 2×2 타일은 긴 변 ~1957px라 다운샘플 후에도 ~1.8배 선명해 **crop 없이** 판독된다.
 - **주의**: `CLAUDE_CODE_SUBAGENT_MODEL` 환경변수가 설정돼 있으면 frontmatter의 model을 덮어쓴다 — 의도한 모델을 적용하려면 **이 환경변수를 해제한 상태로 실행**한다.
 - **화학 정합성 책임 경계**: `ocr-extractor`는 1차 물리범위 스크리닝(원소값이 grade 통상범위에 부합하는지)만 수행하고, Cev 역산·crop 확정 재판독은 `chemistry-reviewer`가 책임진다.
+- **MPS digest 공유**: MPS PDF는 스캔이라 검토자가 각자 Vision-OCR하면 중복·저속이다. `mps-extractor`가 MPS를 **1회 추출**해 영역별 블록(`chemistry`/`mechanical`/`heat_treatment`/`nde_microstructure`/`document_requirements`, 각 항목에 원문 source+verbatim 인용)으로 `<case>_mps_digest.json`에 저장하면, 검토 5에이전트는 자기 영역 블록만 읽고 **원본 MPS PDF/PNG를 열지 않는다**(digest에 해당 grade 요구가 없을 때만 폴백). 수치 기준값은 여전히 `<case>_limits.json`(CSV 유래) 우선이고, MPS 특별요구 텍스트만 digest에서 인용한다.
 
 ---
 
@@ -88,10 +90,13 @@ Python 결정적 모듈(`scripts/`)과 서브에이전트 위임 단계를 명�
         ├── .cache/<case>/                          ← 케이스별 중간 산출물
         │   ├── png/                                ← prep-inputs 렌더링 PNG
         │   ├── tiles/                              ← tile-inputs 2×2 중첩 타일 (페이지당 4 타일, <stem>_pNN_rRcC.png)
+        │   ├── mps_png/                            ← prep-mps 렌더링 MPS PNG
+        │   ├── mps_tiles/                          ← prep-mps MPS 2×2 중첩 타일 (mps-extractor 판독용)
         │   ├── <stem>_prep.json                    ← 사이드카 (PDF sha256+dpi, 캐시 게이트용)
         │   ├── parts/<stem>__pSSS-EEE.json         ← fragment 모드 구간 추출 (merge-parts 입력)
         │   ├── crops/                              ← crop CLI 고DPI 영역 PNG (모호 셀 재판독)
         │   ├── <stem>_extracted.json               ← Vision OCR 산출 (channels: body)
+        │   ├── <case>_mps_digest.json              ← mps-extractor 산출 (영역별 MPS 특별요구 + 원문 인용, 검토 5에이전트 공유)
         │   ├── <case>_limits.json                  ← limits CLI 산출 (관련 기준값 + provenance)
         │   ├── <case>_review_<domain>.json         ← 검토 에이전트 부분 산출 (chemistry|mechanical|heat_treatment|nde|format)
         │   └── <case>_review.json                  ← merge-reviews 병합 결과 (Phase 5/6 입력)
@@ -119,6 +124,7 @@ python -m scripts.cli build-manifest                    # Phase 0: cert/MPS 인�
 python -m scripts.cli cache-status --case 4 | --all     # 캐시 게이트 (fresh|legacy|stale|missing)
 python -m scripts.cli prep-inputs --case 4 [--dpi 300] [--force]   # Phase 1: PNG 렌더 + 사이드카
 python -m scripts.cli tile-inputs --case 4 | --all      # Phase 1: 페이지 PNG → 2×2 중첩 타일 (페이지당 4)
+python -m scripts.cli prep-mps --case 4 [--dpi 300]     # Phase 1: MPS PDF → mps_png + mps_tiles (mps-extractor 입력)
 python -m scripts.cli merge-parts --case 4              # fragment(>6p) 구간 병합
 python -m scripts.cli check-extraction --case 4 | --all # Phase 2.5: 완전성 게이트
 python -m scripts.cli crop --case 4 --stem <stem> --page 2 --bbox 0.10,0.42,0.55,0.50 --dpi 300  # 모호 셀 재판독
@@ -138,7 +144,7 @@ python -m scripts.cli evaluate --case 4 | --all         # Phase 6: comments.md �
 - **표준** (4~6페이지, 수 개 품목): 목표 **≤60분**.
 - **복합** (>6페이지 또는 7품목 이상 또는 다중 grade): **60~90분 허용**. 다중 케이스 동시 fan-out 시 opus 동시 호출 throttle로 더 늘 수 있다.
 
-시간을 복잡도에 비례시키는 구조적 장치: ① 식별 확정은 ocr-extractor 1회로 단일화(검토자 재검증 금지) ② 검토자 crop은 판정 임계 셀 위주(무차별 전수 crop 금지) ③ 대형 cert(≤4p 구간) 병렬화(아래) ④ **타일링(tile-inputs)** — ocr-extractor가 2×2 중첩 타일을 판독하면 전체 페이지 대비 OCR이 **~2.6배 빨라지고 crop이 거의 0**으로 떨어진다(다운샘플로 뭉개지던 작은 숫자를 crop 없이 판독). 다중 케이스 실행 시 케이스 내 5에이전트 병렬과 케이스 간 병렬이 겹치므로 총 동시 에이전트 6~10 상한을 유지한다.
+시간을 복잡도에 비례시키는 구조적 장치: ① 식별 확정은 ocr-extractor 1회로 단일화(검토자 재검증 금지) ② 검토자 crop은 판정 임계 셀 위주(무차별 전수 crop 금지) ③ 대형 cert(≤4p 구간) 병렬화(아래) ④ **타일링(tile-inputs)** — ocr-extractor가 2×2 중첩 타일을 판독하면 전체 페이지 대비 OCR이 **~2.6배 빨라지고 crop이 거의 0**으로 떨어진다(다운샘플로 뭉개지던 작은 숫자를 crop 없이 판독) ⑤ **MPS digest 공유(mps-extractor)** — MPS 스캔을 1회만 추출해 영역별 digest로 공유하면 검토 5에이전트의 MPS 중복 OCR이 제거되어 검토 wall이 **~3배 단축**된다(검토자별 각자 Vision-OCR ~95분 → digest 소비 ~32분, recall 회귀 없음). 다중 케이스 실행 시 케이스 내 5에이전트 병렬과 케이스 간 병렬이 겹치므로 총 동시 에이전트 6~10 상한을 유지한다.
 
 ---
 
@@ -153,8 +159,8 @@ python -m scripts.cli evaluate --case 4 | --all         # Phase 6: comments.md �
 | 규칙 | 내용 |
 |---|---|
 | **Phase 0·3 선실행** | `build-manifest`·`validate-refs`는 fan-out 이전에 **각각 1회** 불변 실행. `validate-refs` exit 0 아니면 fan-out 시작 금지 |
-| **동시 에이전트 총량** | 전체 합산 **6~10** 상한 (OCR·검토 에이전트 합) |
-| **케이스 파이프라인 중첩** | 케이스별로 OCR(Phase 1·2)·완전성 게이트(2.5)·검토(Phase 4)가 진행되며, **OCR 완료·2.5 통과 케이스부터 검토 5에이전트를 투입**한다. 케이스 간 OCR 단계와 검토 단계의 중첩을 허용한다 (한 케이스가 OCR 중일 때 다른 케이스는 검토 중일 수 있음) |
+| **동시 에이전트 총량** | 전체 합산 **6~10** 상한 (OCR·MPS 추출·검토 에이전트 합) |
+| **케이스 파이프라인 중첩** | 케이스별로 OCR(Phase 1·2)·MPS 추출(`mps-extractor`, cert OCR과 병렬)·완전성 게이트(2.5)·검토(Phase 4)가 진행되며, **OCR 완료·2.5 통과·`<id>_mps_digest.json` 산출 케이스부터 검토 5에이전트를 투입**한다. 케이스 간 OCR 단계와 검토 단계의 중첩을 허용한다 (한 케이스가 OCR 중일 때 다른 케이스는 검토 중일 수 있음) |
 | **Phase 5·6 일괄** | 보고서(Phase 5)·평가(Phase 6)는 **전 케이스 merge-reviews 완료 후** 본 루프 또는 `evaluate --all`로 일괄 수행 |
 
 단일 케이스 실행은 아래 Phase 0→6 순차 흐름을 그대로 따른다 (fan-out 없이 동일 절차).
@@ -204,7 +210,14 @@ python -m scripts.cli evaluate --case 4 | --all         # Phase 6: comments.md �
 - 이유: 모델이 PNG를 Read할 때 긴 변 ~1568px로 다운샘플되어 전체 페이지(~3500px)는 작은 숫자가 뭉개진다. 2×2 타일은 긴 변 ~1957px라 다운샘플 후에도 ~1.8배 선명해 ocr-extractor가 **crop 없이** 판독한다.
 - 다음 단계 모드(full / fragment) 분기는 **여전히 PNG 수 기준**이며 타일링과 독립이다.
 
-### 3) ocr-extractor 위임 (PNG 수에 따라 모드 분기, 타일 판독)
+### 2.6) prep-mps (오케스트레이터 직접 실행, 결정적) — `prep-mps --case <id>`
+
+- tile-inputs 직후 실행한다. `standard inspection MPS cleanup data/<case>/`의 MPS PDF를 `pypdfium2`로 렌더해 `.cache/<case>/mps_png/`에 PNG로, 이어서 페이지당 2×2 중첩 타일을 `.cache/<case>/mps_tiles/`에 생성한다(cert 타일링과 동일 원리 — 다운샘플로 뭉개지는 스캔 글자를 선명화).
+- 이 산출물은 다음 단계의 `mps-extractor` 위임 입력이다. cert OCR 경로(prep-inputs/tile-inputs)와 독립적이므로 cert OCR 위임과 병렬로 진행할 수 있다.
+
+### 3) ocr-extractor / mps-extractor 병렬 위임 (PNG 수에 따라 모드 분기, 타일 판독)
+
+> cert 전사(`ocr-extractor`)와 MPS 추출(`mps-extractor`)은 **서로 독립적이므로 한 메시지에 병렬 위임**한다. `mps-extractor`는 `mps_tiles/`를 1회 판독해 영역별 블록(`chemistry`/`mechanical`/`heat_treatment`/`nde_microstructure`/`document_requirements`, 각 항목 원문 source+verbatim 인용)으로 `<case>_mps_digest.json`을 산출한다. 이 digest는 Phase 4 검토 5에이전트가 공유 소비한다(검토자는 원본 MPS를 다시 OCR하지 않는다).
 
 - **PNG ≤ 6장 → full 모드**: `ocr-extractor` **1회 위임**. 에이전트가 케이스 전 페이지를 전사하여 `<stem>_extracted.json`을 직접 완성한다.
 - **PNG > 6장 → fragment 모드**: 페이지를 **구간(≤4p)별로 분할**하여 `ocr-extractor`를 **병렬 위임**(한 메시지에 다중 위임)한다. 각 위임은 `parts/<stem>__pSSS-EEE.json` fragment를 저장한다. **전 구간 완료 후** 오케스트레이터가 `merge-parts --case <id>`로 병합한다 (스켈레톤 top-level 보존, 페이지 중복 시 결정적 우선순위·issue 보고).
@@ -216,6 +229,14 @@ python -m scripts.cli evaluate --case 4 | --all         # Phase 6: comments.md �
 - 준수 지시: **C1~C8, 입력 3폴더 화이트리스트, 타일 판독(페이지당 4 타일, crop 원칙적 생략), verbatim 전사, 전 페이지 의무**
 
 > 전사 세부 절차(타일 배치 Read, 페이지별 entry, spec verbatim, (Grade,Class,Heat) 인벤토리, 화학 1차 스크리닝 등)는 `agents/ocr-extractor.md`가 보유한다 — **SKILL.md에 중복 기재 금지**.
+
+**mps-extractor 위임 컨텍스트 명세** (`mps-extractor` 위임에 반드시 포함):
+- 케이스 id
+- 스킬 디렉토리 **절대경로**
+- 산출 의무: `.cache/<case>/<case>_mps_digest.json` (영역별 블록 + 항목별 원문 source+verbatim 인용)
+- 준수 지시: **C1~C8, 입력 3폴더 화이트리스트, MPS 타일 판독, verbatim 인용, 전 페이지 의무**
+
+> MPS 추출 세부 절차(영역별 블록 분류, 요건 마크 판독, verbatim 인용 규칙 등)는 `agents/mps-extractor.md`가 보유한다 — **SKILL.md에 중복 기재 금지**.
 
 ### 4) check-extraction 게이트 (오케스트레이터 실행, 항상) — `check-extraction --case <id>`
 
@@ -246,11 +267,12 @@ python -m scripts.cli evaluate --case 4 | --all         # Phase 6: comments.md �
 
 ### 2) 검토 5에이전트 병렬 위임 (한 메시지에 동시)
 
-`limits` 완료 후, 아래 5개 에이전트를 **한 메시지에 병렬 위임**한다. 각 위임에 포함할 컨텍스트:
+`limits` 완료 후(그리고 해당 케이스 `mps-extractor`가 `<case>_mps_digest.json`을 산출한 뒤), 아래 5개 에이전트를 **한 메시지에 병렬 위임**한다. 각 위임에 포함할 컨텍스트:
 - 케이스 id
 - 스킬 디렉토리 **절대경로**
 - 자기 도메인 부분 산출 의무: `.cache/<case>/<case>_review_<domain>.json`
 - (해당 시) unrouted grade 해소 정보
+- **MPS 특별요구는 `<case>_mps_digest.json`의 자기 영역 블록에서 읽고 원본 MPS PDF/PNG는 열지 않는다**(digest에 해당 grade 요구가 없을 때만 폴백).
 
 검토 에이전트는 ocr-extractor가 확정한 식별 필드(header의 grade/heat_no/cert_no/size/qty)를 재검증하지 않는다(시간 예산 절 참조).
 
@@ -333,13 +355,16 @@ Phase 3   validate-refs     → exit 0 필수                                   
 [GATE]    cache-status      → fresh/legacy = Phase 1·2 스킵 / stale/missing = 수행
 Phase 1   prep-inputs       → png/*.png + <stem>_prep.json (직접 실행) → PNG 수로 모드 결정
           tile-inputs       → tiles/*_pNN_rRcC.png (페이지당 2×2 중첩 타일, 직접 실행)
-Phase 2   [위임 ocr-extractor/opus]  ≤6p full 1회 → <stem>_extracted.json
-                                       >6p fragment 병렬(≤4p) → parts/*.json → merge-parts
-                            (타일 판독·C1·verbatim·전 페이지 의무, 세부 agents/ocr-extractor.md)
+          prep-mps          → mps_png/*.png + mps_tiles/*.png (MPS 렌더+타일, 직접 실행)
+Phase 2   [위임 ocr-extractor/opus]  ≤6p full 1회 → <stem>_extracted.json   ┐ 병렬
+                                       >6p fragment 병렬(≤4p) → parts/*.json → merge-parts │
+          [위임 mps-extractor/opus]  mps_tiles 1회 판독 → <id>_mps_digest.json           ┘
+                            (타일 판독·C1·verbatim·전 페이지 의무, 세부 agents/ocr-extractor.md·mps-extractor.md)
 Phase 2.5 check-extraction  → exit 0 필수 (항상 실행, 실패 시 누락 구간만 재위임)
-──── OCR 완료·2.5 통과 케이스부터 ────
+──── OCR 완료·2.5 통과·mps_digest 산출 케이스부터 ────
 Phase 4   limits → <id>_limits.json  → [위임 검토5/claude-opus-4-8 한 메시지 병렬]
             chemistry·mechanical·heat_treatment·nde·format → <id>_review_<domain>.json
+            (MPS 특별요구는 <id>_mps_digest.json 자기 영역 블록 소비 — 원본 MPS 미개봉)
           merge-reviews → <id>_review.json (재채번·verdict 최악값, 하류 계약 불변)
 ──── 전 케이스 merge-reviews 후 일괄 ────
 Phase 5   compliance_report → output/reports/<id>/<id>_MTC_Review.xlsx (6 시트)

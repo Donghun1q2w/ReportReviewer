@@ -53,11 +53,13 @@ model: claude-opus-4-8
 |---|---|---|
 | 추출 JSON | `SKILL_DIR\.cache\<case>\<stem>_extracted.json` | **자기 블록(`mechanical`)** + `remarks`(각주·범례·시편 형상 줄 포함) + 성적서 자체 인쇄 기준값 행만 |
 | limits JSON | `SKILL_DIR\.cache\<case>\<case>_limits.json` | **자기 영역 행만**: `mechanical_limits` + `mps_overrides` 중 category가 `Mechanical`인 행 |
-| MPS PNG | `SKILL_DIR\.cache\<case>\mps_png\*.png` 또는 입력 MPS 폴더 | 필요 시 직접 `Read`(식별·요구사항·인쇄 기준·Class 제한 대조) |
+| MPS digest | `SKILL_DIR\.cache\<case>\<case>_mps_digest.json` | **자기 영역 블록(`mechanical`)만** 읽어 MPS 특별요구(Class 제한·강도 override 등) evidence로 사용 |
+
+> **MPS 특별요구는 공유 digest에서 읽는다**: `.cache/<case>/<case>_mps_digest.json`(mps-extractor가 1회 추출, 각 항목에 원문 source+verbatim 인용 포함)에서 **자기 영역 블록(`mechanical`)**만 읽어 evidence로 사용한다. **원본 MPS PDF/PNG(`standard inspection MPS cleanup data/`)는 열지 않는다** — digest에 해당 grade 요구가 없을 때만 폴백으로 연다. 수치 기준값은 여전히 `<case>_limits.json`(CSV 유래) 우선, MPS 특별요구 텍스트는 digest. crop은 cert 셀에만 사용한다.
 
 > **limits `unrouted` 처리**: `<case>_limits.json`의 `unrouted`에 **기계 영역 grade**가 있으면(예: `WP91-S`), 그 grade에 한해서만 `data\mechanical_limits.csv` 원본 행과 `references\review-criteria.md`(기준 1 라우팅·기준 4)로 **수동 라우팅**한다. 수동 인용 행도 CSV 유래이므로 snippet/anchor를 보존해 C2/C8을 충족한다. 라우팅 성공 grade는 CSV 원본 재스캔 불필요.
 >
-> **grade 정정·미라우팅 시 보강 범위**: limits 팩의 `unrouted` 처리 또는 crop 재판독으로 grade가 정정된 경우, `data\mechanical_limits.csv`의 해당 grade 행만이 아니라 **`data\mps_overrides.csv`에서 해당 grade의 Mechanical category 행 전부**와 해당 MPS PDF 원문 특별요구를 함께 보강해 대조한다. MPS 우선 원칙은 수동 라우팅 경로에서도 동일하게 적용된다.
+> **grade 정정·미라우팅 시 보강 범위**: limits 팩의 `unrouted` 처리 또는 crop 재판독으로 grade가 정정된 경우, `data\mechanical_limits.csv`의 해당 grade 행만이 아니라 **`data\mps_overrides.csv`에서 해당 grade의 Mechanical category 행 전부**와 **mps_digest.json의 `mechanical` 블록 특별요구**(digest에 해당 grade 요구가 없을 때만 원본 MPS PDF 폴백)를 함께 보강해 대조한다. MPS 우선 원칙은 수동 라우팅 경로에서도 동일하게 적용된다.
 
 ---
 
@@ -76,7 +78,7 @@ python -m scripts.cli crop --case <id> --stem <stem> --page <n> --bbox x0,y0,x1,
 **시간 예산 (정확도 최우선 · 복잡도 비례)**
 - **식별 필드 재검증 금지**: header의 grade/heat_no/cert_no/size/qty는 ocr-extractor가 crop으로 확정한 단일 출처다 — 그대로 신뢰하고 재판독하지 않는다(중복 제거가 차등 예산의 핵심). 자기 영역 데이터와 명백히 모순될 때만 1회 재판독 후 Question으로 보고(정정 전파는 오케스트레이터 책임).
 - **crop는 판정 임계 셀 위주**: 판정을 가르는 수치 셀에 필요한 만큼 crop 재판독한다(통상 단순 케이스 ≤12회, 복합 케이스는 품목 수에 비례). 정확도가 요구하면 추가하되, 자기불확실 해소가 아닌 무차별 전수 crop은 피한다.
-- **MPS는 자기 영역 요구 페이지만 선별 판독**(전 페이지 통독 금지).
+- **MPS는 digest 소비**: 자기 영역 MPS 특별요구는 mps_digest.json의 `mechanical` 블록에서 읽는다 — 원본 MPS PDF/PNG를 직접 통독하지 않는다(digest 부재 시에만 자기 영역 요구 페이지만 선별 폴백 판독).
 
 ---
 
@@ -182,7 +184,7 @@ python -c "from scripts.compare_engine import _to_mpa; print(_to_mpa(70000, 'ksi
 
 1. SKILL_DIR로 이동, `$env:PYTHONIOENCODING="utf-8"` 설정.
 2. `<stem>_extracted.json`의 `mechanical` 블록 + `remarks` + 자체 인쇄 기준 행을 읽는다.
-3. `<case>_limits.json`의 `mechanical_limits` + `mps_overrides`(Mechanical) 행을 읽는다. `unrouted`에 기계 grade가 있으면 그 grade만 `data\mechanical_limits.csv` + review-criteria.md로 수동 라우팅.
+3. `<case>_limits.json`의 `mechanical_limits` + `mps_overrides`(Mechanical) 행을 읽는다. MPS 특별요구는 `<case>_mps_digest.json`의 `mechanical` 블록에서 읽는다(원본 MPS PDF/PNG 미개봉, 부재 시만 폴백). `unrouted`에 기계 grade가 있으면 그 grade만 `data\mechanical_limits.csv` + review-criteria.md로 수동 라우팅.
 4. (Grade, Class, Heat) 인벤토리로 Class별 기준 행 선택(기준 16) — Class 불명 시 보수 처리 + Question finding.
 5. 강도(TS/YS) 기준값을 `_to_mpa` 인라인 호출로 MPa 환산 후 비교(기준 4). EL은 시편 형상 확인 후 해당 행으로, Hardness는 MPS 범위로, Impact는 명문 요구 시만 판정.
 6. 기준 14 자체 인쇄 기준 1:1 대조 — 인쇄 기준이 적용기준보다 느슨하면 DocumentError(10_review.json finding 2 패턴).

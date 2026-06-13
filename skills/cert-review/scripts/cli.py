@@ -385,6 +385,30 @@ def cmd_tile_inputs(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_prep_mps(args: argparse.Namespace) -> int:
+    """Render + tile the case's MPS PDFs for the shared mps-extractor digest."""
+    from scripts.prep_mps import prep_mps_case  # noqa: PLC0415
+
+    try:
+        summary = prep_mps_case(
+            case_id=args.case, work_dir=WORK_DIR, cache_root=CACHE_DIR, dpi=args.dpi
+        )
+    except FileNotFoundError as e:
+        print(f"[ERROR] prep-mps: {e}", file=sys.stderr)
+        return 1
+
+    total_pages = sum(d["page_count"] for d in summary["docs"])
+    total_tiles = sum(d["tile_count"] for d in summary["docs"])
+    print(
+        f"[OK] prep-mps --case {args.case}: {len(summary['docs'])} MPS doc(s), "
+        f"{total_pages}p -> {total_tiles} tiles (grid {summary['grid']})"
+    )
+    for d in summary["docs"]:
+        print(f"     {d['file']}: {d['page_count']}p -> {d['tile_count']} tiles")
+    print(f"     tiles: {summary['mps_tiles_dir']}")
+    return 0
+
+
 def cmd_limits(args: argparse.Namespace) -> int:
     """Emit the per-case reference-limit pack (relevant CSV rows only)."""
     from scripts.refpack import build_limits_pack  # noqa: PLC0415
@@ -588,6 +612,11 @@ def main(argv: list[str] | None = None) -> int:
     group.add_argument("--case")
     group.add_argument("--all", action="store_true", help="Every manifest case with rendered PNGs")
     p.set_defaults(func=cmd_tile_inputs)
+
+    p = sub.add_parser("prep-mps", help="Render + tile MPS PDFs for the shared mps-extractor digest")
+    p.add_argument("--case", required=True)
+    p.add_argument("--dpi", type=int, default=300, help="Render DPI (default 300)")
+    p.set_defaults(func=cmd_prep_mps)
 
     p = sub.add_parser("limits", help="Per-case reference-limit pack (relevant CSV rows)")
     p.add_argument("--case", required=True)
