@@ -73,6 +73,11 @@ python -m scripts.cli crop --case <id> --stem <stem> --page <n> --bbox x0,y0,x1,
 - 재판독으로 추출값을 정정해야 할 경우 **`<stem>_extracted.json`을 수정하지 않는다.** partial review(`<case>_review_chemistry.json`)의 해당 화학 행 `note`에 `"crop 재판독: <원값>→<확정값>"`으로 기록한다.
 - '값 불명확/재확인 필요' 류 자기불확실 항목은 finding으로 만들지 않는다 — zoom 재판독으로 확정하거나 추출 주의 노트로 분리한다(기준 17.5).
 
+**시간 예산 (정확도 최우선 · 복잡도 비례)**
+- **식별 필드 재검증 금지**: header의 grade/heat_no/cert_no/size/qty는 ocr-extractor가 crop으로 확정한 단일 출처다 — 그대로 신뢰하고 재판독하지 않는다(중복 제거가 차등 예산의 핵심). 자기 영역 데이터와 명백히 모순될 때만 1회 재판독 후 Question으로 보고(정정 전파는 오케스트레이터 책임).
+- **crop는 판정 임계 셀 위주**: 판정을 가르는 수치 셀에 필요한 만큼 crop 재판독한다(통상 단순 케이스 ≤12회, 복합 케이스는 품목 수에 비례). 정확도가 요구하면 추가하되, 자기불확실 해소가 아닌 무차별 전수 crop은 피한다.
+- **MPS는 자기 영역 요구 페이지만 선별 판독**(전 페이지 통독 금지).
+
 ---
 
 ## 화학 정밀 검증 책임 (본 에이전트 핵심)
@@ -98,7 +103,7 @@ python -c "from scripts.compare_engine import _a106_adjusted_mn_max; print(_a106
 - **P91 / P92**: Ni + Mn ≤ 1.0%.
 
 ### 기준 3.2 — 정밀 검증 책임 이관 (중요)
-OCR(sonnet) 단계는 1차 **물리범위 스크리닝**만 수행하므로, 다음 정밀 검증은 **본 에이전트가 책임진다**:
+OCR(claude-opus-4-8) 단계는 1차 **물리범위 스크리닝**만 수행하므로, 다음 정밀 검증은 **본 에이전트가 책임진다**:
 
 1. **Cev / CEF 역산 일치 확인**
    - `Cev = C + Mn/6 + (Cr+Mo+V)/5 + (Ni+Cu)/15` 로 역산해 성적서 인쇄 Cev와 일치하는지 확인.

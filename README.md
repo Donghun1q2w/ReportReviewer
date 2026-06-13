@@ -9,7 +9,7 @@
 ## 핵심 특징
 
 - **2차원 병렬 아키텍처**: 오케스트레이터(SKILL.md)가 케이스 × 도메인 에이전트를 직접 스케줄링 (동시 6~10). 케이스 래퍼 에이전트 없음 — 서브에이전트는 중첩 스폰 불가이므로 모든 fan-out을 오케스트레이터가 직접 수행한다.
-- **역할 분리 서브에이전트**: OCR 전용(`ocr-extractor`, sonnet) + 도메인별 검토 5종(`claude-opus-4-8`) — 판독 정확도와 판정 품질을 각각 최적화.
+- **역할 분리 서브에이전트**: OCR 전용(`ocr-extractor`, claude-opus-4-8) + 도메인별 검토 5종(`claude-opus-4-8`) — 전사(판독)와 판정을 역할로 분리.
 - **결정적 병합 단계**: 검토 5에이전트가 각자 부분 산출물을 쓰고, `merge-reviews` CLI가 전역 재채번 및 verdict 최악값으로 결정적 병합. 하류 Phase 5/6 계약 불변.
 - **Claude Vision OCR 강제**: Python OCR 라이브러리 일체 미사용 (`pytesseract`/`easyocr`/`pymupdf` 등 금지, AST 회귀로 검증). PDF는 `pypdfium2` 렌더링 + `pypdf` 주석 메타만
 - **출처 강제(provenance)**: 모든 판정 근거에 `source_file`/`anchor`/`snippet`/`sha256` 4종 메타. 미검증 근거는 자동 격리
@@ -49,7 +49,7 @@ $env:CERT_REVIEW_WORKDIR="<성적서/MPS/ref_code가 있는 작업 폴더>"
 python -m scripts.cli build-manifest           # Phase 0: cert/MPS 인덱스
 python -m scripts.cli validate-refs            # Phase 3: CSV 출처 검증
 python -m scripts.cli prep-inputs --case <id>  # Phase 1: PDF→PNG
-#  -> ocr-extractor(sonnet)로 PNG Vision OCR 위임 (SKILL.md Phase 2)
+#  -> ocr-extractor(claude-opus-4-8)로 PNG Vision OCR 위임 (SKILL.md Phase 2)
 #  -> chemistry/mechanical/heat-treatment/nde/format-reviewer 병렬 위임 (Phase 4)
 python -m scripts.cli merge-reviews --case <id>  # 부분 산출 결정적 병합
 python -m scripts.cli evaluate --all             # Phase 6: GT 평가(있을 시)
@@ -77,7 +77,7 @@ python -m scripts.cli evaluate --all             # Phase 6: GT 평가(있을 시
 ReportReviewer/
 ├── .claude-plugin/marketplace.json   # 플러그인 마켓플레이스 매니페스트
 ├── agents/                           # 플러그인 서브에이전트 (frontmatter model 포함)
-│   ├── ocr-extractor.md              # Phase 2 Vision 전사 (sonnet, full/fragment 모드)
+│   ├── ocr-extractor.md              # Phase 2 Vision 전사 (claude-opus-4-8, full/fragment 모드)
 │   ├── chemistry-reviewer.md         # Phase 4 화학성분 검토 (claude-opus-4-8)
 │   ├── mechanical-reviewer.md        # Phase 4 기계적 성질 검토 (claude-opus-4-8)
 │   ├── heat-treatment-reviewer.md    # Phase 4 열처리 검토 (claude-opus-4-8)
@@ -102,14 +102,14 @@ ReportReviewer/
 
 | 에이전트 | model | 담당 | 부분 산출물 |
 |---|---|---|---|
-| `ocr-extractor` | sonnet | Phase 2 Vision 전사 (full / fragment 두 모드) | `<stem>_extracted.json` |
+| `ocr-extractor` | claude-opus-4-8 | Phase 2 Vision 전사 (full / fragment 두 모드) | `<stem>_extracted.json` |
 | `chemistry-reviewer` | claude-opus-4-8 | 화학성분 검토 + Cev 역산·crop 확정 | `<case>_review_chemistry.json` |
 | `mechanical-reviewer` | claude-opus-4-8 | 기계적 성질 검토 | `<case>_review_mechanical.json` |
 | `heat-treatment-reviewer` | claude-opus-4-8 | 열처리 검토 (±10°C 룰) | `<case>_review_heat_treatment.json` |
 | `nde-reviewer` | claude-opus-4-8 | NDE/특별요구 (δ-ferrite·PMI·Code Case) | `<case>_review_nde.json` |
 | `format-reviewer` | claude-opus-4-8 | 표기형식·식별 (기준 11/14/15/16, doc_checks) | `<case>_review_format.json` |
 
-**모델 라우팅 원칙**: OCR = sonnet(비용/속도와 판독 정확도 균형 — 300 DPI 필수), 검토 = claude-opus-4-8(판정 품질 우선). `CLAUDE_CODE_SUBAGENT_MODEL` 환경변수가 설정돼 있으면 각 에이전트 frontmatter의 model을 덮어쓰므로 **해제 상태**로 실행한다.
+**모델 원칙**: 전 에이전트 claude-opus-4-8(정확도 우선 — 다품목 MTC 식별·수치 판독, 300 DPI 필수). OCR(전사)과 검토(판정)는 모델이 아니라 역할로 분리되며, 복잡도별 차등 예산(단순 ≤30분 / 표준 ≤60분 / 복합 60~90분, 정확도 최우선)으로 운용한다. `CLAUDE_CODE_SUBAGENT_MODEL` 환경변수가 설정돼 있으면 각 에이전트 frontmatter의 model을 덮어쓰므로 **해제 상태**로 실행한다.
 
 ## 병합 CLI (`merge-reviews`)
 

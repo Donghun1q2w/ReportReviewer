@@ -52,15 +52,15 @@ Python 결정적 모듈(`scripts/`)과 서브에이전트 위임 단계를 명�
 
 | 에이전트 | model | 역할 | 부분 산출물 |
 |---|---|---|---|
-| `ocr-extractor` | sonnet | Phase 2 Vision 전사 전용 (full / fragment 두 모드) | `<stem>_extracted.json` 또는 `parts/<stem>__pSSS-EEE.json` |
+| `ocr-extractor` | claude-opus-4-8 | Phase 2 Vision 전사 전용 (full / fragment 두 모드) | `<stem>_extracted.json` 또는 `parts/<stem>__pSSS-EEE.json` |
 | `chemistry-reviewer` | claude-opus-4-8 | Phase 4 화학성분 검토 | `<case>_review_chemistry.json` |
 | `mechanical-reviewer` | claude-opus-4-8 | Phase 4 기계적 성질 검토 | `<case>_review_mechanical.json` |
 | `heat-treatment-reviewer` | claude-opus-4-8 | Phase 4 열처리 검토 | `<case>_review_heat_treatment.json` |
 | `nde-reviewer` | claude-opus-4-8 | Phase 4 NDE/특별요구 검토 | `<case>_review_nde.json` |
 | `format-reviewer` | claude-opus-4-8 | Phase 4 문서·식별·인쇄기준 검토 | `<case>_review_format.json` |
 
-- **모델 라우팅**: OCR=sonnet(비용/속도와 판독 정확도 균형 — 300 DPI 필수), 검토=claude-opus-4-8(판정 품질 우선).
-- **주의**: `CLAUDE_CODE_SUBAGENT_MODEL` 환경변수가 설정돼 있으면 frontmatter의 model을 덮어쓴다 — 라우팅을 의도대로 적용하려면 **이 환경변수를 해제한 상태로 실행**한다.
+- **모델**: 전 에이전트 claude-opus-4-8 — 다품목 MTC 식별·수치 판독 정확도 우선. OCR(전사)과 검토(판정)는 모델이 아니라 역할로 분리된다(300 DPI 필수).
+- **주의**: `CLAUDE_CODE_SUBAGENT_MODEL` 환경변수가 설정돼 있으면 frontmatter의 model을 덮어쓴다 — 의도한 모델을 적용하려면 **이 환경변수를 해제한 상태로 실행**한다.
 - **화학 정합성 책임 경계**: `ocr-extractor`는 1차 물리범위 스크리닝(원소값이 grade 통상범위에 부합하는지)만 수행하고, Cev 역산·crop 확정 재판독은 `chemistry-reviewer`가 책임진다.
 
 ---
@@ -76,7 +76,7 @@ Python 결정적 모듈(`scripts/`)과 서브에이전트 위임 단계를 명�
 ├── output/                                         ← 보고서 산출물 및 평가 결과
 └── ... plugin/ReportReviewer/                      ← 플러그인 루트
     ├── agents/                                     ← 플러그인 서브에이전트 (frontmatter model 포함)
-    │   ├── ocr-extractor.md                        ← Phase 2 Vision 전사 (sonnet)
+    │   ├── ocr-extractor.md                        ← Phase 2 Vision 전사 (opus 4.8)
     │   ├── chemistry-reviewer.md                   ← Phase 4 화학 (claude-opus-4-8)
     │   ├── mechanical-reviewer.md                  ← Phase 4 기계 (claude-opus-4-8)
     │   ├── heat-treatment-reviewer.md              ← Phase 4 열처리 (claude-opus-4-8)
@@ -116,7 +116,7 @@ Set-Location "<플러그인 디렉토리: 본 SKILL.md가 있는 곳>"
 python -m scripts.cli build-manifest                    # Phase 0: cert/MPS 인덱스
 python -m scripts.cli cache-status --case 4 | --all     # 캐시 게이트 (fresh|legacy|stale|missing)
 python -m scripts.cli prep-inputs --case 4 [--dpi 300] [--force]   # Phase 1: PNG 렌더 + 사이드카
-python -m scripts.cli merge-parts --case 4              # fragment(>8p) 구간 병합
+python -m scripts.cli merge-parts --case 4              # fragment(>6p) 구간 병합
 python -m scripts.cli check-extraction --case 4 | --all # Phase 2.5: 완전성 게이트
 python -m scripts.cli crop --case 4 --stem <stem> --page 2 --bbox 0.10,0.42,0.55,0.50 --dpi 300  # 모호 셀 재판독
 python -m scripts.cli validate-refs                     # Phase 3: CSV 출처 검증
@@ -124,6 +124,18 @@ python -m scripts.cli limits --case 4                   # Phase 4: 관련 기준
 python -m scripts.cli merge-reviews --case 4            # 검토 5에이전트 부분 산출 병합
 python -m scripts.cli evaluate --case 4 | --all         # Phase 6: comments.md 기준 평가
 ```
+
+---
+
+## 시간 예산 (케이스 복잡도별 차등)
+
+정확도를 시간을 위해 희생하지 않는다 — opus의 수치 셀 crop 정밀 판독은 케이스 복잡도가 요구하는 만큼 수행한다. 시간은 결과이지 상한이 아니다. 케이스 복잡도에 따라 목표 wall-clock을 차등 적용한다:
+
+- **단순** (1~3페이지, 1~2 품목): 목표 **≤30분**.
+- **표준** (4~6페이지, 수 개 품목): 목표 **≤60분**.
+- **복합** (>6페이지 또는 7품목 이상 또는 다중 grade): **60~90분 허용**. 다중 케이스 동시 fan-out 시 opus 동시 호출 throttle로 더 늘 수 있다.
+
+시간을 복잡도에 비례시키는 구조적 장치: ① 식별 확정은 ocr-extractor 1회로 단일화(검토자 재검증 금지) ② 검토자 crop은 판정 임계 셀 위주(무차별 전수 crop 금지) ③ 대형 cert(≤4p 구간) 병렬화(아래). 다중 케이스 실행 시 케이스 내 5에이전트 병렬과 케이스 간 병렬이 겹치므로 총 동시 에이전트 6~10 상한을 유지한다.
 
 ---
 
@@ -185,8 +197,8 @@ python -m scripts.cli evaluate --case 4 | --all         # Phase 6: comments.md �
 
 ### 3) ocr-extractor 위임 (PNG 수에 따라 모드 분기)
 
-- **PNG ≤ 8장 → full 모드**: `ocr-extractor` **1회 위임**. 에이전트가 케이스 전 페이지를 전사하여 `<stem>_extracted.json`을 직접 완성한다.
-- **PNG > 8장 → fragment 모드**: 페이지를 **구간(≤8p)별로 분할**하여 `ocr-extractor`를 **병렬 위임**(한 메시지에 다중 위임)한다. 각 위임은 `parts/<stem>__pSSS-EEE.json` fragment를 저장한다. **전 구간 완료 후** 오케스트레이터가 `merge-parts --case <id>`로 병합한다 (스켈레톤 top-level 보존, 페이지 중복 시 결정적 우선순위·issue 보고).
+- **PNG ≤ 6장 → full 모드**: `ocr-extractor` **1회 위임**. 에이전트가 케이스 전 페이지를 전사하여 `<stem>_extracted.json`을 직접 완성한다.
+- **PNG > 6장 → fragment 모드**: 페이지를 **구간(≤4p)별로 분할**하여 `ocr-extractor`를 **병렬 위임**(한 메시지에 다중 위임)한다. 각 위임은 `parts/<stem>__pSSS-EEE.json` fragment를 저장한다. **전 구간 완료 후** 오케스트레이터가 `merge-parts --case <id>`로 병합한다 (스켈레톤 top-level 보존, 페이지 중복 시 결정적 우선순위·issue 보고).
 
 **위임 컨텍스트 명세** (각 `ocr-extractor` 위임에 반드시 포함):
 - 케이스 id
@@ -230,6 +242,8 @@ python -m scripts.cli evaluate --case 4 | --all         # Phase 6: comments.md �
 - 스킬 디렉토리 **절대경로**
 - 자기 도메인 부분 산출 의무: `.cache/<case>/<case>_review_<domain>.json`
 - (해당 시) unrouted grade 해소 정보
+
+검토 에이전트는 ocr-extractor가 확정한 식별 필드(header의 grade/heat_no/cert_no/size/qty)를 재검증하지 않는다(시간 예산 절 참조).
 
 **기준 번호 라우팅 표** (어떤 에이전트가 어떤 기준을 담당하는지만 — 판정 절차는 각 에이전트 문서 소관):
 
@@ -309,8 +323,8 @@ Phase 3   validate-refs     → exit 0 필수                                   
 ──── 이하 케이스별 (오케스트레이터 시퀀스) ────
 [GATE]    cache-status      → fresh/legacy = Phase 1·2 스킵 / stale/missing = 수행
 Phase 1   prep-inputs       → png/*.png + <stem>_prep.json (직접 실행) → PNG 수로 모드 결정
-Phase 2   [위임 ocr-extractor/sonnet]  ≤8p full 1회 → <stem>_extracted.json
-                                       >8p fragment 병렬(≤8p) → parts/*.json → merge-parts
+Phase 2   [위임 ocr-extractor/opus]  ≤6p full 1회 → <stem>_extracted.json
+                                       >6p fragment 병렬(≤4p) → parts/*.json → merge-parts
                             (C1·verbatim·전 페이지 의무, 세부 agents/ocr-extractor.md)
 Phase 2.5 check-extraction  → exit 0 필수 (항상 실행, 실패 시 누락 구간만 재위임)
 ──── OCR 완료·2.5 통과 케이스부터 ────
@@ -322,7 +336,7 @@ Phase 5   compliance_report → output/reports/<id>/<id>_MTC_Review.xlsx (6 시�
 Phase 6   evaluate --case <id> | --all → output/eval/*  (recall/precision/case_pass)
 ```
 
-> **모델 주의**: 위 라우팅(OCR=sonnet, 검토=claude-opus-4-8)은 각 에이전트 frontmatter의 model로
+> **모델 주의**: 전 에이전트 claude-opus-4-8(OCR·검토 동일)은 각 에이전트 frontmatter의 model로
 > 적용된다. `CLAUDE_CODE_SUBAGENT_MODEL`이 설정돼 있으면 이를 덮어쓰므로 **해제 상태로 실행**한다.
 
 ---

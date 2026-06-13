@@ -51,7 +51,7 @@ python -m scripts.cli limits --case 4
 ## 파이프라인 (compliance 단일)
 
 ```
-build-manifest → prep-inputs (PNG body) → [ocr-extractor/sonnet] Vision OCR
+build-manifest → prep-inputs (PNG body) → [ocr-extractor/claude-opus-4-8] Vision OCR
  → check-extraction 게이트 → limits 조회
  → [chemistry/mechanical/heat-treatment/nde/format-reviewer 병렬 위임]
  → merge-reviews (부분 산출 결정적 병합 → review.json)
@@ -70,7 +70,7 @@ build-manifest → prep-inputs (PNG body) → [ocr-extractor/sonnet] Vision OCR
 | `nde-reviewer` | claude-opus-4-8 | `<case>_review_nde.json` |
 | `format-reviewer` | claude-opus-4-8 | `<case>_review_format.json` (섹션 키: `doc_checks`) |
 
-전 에이전트 완료 후 `merge-reviews` CLI가 5파일을 단일 `<case>_review.json`으로 결정적 병합한다 (전역 finding 재채번·verdict 최악값). `OCR`은 `ocr-extractor`(sonnet)가 전담한다.
+전 에이전트 완료 후 `merge-reviews` CLI가 5파일을 단일 `<case>_review.json`으로 결정적 병합한다 (전역 finding 재채번·verdict 최악값). `OCR`은 `ocr-extractor`(claude-opus-4-8)가 전담한다. 전 에이전트 claude-opus-4-8(정확도 우선)이며, OCR(전사)과 검토(판정)는 모델이 아니라 역할로 분리된다 — 복잡도별 차등 예산(단순 ≤30분 / 표준 ≤60분 / 복합 60~90분, 정확도 최우선).
 
 > **모델 라우팅 주의**: `CLAUDE_CODE_SUBAGENT_MODEL` 환경변수가 설정돼 있으면 에이전트 frontmatter의 model을 덮어쓴다. 라우팅을 의도대로 적용하려면 **이 환경변수를 해제한 상태로 실행**한다.
 
