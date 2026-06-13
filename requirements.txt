@@ -3,6 +3,7 @@
 # 메타만, pypdfium2는 페이지 렌더링(이미지)만 — OCR은 Claude Vision이 수행.
 pypdfium2>=4.0      # cert PDF -> 페이지 PNG 렌더링 (Phase 2 입력)
 pypdf>=4.0          # PDF 주석(/Annots) 메타 추출, MPS PDF 텍스트
+Pillow>=10.0        # 페이지 PNG -> 2x2 타일 분할 (tile-inputs; 이미지 크롭만, OCR 아님)
 openpyxl>=3.1       # 6시트 한글 Excel 리포트
 
 # 개발/테스트

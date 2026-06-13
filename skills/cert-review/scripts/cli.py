@@ -352,6 +352,39 @@ def cmd_crop(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_tile_inputs(args: argparse.Namespace) -> int:
+    """Split rendered page PNGs into overlapping tiles for legible Vision reads."""
+    from scripts.tile_inputs import tile_case  # noqa: PLC0415
+
+    if args.all:
+        if not MANIFEST_PATH.exists():
+            print("[ERROR] manifest.json not found; run build-manifest first", file=sys.stderr)
+            return 1
+        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+        case_ids = [c["case_id"] for c in manifest.get("cases", []) if c.get("has_cert_pdf")]
+    else:
+        case_ids = [args.case]
+
+    any_done = False
+    for cid in case_ids:
+        try:
+            summary = tile_case(case_id=cid, cache_root=CACHE_DIR)
+        except (FileNotFoundError, ValueError) as e:
+            if args.all:
+                continue
+            print(f"[ERROR] tile-inputs: {e}", file=sys.stderr)
+            return 1
+        any_done = True
+        total = sum(c["tile_count"] for c in summary["certs"])
+        print(f"[OK] tile-inputs --case {cid}: grid {summary['grid']}, {total} tile(s)")
+        for c in summary["certs"]:
+            print(f"     {c['stem']}: {c['page_count']}p -> {c['tile_count']} tiles")
+    if not any_done:
+        print("[INFO] tile-inputs: no rendered PNGs found (run prep-inputs first)")
+        return 0 if args.all else 1
+    return 0
+
+
 def cmd_limits(args: argparse.Namespace) -> int:
     """Emit the per-case reference-limit pack (relevant CSV rows only)."""
     from scripts.refpack import build_limits_pack  # noqa: PLC0415
@@ -549,6 +582,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--bbox", required=True, help="x0,y0,x1,y1 as 0.0-1.0 fractions")
     p.add_argument("--dpi", type=int, default=300, help="Render DPI (default 300)")
     p.set_defaults(func=cmd_crop)
+
+    p = sub.add_parser("tile-inputs", help="Split rendered PNGs into 2x2 overlapping tiles (legible Vision reads)")
+    group = p.add_mutually_exclusive_group(required=True)
+    group.add_argument("--case")
+    group.add_argument("--all", action="store_true", help="Every manifest case with rendered PNGs")
+    p.set_defaults(func=cmd_tile_inputs)
 
     p = sub.add_parser("limits", help="Per-case reference-limit pack (relevant CSV rows)")
     p.add_argument("--case", required=True)

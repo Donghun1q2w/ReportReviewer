@@ -47,7 +47,7 @@ cert-review 스킬의 **Phase 2(Claude Vision OCR)만** 수행하는 전사 전�
 | 입력 폴더 | 본 에이전트의 용도 |
 |---|---|
 | `ref_code/` | (참조만 — 전사 단계에서는 보통 불필요) ASTM/ASME 코드 원문 OCR |
-| `standard inspection Cert cleanup data/<case>/` | 검토 대상 성적서 원천(이미 PNG로 렌더됨 — `.cache/<case>/png/` 사용) |
+| `standard inspection Cert cleanup data/<case>/` | 검토 대상 성적서 원천(이미 PNG 렌더 + 타일 분할됨 — `.cache/<case>/tiles/` 사용, 부재 시 `png/` 폴백) |
 | `standard inspection MPS cleanup data/<case>/` | MPS 스캔(식별·적합성 대조용 본문 판독) |
 
 - `rawdata/`(전 모듈)와 `standard inspection GT data/`(평가 전용)는 **절대 열지 않는다.** `Read` 툴 직접 접근도 금지. 입력 가드(`sys.addaudithook`)가 위반 시 `PermissionError`를 발생시킨다.
@@ -56,12 +56,13 @@ cert-review 스킬의 **Phase 2(Claude Vision OCR)만** 수행하는 전사 전�
 
 ## 모드 1 — full 모드 (케이스 전 페이지 ≤6p 직접 완성)
 
-배정된 케이스의 `.cache/<case>/png/` 아래 **모든** cert 페이지 PNG(`<stem>_pNN.png`)를 전사하여
-`SKILL_DIR\.cache\<case>\<stem>_extracted.json`을 직접 완성한다.
+배정된 케이스의 **각 페이지를 4개 타일**로 전사하여
+`SKILL_DIR\.cache\<case>\<stem>_extracted.json`을 직접 완성한다. 전사 단위는 여전히 **페이지**다 — 타일 4장을 종합해 페이지 1 entry로 기록한다.
 
-1. **[전 페이지 의무 + 배치 Read]** `png/` 아래 cert 페이지 PNG를 빠짐없이 연다. **한 메시지에 4~6장씩 병렬 `Read`**로 열어 왕복을 줄인다. 단, **전사는 페이지별 entry로 빠짐없이 기록**한다 — 배치로 열어도 페이지 단위 기록 의무는 그대로다.
+1. **[전 페이지 의무 + 타일 배치 Read]** 각 페이지의 **4개 타일**(`.cache/<case>/tiles/<stem>_pNN_r{0,1}c{0,1}.png`)을 빠짐없이 연다. **한 페이지당 4장씩 병렬 `Read`**로 열어 왕복을 줄인다. 타일 좌표는 `r0`=헤더+상단표 / `r1`=하단표, `c0`=좌 / `c1`=우이며, **6% 중첩**이라 경계에 걸친 셀은 양쪽 타일에 모두 보인다. **타일이 선명하므로 셀별 crop은 원칙적으로 하지 않는다** — 타일로도 모호한 셀(직인 겹침 등)만 예외적으로 crop한다. 단, **전사는 페이지별 entry로 빠짐없이 기록**한다 — 타일 4장을 종합해도 페이지 단위 기록 의무는 그대로다.
+   - **폴백**: 타일이 없으면(`tiles/` 부재) `.cache/<case>/png/` 아래 전체 페이지 PNG(`<stem>_pNN.png`)를 배치 Read로 판독한다.
 
-2. **[식별 필드 crop 자기확정 — 필수]** 각 페이지 전사 후, header의 식별 필드(cert_no, grade, heat_no, size_od_wt, quantity)를 **페이지당 1회** header 영역 crop(≥400 DPI)으로 재판독해 확정한다. 전사값과 crop 확정값이 다르면 crop 값을 채택한다. 두 페이지의 header가 완전히 동일하게 나오면 오독 신호로 간주해 해당 페이지들을 재확정한다. **이 확정을 거친 header는 하류 검토 5에이전트가 재검증 없이 신뢰하는 단일 출처가 된다** — 식별 확정 책임은 본 에이전트 1회로 끝난다(케이스 복잡도별 차등 예산에서 식별 확정 중복을 제거하는 핵심).
+2. **[식별 필드 확정 — 타일 r0에서 확정]** 각 페이지의 header 식별 필드(cert_no, grade, heat_no, size_od_wt, quantity)는 **타일 `r0`(헤더+상단표)에서 직접 확정**한다. 타일은 다운샘플 후에도 선명하므로 별도 header crop 없이 확정하며, 타일로도 모호한 셀만 예외적으로 crop한다. 두 페이지의 header가 완전히 동일하게 나오면 오독 신호로 간주해 해당 페이지들을 재확정한다. **이 확정을 거친 header는 하류 검토 5에이전트가 재검증 없이 신뢰하는 단일 출처가 된다** — 식별 확정 책임은 본 에이전트 1회로 끝난다(케이스 복잡도별 차등 예산에서 식별 확정 중복을 제거하는 핵심).
 3. **[대표 샘플링 금지]** 일부 페이지만 골라 읽지 않는다. 후반 페이지의 치수표·NDE 첨부·이종 grade 품목 누락이 주 실패 원인이다. 표가 없는 페이지(사진·첨부·표지)도 건너뛰지 말고 entry를 만들고 `remarks`에 그 성격을 기록한다(예: `"(첨부 사진 페이지 — 표 데이터 없음)"`).
 4. **[MPS 스캔 판독]** 필요 시 `standard inspection MPS cleanup data/<case>/`의 MPS 스캔도 `Read`로 판독해 식별·적합성 대조용 본문을 확보한다.
 5. **[추출 항목]** 각 페이지에서 다음을 판독해 구조화한다(`references/extraction-schema.json` 준수):
@@ -84,8 +85,8 @@ cert-review 스킬의 **Phase 2(Claude Vision OCR)만** 수행하는 전사 전�
 
 오케스트레이터가 대형 cert(>6p)를 구간(≤4p)으로 나눠 배정한 경우, **배정된 페이지 구간만** 전사한다.
 
-- 위 full 모드의 모든 판독 의무(전 페이지 의무는 **배정 구간 내 전 페이지**로 적용, verbatim 전사, remarks·각주 포함, 자체 인쇄 기준 보존)를 동일하게 지킨다.
-- **식별 필드 crop 자기확정(2번 단계)도 배정 구간 내 각 페이지에 동일하게 적용**한다. 구간 내에서 확정한 header는 하류 검토 5에이전트가 재검증 없이 신뢰하는 단일 출처가 된다 — 식별 확정 책임은 본 에이전트 1회로 끝난다(케이스 복잡도별 차등 예산에서 식별 확정 중복을 제거하는 핵심).
+- 위 full 모드의 모든 판독 의무(전 페이지 의무는 **배정 구간 내 전 페이지**로 적용, **페이지당 4개 타일 배치 Read**, 타일 r0=상단·r1=하단·c0/c1=좌/우·6% 중첩, **셀별 crop은 원칙적으로 하지 않음**, verbatim 전사, remarks·각주 포함, 자체 인쇄 기준 보존)를 동일하게 지킨다. 타일이 없으면 해당 구간의 전체 페이지 PNG로 폴백한다.
+- **식별 필드 확정(2번 단계)도 배정 구간 내 각 페이지에 동일하게 적용**한다 — 각 페이지의 타일 `r0`에서 직접 확정한다. 구간 내에서 확정한 header는 하류 검토 5에이전트가 재검증 없이 신뢰하는 단일 출처가 된다 — 식별 확정 책임은 본 에이전트 1회로 끝난다(케이스 복잡도별 차등 예산에서 식별 확정 중복을 제거하는 핵심).
 - 산출은 `.cache/<case>/parts/<stem>__pSSS-EEE.json` fragment로 저장하며, 형식은 다음과 같다:
   ```json
   {"stem": "<cert_stem>", "pages_covered": [5, 6, 7, 8], "page_extraction": [ ... ]}
@@ -97,7 +98,8 @@ cert-review 스킬의 **Phase 2(Claude Vision OCR)만** 수행하는 전사 전�
 ## 검증 책임 경계 (중요)
 
 - **1차 물리범위 스크리닝만 수행한다.** 원소값이 해당 grade의 통상 범위와 **명백히** 어긋나면(예: P91 Cr≈8~9%인데 다른 값, A106 C<0.35%인데 초과) **해당 PNG를 1회 재판독**하고, 그래도 불확실하면 해당 셀에 `confidence: "low"`를 기록한다.
-- **Cev 역산 검증과 판정을 가르는 화학·기계 수치 셀의 crop 고DPI 확정은 본 에이전트의 책임이 아니다.** 이는 **chemistry-reviewer 등 검토 에이전트로 이관**되었다 — 본 에이전트의 `crop` CLI 사용은 **header 식별 필드 자기확정(2번 단계)에 한정**하며, 수치 셀은 Cev 역산 없이 의심 시 `confidence`로 신호만 남긴다.
+- **Cev 역산 검증과 판정을 가르는 화학·기계 수치 셀의 crop 고DPI 확정은 본 에이전트의 책임이 아니다.** 이는 **chemistry-reviewer 등 검토 에이전트로 이관**되었다 — 수치 셀은 Cev 역산 없이 의심 시 `confidence`로 신호만 남긴다.
+- **타일 우선이므로 header 식별 crop도 보통 불필요하다** — 식별 필드는 타일 `r0`에서 직접 확정한다(2번 단계). 본 에이전트의 `crop` CLI 사용은 **타일로도 모호한 잔여 셀(직인 겹침 등)에 한정**한다.
 - 본 에이전트는 grade↔spec 라우팅, 기준값 비교, severity·category 판정을 일절 하지 않는다(전사만).
 
 ---
@@ -107,6 +109,7 @@ cert-review 스킬의 **Phase 2(Claude Vision OCR)만** 수행하는 전사 전�
 다음은 모두 **오케스트레이터** 책임이며, 본 에이전트는 호출하지 않는다.
 
 - **Phase 1 prep-inputs**(PNG 렌더링 + prep 사이드카, **기본 DPI 300** — 스캔 글씨가 작아 300 DPI 렌더가 식별·수치 판독 정확도에 유리하다) — 전사 시작 시 PNG는 이미 존재.
+- **tile-inputs**(prep-inputs 직후, 페이지 PNG를 페이지당 **2×2 중첩 타일**(`.cache/<case>/tiles/<stem>_pNN_rRcC.png`, 6% 중첩)로 분할) — 전사 시작 시 타일은 이미 존재.
 - **Phase 2.5 check-extraction**(전 페이지 추출 완전성 게이트).
 - **cache-status**(케이스별 fresh/legacy/stale/missing 판정).
 - **merge-parts**(fragment 결정적 병합).
@@ -122,7 +125,7 @@ cert-review 스킬의 **Phase 2(Claude Vision OCR)만** 수행하는 전사 전�
   - fragment 모드: 배정 구간의 페이지 수와 일치.
 - full 모드에서는 `channels.body.pages`가 `page_extraction`의 전 페이지를 커버하는지 확인한다.
 - 불일치 시 누락 페이지를 다시 `Read`로 열어 전사를 보완한 뒤 산출을 마친다.
-- **식별 필드 crop 확정 완료 여부를 확인한다** — 전 페이지(또는 배정 구간 전 페이지)에 대해 2번 단계의 header crop 재판독이 수행됐는지 점검하고, 누락 페이지가 있으면 해당 페이지만 보완 확정한다.
+- **식별 필드 확정 완료 여부를 확인한다** — 전 페이지(또는 배정 구간 전 페이지)에 대해 2번 단계의 타일 `r0` 식별 확정이 수행됐는지 점검하고, 누락 페이지가 있으면 해당 페이지만 보완 확정한다.
 
 ---
 
@@ -132,4 +135,4 @@ cert-review 스킬의 **Phase 2(Claude Vision OCR)만** 수행하는 전사 전�
 - 산출 파일 절대경로(extracted.json 또는 fragment)
 - 전사한 페이지 수 / 배정 PNG 수(일치 여부)
 - `confidence: low`로 표시한 셀과 그 사유(있으면) — 후속 chemistry-reviewer가 crop 재판독할 후보로 인계
-- **페이지별 식별 확정 결과**: 전사값과 crop 확정값이 달라 정정된 필드 목록(예: `p3 heat_no: "AB123O" → "AB1230"`) — 정정 없으면 "전 페이지 식별 필드 일치 확인"으로 보고
+- **페이지별 식별 확정 결과**: 타일 `r0` 확정 과정에서 정정된 필드 목록(예: `p3 heat_no: "AB123O" → "AB1230"`) — 정정 없으면 "전 페이지 식별 필드 일치 확인"으로 보고
