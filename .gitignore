@@ -12,6 +12,8 @@ output/
 **/manifest.json
 *.xlsx
 extracted_*.json
+_batch_prep.log
+_experiments/
 
 # OMC / 에디터 / OS
 .omc/

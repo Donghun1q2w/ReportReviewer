@@ -5,13 +5,13 @@
   },
   "metadata": {
     "description": "파이프 자재 MTC(성적서) 자동 검토 Claude Code 플러그인",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "plugins": [
     {
       "name": "cert-review",
       "source": "./",
-      "description": "파이프 자재 MTC(Mill Test Certificate / 성적서)를 MPS(구매시방서) 및 ASTM/ASME 코드 기준과 대조 검토하고 6시트 한글 Excel 리포트를 생성한다. Claude Vision OCR + 결정적(Python) 비교 엔진 하이브리드. 모든 기준값은 ref_code/MPS에서 인용(출처 4종 메타 검증), LLM 생성 금지.",
+      "description": "파이프 자재 MTC(Mill Test Certificate / 성적서)를 MPS(구매시방서) 및 ASTM/ASME 코드 기준과 대조 검토하고 6시트 한글 Excel 리포트를 생성한다. 타일 기반 Claude Vision OCR + MPS digest 1회 추출 + 도메인별 검토 에이전트 7종(화학·기계·열처리·NDE·표기형식). 모든 기준값은 ref_code/MPS/CSV에서 인용(출처 메타 검증), LLM 생성 금지.",
       "category": "productivity",
       "strict": false,
       "skills": [
