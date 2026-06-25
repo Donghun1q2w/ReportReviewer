@@ -2,18 +2,18 @@
 
 파이프 자재 **MTC(Mill Test Certificate / 성적서) 자동 검토** Claude Code 플러그인.
 
-스캔된 성적서 PDF를 **Claude Vision으로 OCR**하고, **MPS(구매시방서)** 및 **ASTM/ASME 코드** 기준값과 대조하여 PASS/FAIL/지적사항을 판정, **6시트 한글 Excel 리포트**를 생성한다. 모든 기준값은 ref_code/MPS 원문에서 인용하며(출처 4종 메타 검증) **LLM이 기준값을 생성하지 않는다**.
+스캔된 성적서 PDF를 **Claude Vision으로 OCR**하고, **MPS(구매시방서)** 및 **ASTM/ASME 코드** 기준값과 대조하여 PASS/FAIL/지적사항을 판정, **6시트 한글 Excel 리포트**를 생성한다. 모든 기준값은 ref_code/MPS 원문에서 인용하며(출처 3종 메타 검증) **LLM이 기준값을 생성하지 않는다**.
 
 > 사내 전용(Proprietary). [LICENSE](LICENSE) 참조.
 
 ## 핵심 특징
 
 - **2차원 병렬 아키텍처**: 오케스트레이터(SKILL.md)가 케이스 × 도메인 에이전트를 직접 스케줄링 (동시 6~10). 케이스 래퍼 에이전트 없음 — 서브에이전트는 중첩 스폰 불가이므로 모든 fan-out을 오케스트레이터가 직접 수행한다.
-- **역할 분리 서브에이전트**: OCR 전용(`ocr-extractor`, claude-opus-4-8) + 도메인별 검토 5종(`claude-opus-4-8`) — 전사(판독)와 판정을 역할로 분리.
+- **역할 분리 서브에이전트**: OCR 전용(`ocr-extractor`, claude-opus-4-8) + MPS 추출 전용(`mps-extractor`, claude-opus-4-8) + 도메인별 검토 5종(`claude-opus-4-8`) — 전사(판독)·MPS 추출·판정을 역할로 분리.
 - **결정적 병합 단계**: 검토 5에이전트가 각자 부분 산출물을 쓰고, `merge-reviews` CLI가 전역 재채번 및 verdict 최악값으로 결정적 병합. 하류 Phase 5/6 계약 불변.
-- **Claude Vision OCR 강제**: Python OCR 라이브러리 일체 미사용 (`pytesseract`/`easyocr`/`pymupdf` 등 금지, AST 회귀로 검증). PDF는 `pypdfium2` 렌더링 + `pypdf` 주석 메타만
-- **출처 강제(provenance)**: 모든 판정 근거에 `source_file`/`anchor`/`snippet`/`sha256` 4종 메타. 미검증 근거는 자동 격리
-- **4-채널 입력**: cert 본문 OCR + PDF 주석 + 이메일(.msg) + zip 첨부 (+ MPS PDF 주석)
+- **Claude Vision OCR 강제**: Python OCR 라이브러리 일체 미사용 (`pytesseract`/`easyocr`/`pymupdf` 등 금지, AST 회귀로 검증). PDF는 `pypdfium2`로 페이지를 렌더링하고, `pypdf`는 출처 검증용 임베디드 텍스트 추출에만 쓴다
+- **출처 강제(provenance)**: 모든 판정 근거에 `source_file`/`anchor`/`snippet` 3종 메타. 미검증 근거는 자동 격리
+- **단일 OCR 입력 채널**: cert 본문을 Claude Vision으로 전사하는 `channels.body` 하나만 사용한다. 입력은 3개 카테고리(① 참조 코드 ② 성적서 ③ MPS) 폴더로 인식하며, 이메일(.msg)·zip 첨부·PDF 주석을 입력 채널로 받지 않는다(원본 reviewer 주석은 입력 가드로 차단).
 - **6시트 한글 리포트**: 검토 총괄 / 화학성분 / 기계적성질 / 열처리 / 표기·형식 / 지적사항 종합
 
 ## 설치
@@ -46,13 +46,19 @@ pip install -r requirements.txt
 cd skills/cert-review
 $env:PYTHONIOENCODING="utf-8"
 $env:CERT_REVIEW_WORKDIR="<성적서/MPS/ref_code가 있는 작업 폴더>"
-python -m scripts.cli build-manifest           # Phase 0: cert/MPS 인덱스
-python -m scripts.cli validate-refs            # Phase 3: CSV 출처 검증
-python -m scripts.cli prep-inputs --case <id>  # Phase 1: PDF→PNG
-#  -> ocr-extractor(claude-opus-4-8)로 PNG Vision OCR 위임 (SKILL.md Phase 2)
-#  -> chemistry/mechanical/heat-treatment/nde/format-reviewer 병렬 위임 (Phase 4)
-python -m scripts.cli merge-reviews --case <id>  # 부분 산출 결정적 병합
-python -m scripts.cli evaluate --all             # Phase 6: GT 평가(있을 시)
+python -m scripts.cli build-manifest            # Phase 0: cert/MPS 인덱스
+python -m scripts.cli validate-refs             # Phase 3: CSV 출처 검증 (fan-out 전 1회)
+python -m scripts.cli cache-status --case <id>  # Phase 1: 캐시 게이트 (fresh/legacy면 OCR 스킵)
+python -m scripts.cli prep-inputs --case <id>   # Phase 1: cert PDF→PNG (300 DPI)
+python -m scripts.cli tile-inputs --case <id>   # Phase 1: 페이지 PNG→2×2 중첩 타일 (ocr-extractor 판독 입력)
+python -m scripts.cli prep-mps   --case <id>    # Phase 1: MPS PDF→PNG+타일 (mps-extractor 입력)
+#  -> ocr-extractor + mps-extractor(claude-opus-4-8) 병렬 위임 (SKILL.md Phase 2)
+#     ocr-extractor: tiles 판독→<stem>_extracted.json (>6p는 fragment 위임 후 merge-parts)
+#     mps-extractor: mps_tiles 1회 추출→<case>_mps_digest.json (검토 5에이전트 공유)
+python -m scripts.cli check-extraction --case <id>  # Phase 2.5: 완전성 게이트 (통과 전 검토 금지)
+#  -> limits 조회 후 chemistry/mechanical/heat-treatment/nde/format-reviewer 병렬 위임 (Phase 4)
+python -m scripts.cli merge-reviews --case <id> # 부분 산출 결정적 병합
+python -m scripts.cli evaluate --all            # Phase 6: GT 평가(있을 시)
 ```
 
 전체 절차(Phase 0~6)는 [`skills/cert-review/SKILL.md`](skills/cert-review/SKILL.md) 참조.
@@ -78,6 +84,7 @@ ReportReviewer/
 ├── .claude-plugin/marketplace.json   # 플러그인 마켓플레이스 매니페스트
 ├── agents/                           # 플러그인 서브에이전트 (frontmatter model 포함)
 │   ├── ocr-extractor.md              # Phase 2 Vision 전사 (claude-opus-4-8, full/fragment 모드)
+│   ├── mps-extractor.md              # Phase 4 직전 MPS 스캔 1회 추출 (claude-opus-4-8) → <case>_mps_digest.json
 │   ├── chemistry-reviewer.md         # Phase 4 화학성분 검토 (claude-opus-4-8)
 │   ├── mechanical-reviewer.md        # Phase 4 기계적 성질 검토 (claude-opus-4-8)
 │   ├── heat-treatment-reviewer.md    # Phase 4 열처리 검토 (claude-opus-4-8)
@@ -88,9 +95,9 @@ ReportReviewer/
 │   ├── scripts/                      # 결정적 Python 모듈 (CLI/엔진/평가)
 │   │   ├── merge_reviews.py          # 검토 5에이전트 부분 산출 결정적 병합
 │   │   └── ...
-│   ├── data/*.csv                    # 참조 기준값 7종 (출처 4종 메타 검증)
+│   ├── data/*.csv                    # 참조 기준값 7종 (출처 3종 메타 검증)
 │   ├── references/                   # review-criteria / conventions / extraction-schema
-│   └── tests/                        # 84개 단위 테스트 (test_merge_reviews.py 11개 포함)
+│   └── tests/                        # 95개 단위 테스트 (test_merge_reviews.py 12개 포함)
 ├── docs/eval-summary.md              # 평가 결과·잔여 분석
 ├── requirements.txt
 └── LICENSE
@@ -98,11 +105,12 @@ ReportReviewer/
 
 ## 서브에이전트 (`agents/`)
 
-오케스트레이터(SKILL.md)가 위임하는 **6개 플러그인 서브에이전트**. 각자 부분 산출물만 작성하고, 오케스트레이터가 결정적 CLI(`merge-reviews`)로 병합한다.
+오케스트레이터(SKILL.md)가 위임하는 **7개 플러그인 서브에이전트**. 각자 부분 산출물만 작성하고, 오케스트레이터가 결정적 CLI(`merge-reviews`)로 병합한다.
 
 | 에이전트 | model | 담당 | 부분 산출물 |
 |---|---|---|---|
 | `ocr-extractor` | claude-opus-4-8 | Phase 2 Vision 전사 (full / fragment 두 모드) | `<stem>_extracted.json` |
+| `mps-extractor` | claude-opus-4-8 | Phase 4 직전 MPS 스캔 1회 추출 → 검토 5에이전트가 공유 소비하는 digest 산출 | `<case>_mps_digest.json` |
 | `chemistry-reviewer` | claude-opus-4-8 | 화학성분 검토 + Cev 역산·crop 확정 | `<case>_review_chemistry.json` |
 | `mechanical-reviewer` | claude-opus-4-8 | 기계적 성질 검토 | `<case>_review_mechanical.json` |
 | `heat-treatment-reviewer` | claude-opus-4-8 | 열처리 검토 (±10°C 룰) | `<case>_review_heat_treatment.json` |
@@ -128,12 +136,12 @@ python -m scripts.cli merge-reviews --all          # 전 케이스
 cd skills/cert-review; $env:PYTHONIOENCODING="utf-8"
 
 # 단위 테스트 — 데이터셋 없이도 실행 (이식성 테스트 포함, 데이터셋 의존 테스트는 skip).
-# 데이터셋이 있으면 CERT_REVIEW_WORKDIR 지정 시 84개 전부 실행.
+# 데이터셋이 있으면 CERT_REVIEW_WORKDIR 지정 시 95개 전부 실행.
 python -m pytest tests/ -q
 
 # 참조 CSV 출처 검증 — ref_code/MPS 원문이 있는 데이터셋 필요 (CI/testbed 작업).
 $env:CERT_REVIEW_WORKDIR="<ref_code/, MPS/가 있는 데이터셋 폴더>"
-python -m scripts.cli validate-refs    # 7 CSV / 566행 / 0 failures
+python -m scripts.cli validate-refs    # 7 CSV / 583행 / 0 failures
 ```
 
 > `validate-refs` / `build-manifest` / `evaluate`는 **소스 데이터셋**(ref_code OCR, MPS 스캔, GT)을 참조하므로 `CERT_REVIEW_WORKDIR`로 데이터셋 폴더를 가리켜야 한다. 배포본에 포함된 `data/*.csv`는 testbed에서 **이미 출처 검증을 통과한 산출물**이다 (대용량 원문은 배포 미포함).
@@ -142,6 +150,6 @@ python -m scripts.cli validate-refs    # 7 CSV / 566행 / 0 failures
 
 | recall | full-recall cases | precision | dropped | tests |
 |---|---|---|---|---|
-| 91/104 = 87.5% | 36/46 | 91.0% | 0 | 84/84 |
+| 91/104 = 87.5% | 36/46 | 91.0% | 0 | 95/95 |
 
 매칭 정의(content+grade+page+severity-tier, Issue 매칭)와 잔여 10건 분석: [`docs/eval-summary.md`](docs/eval-summary.md).
