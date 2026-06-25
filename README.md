@@ -36,8 +36,8 @@ pip install -r requirements.txt
 플러그인 설치 후 Claude Code 세션에서:
 
 ```
-/cert-review --all          # 작업 폴더 전체 검토
-/cert-review <case_id>       # 단일 케이스
+/cert-review                # 작업 폴더의 3개 카테고리 입력(참조코드·성적서·MPS)을 검토
+# (`--all` / `<case_id>` 형태의 케이스 선택은 플러그인 테스트 하니스 회귀 전용)
 ```
 
 또는 Python CLI를 직접 실행 (Windows PowerShell):

@@ -39,12 +39,12 @@ MPS PDF는 스캔본이라 텍스트가 0자다. 5명의 검토자가 각자 Vis
 
 ## 입력 화이트리스트 (rawdata·GT 접근 금지)
 
-| 입력 폴더 | 본 에이전트의 용도 |
+| 입력 카테고리 | 본 에이전트의 용도 |
 |---|---|
-| `standard inspection MPS cleanup data/<case>/` | MPS 스캔 원천. **실제로는 이 PDF를 직접 열지 않고**, prep-mps가 생성해 둔 `.cache/<case>/mps_tiles/`의 타일을 `Read`로 판독한다(부재 시 `.cache/<case>/mps_png/` 페이지 폴백). |
+| ③ MPS(구매시방서) | MPS 스캔 원천. **실제로는 이 PDF를 직접 열지 않고**, prep-mps가 생성해 둔 `.cache/<case>/mps_tiles/`의 타일을 `Read`로 판독한다(부재 시 `.cache/<case>/mps_png/` 페이지 폴백). |
 
 - `rawdata/`(전 모듈)와 `standard inspection GT data/`(평가 전용)는 **절대 열지 않는다.** `Read` 툴 직접 접근도 금지. 입력 가드(`sys.addaudithook`)가 위반 시 `PermissionError`를 발생시킨다.
-- cert 폴더(`standard inspection Cert cleanup data/`)·`ref_code/`는 본 에이전트의 추출 대상이 아니다 — 본 에이전트는 MPS만 추출한다.
+- 검토 대상 성적서 카테고리·참조 코드 문서는 본 에이전트의 추출 대상이 아니다 — 본 에이전트는 MPS만 추출한다.
 
 ---
 

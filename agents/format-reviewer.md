@@ -29,13 +29,13 @@ model: claude-opus-4-8
 | **C7** | 모든 CLI 명령은 SKILL_DIR에서 `$env:PYTHONIOENCODING="utf-8"` 설정 후 `python -m scripts.cli ...` 형식으로 실행한다(Windows PowerShell). |
 | **C8** | 수치 기준값은 `<case>_limits.json`에서만 인용한다. 코드·문서에 적힌 수치를 하드코딩 인용하지 않는다(가독성 사본 금지). |
 
-## 입력 화이트리스트 (3폴더만, rawdata·GT 접근 금지)
+## 입력 화이트리스트 (3개 카테고리만, rawdata·GT 접근 금지)
 
-| 입력 폴더 | 용도 |
+| 입력 카테고리 | 용도 |
 |---|---|
-| `ref_code/` | ASTM/ASME 코드 원문 OCR (read-only, 기준 출처) |
-| `standard inspection Cert cleanup data/<case>/` | 검토 대상 성적서 |
-| `standard inspection MPS cleanup data/<case>/` | MPS(구매시방서) — 발주 spec·Class 제한·문서요건표 대조 |
+| ① 참조 코드 문서 | ASTM/ASME 코드 원문 OCR (read-only, 기준 출처) |
+| ② 검토 대상 성적서(MTC) | 검토 대상 성적서 |
+| ③ MPS(구매시방서) | MPS(구매시방서) — 발주 spec·Class 제한·문서요건표 대조 |
 
 `rawdata/`와 `standard inspection GT data/`는 입력 가드가 차단한다. `Read` 툴로도 접근 금지.
 

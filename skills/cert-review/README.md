@@ -37,16 +37,19 @@ python -m scripts.cli limits --case 4
 > wall-clock을 단축한다. 케이스 래퍼 서브에이전트는 없으며, fan-out을 오케스트레이터가 직접 수행한다.
 > 자세한 규칙은 `SKILL.md`의 **병렬 실행 규칙** 절 참조. 품질 의무(전 페이지 의무·verbatim 전사·evidence 필수)는 그대로 유지된다.
 
-## 입력 (3폴더만)
+## 입력 (3개 카테고리만)
 
-| 입력 | 출처 | 도구 | 산출물 |
-|---|---|---|---|
-| cert body | `standard inspection Cert cleanup data/<case>/*.pdf` | pypdfium2 + Claude Vision | `<stem>_extracted.json` (channels: body) |
-| MPS | `standard inspection MPS cleanup data/<case>/*.pdf` | Claude Vision | 식별·적합성 대조 |
-| ref_code | `ref_code/` (read-only) | CSV 기준값 출처 | `data/*.csv` |
+검토 동작 단계는 아래 **3개 카테고리**의 폴더·파일만 읽는다. 각 카테고리의 실제 소스 폴더/파일명은 env(`CERT_REVIEW_REF_CODE_DIR` / `CERT_REVIEW_CERT_DIR` / `CERT_REVIEW_MPS_DIR`)로 지정하며, 미지정 시 테스트 하니스 레이아웃이 기본값이다.
 
-`standard inspection GT data/<case>/comments.md`는 **평가 단계에서만** 접근(코드 가드 적용).
-`rawdata/`는 동작 중 접근 금지(가드가 차단).
+| 입력 카테고리 | 도구 | 산출물 |
+|---|---|---|
+| ① 참조 코드 문서 (ASTM/ASME, read-only) | CSV 기준값 출처 | `data/*.csv` |
+| ② 검토 대상 성적서(MTC) | pypdfium2 + Claude Vision | `<stem>_extracted.json` (channels: body) |
+| ③ MPS(구매시방서) | Claude Vision | 식별·적합성 대조 |
+
+평가용 정답 데이터(검토자 `comments.md`)는 **평가 단계에서만** 접근(코드 가드 적용). `rawdata/` 원본은 동작 중 접근 금지(가드가 차단).
+
+> **케이스(`<case>`)·`--case` 표기 안내**: 아래 빠른 사용/서브커맨드의 `<case>` 서브폴더와 `--case <id>` 인자는 **플러그인 테스트 하니스(46케이스 회귀) 전용** 조직 방식이다. 배포 환경에서는 작업 폴더의 3개 카테고리 입력 자체가 검토 단위이며 세션 시작 시 case_id를 입력받지 않는다.
 
 ## 파이프라인 (compliance 단일)
 

@@ -42,13 +42,13 @@ cert-review 스킬의 **Phase 2(Claude Vision OCR)만** 수행하는 전사 전�
 
 ---
 
-## 입력 화이트리스트 (3폴더만 — rawdata·GT 접근 금지)
+## 입력 화이트리스트 (3개 카테고리만 — rawdata·GT 접근 금지)
 
-| 입력 폴더 | 본 에이전트의 용도 |
+| 입력 카테고리 | 본 에이전트의 용도 |
 |---|---|
-| `ref_code/` | (참조만 — 전사 단계에서는 보통 불필요) ASTM/ASME 코드 원문 OCR |
-| `standard inspection Cert cleanup data/<case>/` | 검토 대상 성적서 원천(이미 PNG 렌더 + 타일 분할됨 — `.cache/<case>/tiles/` 사용, 부재 시 `png/` 폴백) |
-| `standard inspection MPS cleanup data/<case>/` | MPS 스캔(식별·적합성 대조용 본문 판독) |
+| ① 참조 코드 문서 | (참조만 — 전사 단계에서는 보통 불필요) ASTM/ASME 코드 원문 OCR |
+| ② 검토 대상 성적서(MTC) | 검토 대상 성적서 원천(이미 PNG 렌더 + 타일 분할됨 — `.cache/<case>/tiles/` 사용, 부재 시 `png/` 폴백) |
+| ③ MPS(구매시방서) | MPS 스캔(식별·적합성 대조용 본문 판독) |
 
 - `rawdata/`(전 모듈)와 `standard inspection GT data/`(평가 전용)는 **절대 열지 않는다.** `Read` 툴 직접 접근도 금지. 입력 가드(`sys.addaudithook`)가 위반 시 `PermissionError`를 발생시킨다.
 

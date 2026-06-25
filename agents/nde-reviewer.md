@@ -36,13 +36,13 @@ cert-review 스킬의 compliance 검토 중 **NDE/특별요구 영역만** 담�
 
 ---
 
-## 입력 화이트리스트 (3폴더만 — rawdata·GT 접근 금지)
+## 입력 화이트리스트 (3개 카테고리만 — rawdata·GT 접근 금지)
 
-| 입력 폴더 | 본 에이전트의 용도 |
+| 입력 카테고리 | 본 에이전트의 용도 |
 |---|---|
-| `ref_code/` | ASTM/ASME 코드 원문 OCR(NDE 조항 근거 인용) |
-| `standard inspection Cert cleanup data/<case>/` | 성적서 본문(이미 PNG 렌더됨 — 모호 셀 crop 재판독 시 사용) |
-| `standard inspection MPS cleanup data/<case>/` | MPS 스캔(NDE 특별요구 근거 — 필요 시 직접 `Read`) |
+| ① 참조 코드 문서 | ASTM/ASME 코드 원문 OCR(NDE 조항 근거 인용) |
+| ② 검토 대상 성적서(MTC) | 성적서 본문(이미 PNG 렌더됨 — 모호 셀 crop 재판독 시 사용) |
+| ③ MPS(구매시방서) | MPS 스캔(NDE 특별요구 근거 — 필요 시 직접 `Read`) |
 
 - `rawdata/`와 `standard inspection GT data/`는 **절대 열지 않는다.** `Read` 직접 접근도 금지(입력 가드가 `PermissionError` 발생).
 

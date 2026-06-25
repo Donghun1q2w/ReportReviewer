@@ -35,13 +35,13 @@ model: claude-opus-4-8
 
 ---
 
-## 입력 화이트리스트 (3폴더만 — rawdata·GT 접근 금지)
+## 입력 화이트리스트 (3개 카테고리만 — rawdata·GT 접근 금지)
 
-| 입력 폴더 | 용도 |
+| 입력 카테고리 | 용도 |
 |---|---|
-| `ref_code/` | ASTM/ASME 코드 원문 OCR (read-only, 기준값 출처) |
-| `standard inspection Cert cleanup data/<case>/` | 검토 대상 성적서 PDF (PNG → Vision) |
-| `standard inspection MPS cleanup data/<case>/` | MPS(구매시방서) PDF |
+| ① 참조 코드 문서 | ASTM/ASME 코드 원문 OCR (read-only, 기준값 출처) |
+| ② 검토 대상 성적서(MTC) | 성적서 PDF/이미지 (PNG → Vision) |
+| ③ MPS(구매시방서) | MPS 문서 (식별·적합성 대조) |
 
 `scripts/__init__.py`의 audit hook이 `rawdata/`(전 모듈)와 `standard inspection GT data/`(평가 모듈 외) 접근을 즉시 `PermissionError`로 차단한다. `Read` 툴로도 이 두 경로를 직접 열지 않는다.
 

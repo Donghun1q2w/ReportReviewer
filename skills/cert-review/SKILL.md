@@ -1,13 +1,12 @@
 ---
 name: cert-review
 description: Inspection Certificate (MTC/성적서) review for piping materials. Compares scanned PDF certificates against MPS (구매시방서) and ASTM/ASME reference codes, emits a 6-sheet Korean Excel report, and evaluates against ground-truth. Use for MTC review, 성적서 검토, 자재 성적서, material test report verification.
-argument-hint: "<case_id | --all>"
 ---
 
 # cert-review — Claude 오케스트레이션 절차서
 
 본 문서는 **Claude Code CLI 에이전트(오케스트레이터=메인 루프)가 직접 따르는** MTC(자재 성적서)
-compliance 검토 실행 절차이다. 입력은 3폴더(`ref_code/`, cert cleanup, MPS cleanup)만 사용하며,
+compliance 검토 실행 절차이다. 입력은 **3개 카테고리(① 참조 코드 문서 ② 검토 대상 성적서 ③ MPS)의 폴더·파일**만 사용하며,
 Python 결정적 모듈(`scripts/`)과 서브에이전트 위임 단계를 명확히 구분한다.
 
 오케스트레이터는 결정적 CLI 실행·게이트 판정·병렬 위임 스케줄링·산출물 수합을 담당하고, 전사(Vision OCR)와
@@ -28,21 +27,25 @@ Python 결정적 모듈(`scripts/`)과 서브에이전트 위임 단계를 명�
 
 ---
 
-## 입력 화이트리스트 (3폴더만)
+## 입력 화이트리스트 (3개 카테고리만)
 
-> **동작(검토) 단계는 아래 3개 입력 폴더만 읽는다. 그 외 폴더는 입력 가드가 차단한다.**
+> **동작(검토) 단계는 아래 3개 카테고리의 폴더·파일만 읽는다. 그 외는 입력 가드가 차단한다.**
 
-| 입력 폴더 | 용도 |
+| 입력 카테고리 | 용도 |
 |---|---|
-| `ref_code/` | ASTM/ASME 코드 원문 OCR (read-only, 기준값 출처) |
-| `standard inspection Cert cleanup data/<case>/` | 검토 대상 성적서 PDF (PNG 렌더링 → Vision OCR) |
-| `standard inspection MPS cleanup data/<case>/` | MPS(구매시방서) PDF (식별·적합성 대조) |
+| ① 참조 코드 문서 | ASTM/ASME 등 코드 원문 OCR (read-only, 기준값 출처) |
+| ② 검토 대상 성적서(MTC/Inspection Cert) | 성적서 PDF/이미지 (PNG 렌더링 → Vision OCR) |
+| ③ MPS(구매시방서) | MPS 문서 (식별·적합성 대조) |
+
+각 카테고리의 **실제 소스 폴더/파일명은 배포 환경에 따라 다르며**, 코드에서 env(`CERT_REVIEW_REF_CODE_DIR` / `CERT_REVIEW_CERT_DIR` / `CERT_REVIEW_MPS_DIR`)로 지정한다(미지정 시 테스트 하니스 레이아웃이 기본값). 검토 로직은 폴더명이 아니라 이 3개 카테고리로 입력을 인식한다.
 
 `scripts/__init__.py`가 패키지 로드 시 `sys.addaudithook`으로 파일 open을 감사한다. 동작 중
 `rawdata/`(전 모듈)와 `standard inspection GT data/`(평가 모듈 `eval_harness` 외)를 열면 즉시
 `PermissionError`가 발생한다 — 가드는 **rawdata와 GT를 동시에 차단**하여 검토 경로가 정답(GT)이나
 원본 주석에 의존하지 않도록 강제한다. Claude 에이전트(오케스트레이터·서브에이전트 모두)의 `Read` 직접
 접근도 금지된다. 평가는 `eval_harness.py`가 케이스별 `comments.md`를 내부에서 읽으므로 직접 접근 불필요.
+
+> **케이스(`case_id`)·`<case>` 서브폴더·`--case` 인자에 대하여**: 이들은 **플러그인 테스트 하니스(testbed 46케이스 회귀) 전용** 조직 방식이다. 테스트 하니스는 다수 성적서를 번호 폴더(`<case>/`)로 분리하고 `--case <id>`로 하나를 선택해 회귀를 돌린다. **배포(실사용) 환경에서는 세션 시작 시 case_id를 입력받지 않으며**, 작업 폴더에 놓인 위 3개 카테고리 입력 자체가 검토 단위다. 이하 CLI 예시·Phase 서술의 `--case <id>`/`<case>`는 이 테스트 하니스 실행을 기준으로 기술된 것이다(`.cache/<case>/`는 런타임 캐시 파티션 키).
 
 ---
 
@@ -69,6 +72,8 @@ Python 결정적 모듈(`scripts/`)과 서브에이전트 위임 단계를 명�
 ---
 
 ## Directory Layout (디렉토리 구조)
+
+> 아래 `<WORK>/` 상단 3개 입력 폴더명은 **테스트 하니스 기본 레이아웃**이다 — 배포 시 env(`CERT_REVIEW_*_DIR`)로 지정하며, 검토 로직은 폴더명이 아니라 3개 카테고리로 입력을 인식한다. `.cache/<case>/` 이하는 **런타임 캐시 파티션**(케이스 키)이다.
 
 ```
 <WORK>/  (= 데이터셋 루트, 입력 상대 경로 앵커)
@@ -171,7 +176,7 @@ python -m scripts.cli evaluate --case 4 | --all         # Phase 6: comments.md �
 
 **목적**: cert/MPS cleanup 두 디렉토리를 스캔하여 케이스 인덱스(`manifest.json`)를 생성한다 (`build-manifest`). **fan-out 이전에 1회만 실행한다** (공유 단일 파일 — 동시 쓰기 충돌 방지).
 
-- `standard inspection Cert cleanup data/`, `standard inspection MPS cleanup data/`를 스캔한다.
+- 성적서·MPS 입력 디렉토리(env 미지정 시 테스트 하니스 기본값 `standard inspection Cert cleanup data/`·`standard inspection MPS cleanup data/`)를 스캔한다.
 - `rawdata/`와 `standard inspection GT data/`는 **스캔하지 않는다** (입력 가드).
 - 산출물: 플러그인 디렉토리 `manifest.json` (schema_version: "2.0").
 - 성공 기준: exit 0, `case_count` 출력.
@@ -226,7 +231,7 @@ python -m scripts.cli evaluate --case 4 | --all         # Phase 6: comments.md �
 - 케이스 id
 - 스킬 디렉토리 **절대경로**
 - 모드(full / fragment) 및 fragment일 경우 담당 페이지 구간
-- 준수 지시: **C1~C8, 입력 3폴더 화이트리스트, 타일 판독(페이지당 4 타일, crop 원칙적 생략), verbatim 전사, 전 페이지 의무**
+- 준수 지시: **C1~C8, 입력 3개 카테고리 화이트리스트, 타일 판독(페이지당 4 타일, crop 원칙적 생략), verbatim 전사, 전 페이지 의무**
 
 > 전사 세부 절차(타일 배치 Read, 페이지별 entry, spec verbatim, (Grade,Class,Heat) 인벤토리, 화학 1차 스크리닝 등)는 `agents/ocr-extractor.md`가 보유한다 — **SKILL.md에 중복 기재 금지**.
 
@@ -234,7 +239,7 @@ python -m scripts.cli evaluate --case 4 | --all         # Phase 6: comments.md �
 - 케이스 id
 - 스킬 디렉토리 **절대경로**
 - 산출 의무: `.cache/<case>/<case>_mps_digest.json` (영역별 블록 + 항목별 원문 source+verbatim 인용)
-- 준수 지시: **C1~C8, 입력 3폴더 화이트리스트, MPS 타일 판독, verbatim 인용, 전 페이지 의무**
+- 준수 지시: **C1~C8, 입력 3개 카테고리 화이트리스트, MPS 타일 판독, verbatim 인용, 전 페이지 의무**
 
 > MPS 추출 세부 절차(영역별 블록 분류, 요건 마크 판독, verbatim 인용 규칙 등)는 `agents/mps-extractor.md`가 보유한다 — **SKILL.md에 중복 기재 금지**.
 
