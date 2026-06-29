@@ -73,13 +73,21 @@ def _bbox_slug(bbox: tuple[float, float, float, float]) -> str:
     return f"{x0:.2f}x{y0:.2f}-{x1:.2f}x{y1:.2f}"
 
 
-def resolve_stem(case_id: str, stem: str, work_dir: Path) -> Path:
+def resolve_stem(
+    case_id: str, stem: str, work_dir: Path, cert_root: Path | None = None
+) -> Path:
     """Resolve a cert PDF by stem within a case, allowing a unique prefix match.
 
     Exact stem match wins. Otherwise a unique prefix match is accepted; an
     ambiguous prefix raises ValueError listing the candidates.
+
+    ``cert_root`` overrides the cert-cleanup root directory (so an env-aware
+    ``CERT_DIR`` can be passed in instead of the hard-coded default); when
+    omitted the default ``work_dir/<CERT_CLEANUP_DIRNAME>`` is used so existing
+    callers are unaffected.
     """
-    cert_dir = Path(work_dir) / CERT_CLEANUP_DIRNAME / str(case_id)
+    root = Path(cert_root) if cert_root is not None else Path(work_dir) / CERT_CLEANUP_DIRNAME
+    cert_dir = root / str(case_id)
     if not cert_dir.is_dir():
         raise FileNotFoundError(f"cert dir not found: {cert_dir}")
 

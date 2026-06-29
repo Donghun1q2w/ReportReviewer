@@ -1,9 +1,11 @@
 # cert-review 런타임 의존성 (Python 3.10+)
 # 주의: Python OCR 라이브러리는 사용하지 않는다 (C1). pypdf는 임베디드 텍스트/주석
 # 메타만, pypdfium2는 페이지 렌더링(이미지)만 — OCR은 Claude Vision이 수행.
-pypdfium2>=4.0      # cert PDF -> 페이지 PNG 렌더링 (Phase 2 입력)
-pypdf>=4.0          # PDF 주석(/Annots) 메타 추출, MPS PDF 텍스트
-Pillow>=10.0        # 페이지 PNG -> 2x2 타일 분할 (tile-inputs; 이미지 크롭만, OCR 아님)
+# cert-review-annotate(주석 PDF) 기능도 신규 의존성 없이 아래 3종만 사용:
+#   annotate_pdf.py = pypdfium2(페이지 렌더) + Pillow(사각형/한글 라벨 드로잉) + pypdf(주석 없는 면 copy-through splice).
+pypdfium2>=4.0      # cert PDF -> 페이지 PNG 렌더링 (Phase 2 입력 / 주석 burn-in 렌더)
+pypdf>=4.0          # PDF 주석(/Annots) 메타 추출, MPS PDF 텍스트, 주석 PDF copy-through 재조립
+Pillow>=10.0        # 페이지 PNG -> 2x2 타일 분할 (tile-inputs) / 주석 사각형·한글 라벨 드로잉 (이미지만, OCR 아님)
 openpyxl>=3.1       # 6시트 한글 Excel 리포트
 
 # 개발/테스트

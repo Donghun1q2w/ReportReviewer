@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "파이프 자재 MTC(성적서) 자동 검토 Claude Code 플러그인",
-    "version": "1.1.0"
+    "version": "1.2.0"
   },
   "plugins": [
     {
@@ -15,7 +15,8 @@
       "category": "productivity",
       "strict": false,
       "skills": [
-        "./skills/cert-review"
+        "./skills/cert-review",
+        "./skills/cert-review-annotate"
       ]
     }
   ]

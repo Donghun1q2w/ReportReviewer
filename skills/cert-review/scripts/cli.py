@@ -70,6 +70,17 @@ def _ensure_utf8_stdout() -> None:
         pass
 
 
+def _manifest_case_ids() -> list[str]:
+    """Case ids that have cert PDFs, read from manifest.json (for --all handlers).
+
+    Raises FileNotFoundError if the manifest is absent so callers can report it.
+    """
+    if not MANIFEST_PATH.exists():
+        raise FileNotFoundError("manifest.json not found; run build-manifest first")
+    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    return [c["case_id"] for c in manifest.get("cases", []) if c.get("has_cert_pdf")]
+
+
 def cmd_build_manifest(args: argparse.Namespace) -> int:
     """Scan working dir and emit manifest.json indexing all cases.
 
@@ -352,16 +363,78 @@ def cmd_crop(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_annotate(args: argparse.Namespace) -> int:
+    """Burn 주의/N/A/FAIL review verdicts onto cert PDFs (PASS excluded).
+
+    Consumes ``.cache/<case>/<case>_annotations.json`` (produced by the
+    annotation-locator agent) and writes ``<stem>_annotated.pdf`` under
+    ``output/reports/<case>/``. Backward-compatible: a missing annotations file
+    is a per-case SKIP under --all, an error for a single --case.
+    """
+    from scripts.annotate_pdf import annotate_case  # noqa: PLC0415
+
+    if args.all and args.out:
+        print("[ERROR] --out is only valid with a single --case", file=sys.stderr)
+        return 2
+
+    if args.all:
+        try:
+            case_ids = _manifest_case_ids()
+        except FileNotFoundError as e:
+            print(f"[ERROR] {e}", file=sys.stderr)
+            return 1
+    else:
+        case_ids = [args.case]
+
+    any_done = False
+    for cid in case_ids:
+        try:
+            summary = annotate_case(
+                case_id=cid,
+                work_dir=WORK_DIR,
+                cache_root=CACHE_DIR,
+                cert_dir=CERT_DIR,
+                out_dir=Path(args.out) if args.out else None,
+                dpi=args.dpi,
+            )
+        except FileNotFoundError as e:
+            if args.all:
+                print(f"[SKIP] annotate --case {cid}: {e}", file=sys.stderr)
+                continue
+            print(f"[ERROR] annotate --case {cid}: {e}", file=sys.stderr)
+            return 1
+        except (ValueError, OSError) as e:
+            print(f"[ERROR] annotate --case {cid}: {e}", file=sys.stderr)
+            if not args.all:
+                return 1
+            continue
+        any_done = True
+        print(
+            f"[OK] annotate --case {cid}: {summary['n_pdfs']} cert PDF(s), "
+            f"{summary['boxes_drawn']} annotation(s), {summary['rows_skipped']} skipped"
+        )
+        for d in summary["outputs"]:
+            print(f"     {d['stem']}: {d['boxes']} box(es)/{d['pages']}p -> {d['out_path']}")
+        if summary["skip_counts"]:
+            print(f"     skip reasons: {summary['skip_counts']}")
+        for note in summary["notes"]:
+            print(f"     note: {note}")
+    if not any_done:
+        print("[INFO] annotate: no case had a <case>_annotations.json", file=sys.stderr)
+        return 0 if args.all else 1
+    return 0
+
+
 def cmd_tile_inputs(args: argparse.Namespace) -> int:
     """Split rendered page PNGs into overlapping tiles for legible Vision reads."""
     from scripts.tile_inputs import tile_case  # noqa: PLC0415
 
     if args.all:
-        if not MANIFEST_PATH.exists():
-            print("[ERROR] manifest.json not found; run build-manifest first", file=sys.stderr)
+        try:
+            case_ids = _manifest_case_ids()
+        except FileNotFoundError as e:
+            print(f"[ERROR] {e}", file=sys.stderr)
             return 1
-        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-        case_ids = [c["case_id"] for c in manifest.get("cases", []) if c.get("has_cert_pdf")]
     else:
         case_ids = [args.case]
 
@@ -632,6 +705,17 @@ def main(argv: list[str] | None = None) -> int:
     group.add_argument("--case")
     group.add_argument("--all", action="store_true", help="Merge every manifest case that has partials")
     p.set_defaults(func=cmd_merge_reviews)
+
+    p = sub.add_parser(
+        "annotate",
+        help="Burn 주의/N/A/FAIL verdicts onto cert PDFs as boxed image annotations (PASS excluded)",
+    )
+    group = p.add_mutually_exclusive_group(required=True)
+    group.add_argument("--case")
+    group.add_argument("--all", action="store_true", help="Every manifest case with a <case>_annotations.json")
+    p.add_argument("--dpi", type=int, default=200, help="Render DPI for burn-in (default 200; bbox is fractional so DPI affects only sharpness/size)")
+    p.add_argument("--out", help="Output directory (single --case only; default <WORK>/output/reports/<case>)")
+    p.set_defaults(func=cmd_annotate)
 
     p = sub.add_parser("evaluate", help="Evaluate against GT (strict + rubric)")
     group = p.add_mutually_exclusive_group(required=True)
