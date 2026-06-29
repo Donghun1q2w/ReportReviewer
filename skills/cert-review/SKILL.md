@@ -3,399 +3,399 @@ name: cert-review
 description: Inspection Certificate (MTC/성적서) review for piping materials. Compares scanned PDF certificates against MPS (구매시방서) and ASTM/ASME reference codes, emits a 6-sheet Korean Excel report, and evaluates against ground-truth. Use for MTC review, 성적서 검토, 자재 성적서, material test report verification.
 ---
 
-# cert-review — Claude 오케스트레이션 절차서
+# cert-review — Claude Orchestration Procedure
 
-본 문서는 **Claude Code CLI 에이전트(오케스트레이터=메인 루프)가 직접 따르는** MTC(자재 성적서)
-compliance 검토 실행 절차이다. 입력은 **3개 카테고리(① 참조 코드 문서 ② 검토 대상 성적서 ③ MPS)의 폴더·파일**만 사용하며,
-Python 결정적 모듈(`scripts/`)과 서브에이전트 위임 단계를 명확히 구분한다.
+This document is the MTC (material test certificate) compliance review execution procedure that **the Claude Code CLI agent (orchestrator = main loop) follows directly**. It uses only the **folders and files of 3 categories (① reference code documents ② certificates under review ③ MPS)** as input,
+and clearly separates the deterministic Python modules (`scripts/`) from the subagent delegation steps.
 
-오케스트레이터는 결정적 CLI 실행·게이트 판정·병렬 위임 스케줄링·산출물 수합을 담당하고, 전사(Vision OCR)와
-영역별 compliance 판정은 플러그인 서브에이전트(`agents/`)에 위임한다. **서브에이전트는 중첩 스폰이
-불가하므로, 모든 병렬화·게이트는 본 스킬이 직접 수행한다.**
+The orchestrator is responsible for deterministic CLI execution, gate decisions, parallel delegation scheduling, and aggregation of outputs, while transcription (Vision OCR) and
+per-domain compliance judgment are delegated to the plugin subagents (`agents/`). **Because subagents cannot spawn nested
+subagents, all parallelization and gating is performed directly by this skill.**
 
 ---
 
-## Constraints (불변 제약)
+## Constraints (invariants)
 
-| ID | 내용 |
+| ID | Content |
 |---|---|
-| **C1** | Python OCR 라이브러리 사용 금지 — `pytesseract`, `easyocr`, `paddleocr`, `pymupdf`, `fitz`, `pdfplumber`, `openai`(vision), `anthropic`(vision), `google.cloud.vision` 등 일체. `pypdf` 텍스트 추출과 `pypdfium2` 렌더링은 허용. OCR은 Claude Vision(`Read` 툴로 PNG 판독)으로만 수행. |
-| **C2** | 모든 finding의 `evidence` 항목은 출처 메타(`source_file` / `anchor` / `snippet`) 필수. `source_validator`가 부재 항목을 격리. |
-| **C3** | ref_code 연도가 MPS 명시 연도와 다를 경우 비고에 명시. |
-| **C7** | 실행 환경은 Windows PowerShell + Python. 모든 명령은 플러그인(skill) 디렉토리에서 `PYTHONIOENCODING=utf-8`을 앞에 붙여 `python -m scripts.cli ...` 형식으로 실행. |
-| **C8** | CSV 기준값 row는 출처 메타 3종 없으면 로딩 단계에서 거부 (`validate-refs` exit 0 필수). |
+| **C1** | No Python OCR libraries allowed — none of `pytesseract`, `easyocr`, `paddleocr`, `pymupdf`, `fitz`, `pdfplumber`, `openai` (vision), `anthropic` (vision), `google.cloud.vision`, etc. `pypdf` text extraction and `pypdfium2` rendering are permitted. OCR is performed only via Claude Vision (reading PNGs with the `Read` tool). |
+| **C2** | Every finding's `evidence` item requires source metadata (`source_file` / `anchor` / `snippet`). `source_validator` quarantines items that are missing it. |
+| **C3** | If the ref_code year differs from the year specified in the MPS, state it in the remarks. |
+| **C7** | The execution environment is Windows PowerShell + Python. All commands run from the plugin (skill) directory, prefixed with `PYTHONIOENCODING=utf-8`, in the form `python -m scripts.cli ...`. |
+| **C8** | A CSV reference-value row without all three source-metadata fields is rejected at the loading stage (`validate-refs` exit 0 required). |
 
 ---
 
-## 입력 화이트리스트 (3개 카테고리만)
+## Input whitelist (only 3 categories)
 
-> **동작(검토) 단계는 아래 3개 카테고리의 폴더·파일만 읽는다. 그 외는 입력 가드가 차단한다.**
+> **The operational (review) stage reads only the folders and files of the 3 categories below. Anything else is blocked by the input guard.**
 
-| 입력 카테고리 | 용도 |
+| Input category | Purpose |
 |---|---|
-| ① 참조 코드 문서 | ASTM/ASME 등 코드 원문 OCR (read-only, 기준값 출처) |
-| ② 검토 대상 성적서(MTC/Inspection Cert) | 성적서 PDF/이미지 (PNG 렌더링 → Vision OCR) |
-| ③ MPS(구매시방서) | MPS 문서 (식별·적합성 대조) |
+| ① Reference code documents | OCR of code source text such as ASTM/ASME (read-only, source of reference values) |
+| ② Certificates under review (MTC/Inspection Cert) | Certificate PDFs/images (PNG rendering → Vision OCR) |
+| ③ MPS (purchase specification) | MPS documents (identification and conformance comparison) |
 
-각 카테고리의 **실제 소스 폴더/파일명은 배포 환경에 따라 다르며**, 코드에서 env(`CERT_REVIEW_REF_CODE_DIR` / `CERT_REVIEW_CERT_DIR` / `CERT_REVIEW_MPS_DIR`)로 지정한다(미지정 시 테스트 하니스 레이아웃이 기본값). 검토 로직은 폴더명이 아니라 이 3개 카테고리로 입력을 인식한다.
+Each category's **actual source folder/file names vary by deployment environment**, and are specified in code via env (`CERT_REVIEW_REF_CODE_DIR` / `CERT_REVIEW_CERT_DIR` / `CERT_REVIEW_MPS_DIR`) (when unset, the test-harness layout is the default). The review logic recognizes inputs by these 3 categories, not by folder name.
 
-`scripts/__init__.py`가 패키지 로드 시 `sys.addaudithook`으로 파일 open을 감사한다. 동작 중
-`rawdata/`(전 모듈)와 `standard inspection GT data/`(평가 모듈 `eval_harness` 외)를 열면 즉시
-`PermissionError`가 발생한다 — 가드는 **rawdata와 GT를 동시에 차단**하여 검토 경로가 정답(GT)이나
-원본 주석에 의존하지 않도록 강제한다. Claude 에이전트(오케스트레이터·서브에이전트 모두)의 `Read` 직접
-접근도 금지된다. 평가는 `eval_harness.py`가 케이스별 `comments.md`를 내부에서 읽으므로 직접 접근 불필요.
+`scripts/__init__.py` audits file opens via `sys.addaudithook` when the package loads. During operation,
+opening `rawdata/` (all modules) or `standard inspection GT data/` (outside the evaluation module `eval_harness`) immediately raises
+`PermissionError` — the guard **blocks rawdata and GT simultaneously** to force the review path not to depend on the ground truth (GT) or
+original annotations. Direct `Read` access by Claude agents (both orchestrator and subagents) is also
+prohibited. Evaluation does not need direct access because `eval_harness.py` reads each case's `comments.md` internally.
 
-> **케이스(`case_id`)·`<case>` 서브폴더·`--case` 인자에 대하여**: 이들은 **플러그인 테스트 하니스(testbed 46케이스 회귀) 전용** 조직 방식이다. 테스트 하니스는 다수 성적서를 번호 폴더(`<case>/`)로 분리하고 `--case <id>`로 하나를 선택해 회귀를 돌린다. **배포(실사용) 환경에서는 세션 시작 시 case_id를 입력받지 않으며**, 작업 폴더에 놓인 위 3개 카테고리 입력 자체가 검토 단위다. 이하 CLI 예시·Phase 서술의 `--case <id>`/`<case>`는 이 테스트 하니스 실행을 기준으로 기술된 것이다(`.cache/<case>/`는 런타임 캐시 파티션 키).
+> **On the case (`case_id`), the `<case>` subfolder, and the `--case` argument**: these are an organization scheme **exclusive to the plugin test harness (the testbed 46-case regression)**. The test harness separates multiple certificates into numbered folders (`<case>/`) and runs the regression by selecting one with `--case <id>`. **In the deployment (production) environment, no case_id is taken at session start**; the 3-category inputs placed in the working folder are themselves the review unit. The `--case <id>`/`<case>` in the CLI examples and Phase descriptions below are written with respect to this test-harness execution (`.cache/<case>/` is the runtime cache partition key).
 
 ---
 
-## 서브에이전트 (`agents/`)
+## Subagents (`agents/`)
 
-검토 작업은 **7개 플러그인 서브에이전트**에 위임한다. 각자 부분 산출물만 작성하고 오케스트레이터가 결정적 CLI로 병합한다. **세부 절차(전사 규칙·영역별 판정 룰)는 각 에이전트 문서 소관 — 본 SKILL.md에 중복 기재하지 않는다.**
+The review work is delegated to **7 plugin subagents**. Each writes only a partial output, and the orchestrator merges them via deterministic CLI. **The detailed procedures (transcription rules, per-domain judgment rules) belong to each agent's document — they are not duplicated in this SKILL.md.**
 
-| 에이전트 | model | 역할 | 부분 산출물 |
+| Agent | model | Role | Partial output |
 |---|---|---|---|
-| `ocr-extractor` | claude-opus-4-8 | Phase 2 Vision **타일 판독** 전사 전용 (full / fragment 두 모드) | `<stem>_extracted.json` 또는 `parts/<stem>__pSSS-EEE.json` |
-| `mps-extractor` | claude-opus-4-8 | Phase 4 직전 MPS 스캔 **1회 추출** → 검토 5에이전트가 소비하는 공유 digest 산출 | `<case>_mps_digest.json` |
-| `chemistry-reviewer` | claude-opus-4-8 | Phase 4 화학성분 검토 | `<case>_review_chemistry.json` |
-| `mechanical-reviewer` | claude-opus-4-8 | Phase 4 기계적 성질 검토 | `<case>_review_mechanical.json` |
-| `heat-treatment-reviewer` | claude-opus-4-8 | Phase 4 열처리 검토 | `<case>_review_heat_treatment.json` |
-| `nde-reviewer` | claude-opus-4-8 | Phase 4 NDE/특별요구 검토 | `<case>_review_nde.json` |
-| `format-reviewer` | claude-opus-4-8 | Phase 4 문서·식별·인쇄기준 검토 | `<case>_review_format.json` |
+| `ocr-extractor` | claude-opus-4-8 | Phase 2 Vision **tile-reading** transcription only (full / fragment modes) | `<stem>_extracted.json` or `parts/<stem>__pSSS-EEE.json` |
+| `mps-extractor` | claude-opus-4-8 | **Single extraction** of the MPS scan just before Phase 4 → produces the shared digest consumed by the 5 review agents | `<case>_mps_digest.json` |
+| `chemistry-reviewer` | claude-opus-4-8 | Phase 4 chemical composition review | `<case>_review_chemistry.json` |
+| `mechanical-reviewer` | claude-opus-4-8 | Phase 4 mechanical properties review | `<case>_review_mechanical.json` |
+| `heat-treatment-reviewer` | claude-opus-4-8 | Phase 4 heat treatment review | `<case>_review_heat_treatment.json` |
+| `nde-reviewer` | claude-opus-4-8 | Phase 4 NDE/special-requirements review | `<case>_review_nde.json` |
+| `format-reviewer` | claude-opus-4-8 | Phase 4 document/identification/print-criteria review | `<case>_review_format.json` |
 
-- **모델**: 전 에이전트 claude-opus-4-8 — 다품목 MTC 식별·수치 판독 정확도 우선. OCR(전사)과 검토(판정)는 모델이 아니라 역할로 분리된다(300 DPI 필수).
-- **타일 판독**: `ocr-extractor`는 전체 페이지 PNG 대신 페이지당 **2×2 중첩 타일**(`.cache/<case>/tiles/`)을 판독한다. 모델이 PNG를 Read할 때 긴 변 ~1568px로 다운샘플되어 전체 페이지(~3500px)는 작은 숫자가 뭉개지지만, 2×2 타일은 긴 변 ~1957px라 다운샘플 후에도 ~1.8배 선명해 **crop 없이** 판독된다.
-- **주의**: `CLAUDE_CODE_SUBAGENT_MODEL` 환경변수가 설정돼 있으면 frontmatter의 model을 덮어쓴다 — 의도한 모델을 적용하려면 **이 환경변수를 해제한 상태로 실행**한다.
-- **화학 정합성 책임 경계**: `ocr-extractor`는 1차 물리범위 스크리닝(원소값이 grade 통상범위에 부합하는지)만 수행하고, Cev 역산·crop 확정 재판독은 `chemistry-reviewer`가 책임진다.
-- **MPS digest 공유**: MPS PDF는 스캔이라 검토자가 각자 Vision-OCR하면 중복·저속이다. `mps-extractor`가 MPS를 **1회 추출**해 영역별 블록(`chemistry`/`mechanical`/`heat_treatment`/`nde_microstructure`/`document_requirements`, 각 항목에 원문 source+verbatim 인용)으로 `<case>_mps_digest.json`에 저장하면, 검토 5에이전트는 자기 영역 블록만 읽고 **원본 MPS PDF/PNG를 열지 않는다**(digest에 해당 grade 요구가 없을 때만 폴백). 수치 기준값은 여전히 `<case>_limits.json`(CSV 유래) 우선이고, MPS 특별요구 텍스트만 digest에서 인용한다.
+- **Model**: all agents use claude-opus-4-8 — prioritizing multi-item MTC identification and numeric-reading accuracy. OCR (transcription) and review (judgment) are separated by role, not by model (300 DPI required).
+- **Tile reading**: `ocr-extractor` reads **2×2 overlapping tiles** per page (`.cache/<case>/tiles/`) instead of the full-page PNG. When the model reads a PNG, it downsamples to ~1568px on the long edge, so a full page (~3500px) smears small digits; but a 2×2 tile is ~1957px on the long edge, ~1.8× sharper even after downsampling, so it is read **without crop**.
+- **Note**: if the `CLAUDE_CODE_SUBAGENT_MODEL` environment variable is set, it overrides the model in the frontmatter — to apply the intended model, **run with this environment variable unset**.
+- **Chemistry-consistency responsibility boundary**: `ocr-extractor` performs only the first-pass physical-range screening (whether element values fit the grade's usual range); the Cev back-calculation and the confirming crop re-read are the responsibility of `chemistry-reviewer`.
+- **MPS digest sharing**: the MPS PDF is a scan, so having each reviewer Vision-OCR it separately is redundant and slow. When `mps-extractor` performs a **single extraction** of the MPS and stores it in `<case>_mps_digest.json` as per-domain blocks (`chemistry`/`mechanical`/`heat_treatment`/`nde_microstructure`/`document_requirements`, each item with a source-text source + verbatim quote), the 5 review agents read only their own domain block and **do not open the original MPS PDF/PNG** (falling back only when the digest has no requirement for that grade). Numeric reference values still take priority from `<case>_limits.json` (CSV-derived), and only the MPS special-requirement text is quoted from the digest.
 
 ---
 
-## Directory Layout (디렉토리 구조)
+## Directory Layout
 
-> 아래 `<WORK>/` 상단 3개 입력 폴더명은 **테스트 하니스 기본 레이아웃**이다 — 배포 시 env(`CERT_REVIEW_*_DIR`)로 지정하며, 검토 로직은 폴더명이 아니라 3개 카테고리로 입력을 인식한다. `.cache/<case>/` 이하는 **런타임 캐시 파티션**(케이스 키)이다.
+> The three top-level input folder names under `<WORK>/` below are the **test-harness default layout** — at deployment they are specified via env (`CERT_REVIEW_*_DIR`), and the review logic recognizes inputs by the 3 categories, not by folder name. Everything under `.cache/<case>/` is the **runtime cache partition** (case key).
 
 ```
-<WORK>/  (= 데이터셋 루트, 입력 상대 경로 앵커)
-├── ref_code/                                       ← ASTM/ASME 코드 OCR (read-only)
-├── standard inspection Cert cleanup data/<case>/   ← 성적서 PDF (body OCR 대상)
+<WORK>/  (= dataset root, anchor for input relative paths)
+├── ref_code/                                       ← ASTM/ASME code OCR (read-only)
+├── standard inspection Cert cleanup data/<case>/   ← certificate PDF (body OCR target)
 ├── standard inspection MPS cleanup data/<case>/    ← MPS PDF
-├── standard inspection GT data/<case>/comments.md  ← 평가 전용 (eval_harness만 접근)
-├── output/                                         ← 보고서 산출물 및 평가 결과
-└── ... plugin/ReportReviewer/                      ← 플러그인 루트
-    ├── agents/                                     ← 플러그인 서브에이전트 (frontmatter model 포함)
-    │   ├── ocr-extractor.md                        ← Phase 2 Vision 전사 (opus 4.8)
-    │   ├── chemistry-reviewer.md                   ← Phase 4 화학 (claude-opus-4-8)
-    │   ├── mechanical-reviewer.md                  ← Phase 4 기계 (claude-opus-4-8)
-    │   ├── heat-treatment-reviewer.md              ← Phase 4 열처리 (claude-opus-4-8)
+├── standard inspection GT data/<case>/comments.md  ← evaluation only (eval_harness access only)
+├── output/                                         ← report outputs and evaluation results
+└── ... plugin/ReportReviewer/                      ← plugin root
+    ├── agents/                                     ← plugin subagents (includes frontmatter model)
+    │   ├── ocr-extractor.md                        ← Phase 2 Vision transcription (opus 4.8)
+    │   ├── chemistry-reviewer.md                   ← Phase 4 chemistry (claude-opus-4-8)
+    │   ├── mechanical-reviewer.md                  ← Phase 4 mechanical (claude-opus-4-8)
+    │   ├── heat-treatment-reviewer.md              ← Phase 4 heat treatment (claude-opus-4-8)
     │   ├── nde-reviewer.md                         ← Phase 4 NDE (claude-opus-4-8)
-    │   └── format-reviewer.md                      ← Phase 4 문서/식별 (claude-opus-4-8)
-    └── skills/cert-review/                         ← 본 스킬 디렉토리 (CLI 실행 기준)
-        ├── SKILL.md  ·  manifest.json (build-manifest 산출)
-        ├── .cache/<case>/                          ← 케이스별 중간 산출물
-        │   ├── png/                                ← prep-inputs 렌더링 PNG
-        │   ├── tiles/                              ← tile-inputs 2×2 중첩 타일 (페이지당 4 타일, <stem>_pNN_rRcC.png)
-        │   ├── mps_png/                            ← prep-mps 렌더링 MPS PNG
-        │   ├── mps_tiles/                          ← prep-mps MPS 2×2 중첩 타일 (mps-extractor 판독용)
-        │   ├── <stem>_prep.json                    ← 사이드카 (PDF sha256+dpi, 캐시 게이트용)
-        │   ├── parts/<stem>__pSSS-EEE.json         ← fragment 모드 구간 추출 (merge-parts 입력)
-        │   ├── crops/                              ← crop CLI 고DPI 영역 PNG (모호 셀 재판독)
-        │   ├── <stem>_extracted.json               ← Vision OCR 산출 (channels: body)
-        │   ├── <case>_mps_digest.json              ← mps-extractor 산출 (영역별 MPS 특별요구 + 원문 인용, 검토 5에이전트 공유)
-        │   ├── <case>_limits.json                  ← limits CLI 산출 (관련 기준값 + provenance)
-        │   ├── <case>_review_<domain>.json         ← 검토 에이전트 부분 산출 (chemistry|mechanical|heat_treatment|nde|format)
-        │   └── <case>_review.json                  ← merge-reviews 병합 결과 (Phase 5/6 입력)
-        ├── .cache/cache_status.json                ← cache-status 산출 (fresh/legacy/stale/missing)
-        ├── data/*.csv                              ← 기준값 CSV 7종 (아래 "도메인 규칙 참조 위치" 표)
+    │   └── format-reviewer.md                      ← Phase 4 document/identification (claude-opus-4-8)
+    └── skills/cert-review/                         ← this skill directory (CLI execution base)
+        ├── SKILL.md  ·  manifest.json (produced by build-manifest)
+        ├── .cache/<case>/                          ← per-case intermediate outputs
+        │   ├── png/                                ← prep-inputs rendered PNG
+        │   ├── tiles/                              ← tile-inputs 2×2 overlapping tiles (4 tiles per page, <stem>_pNN_rRcC.png)
+        │   ├── mps_png/                            ← prep-mps rendered MPS PNG
+        │   ├── mps_tiles/                          ← prep-mps MPS 2×2 overlapping tiles (for mps-extractor reading)
+        │   ├── <stem>_prep.json                    ← sidecar (PDF sha256+dpi, for the cache gate)
+        │   ├── parts/<stem>__pSSS-EEE.json         ← fragment-mode segment extraction (merge-parts input)
+        │   ├── crops/                              ← crop CLI high-DPI region PNG (re-read of ambiguous cells)
+        │   ├── <stem>_extracted.json               ← Vision OCR output (channels: body)
+        │   ├── <case>_mps_digest.json              ← mps-extractor output (per-domain MPS special requirements + source-text quotes, shared by the 5 review agents)
+        │   ├── <case>_limits.json                  ← limits CLI output (relevant reference values + provenance)
+        │   ├── <case>_review_<domain>.json         ← review agent partial output (chemistry|mechanical|heat_treatment|nde|format)
+        │   └── <case>_review.json                  ← merge-reviews merged result (Phase 5/6 input)
+        ├── .cache/cache_status.json                ← cache-status output (fresh/legacy/stale/missing)
+        ├── data/*.csv                              ← 7 reference-value CSVs (see the "Domain-rule reference locations" table below)
         ├── references/                             ← extraction-schema.json · review-criteria.md
-        └── scripts/                                ← Python 결정적 모듈 (cli·prep_inputs·source_validator·compare_engine·compliance_report·eval_harness)
+        └── scripts/                                ← deterministic Python modules (cli·prep_inputs·source_validator·compare_engine·compliance_report·eval_harness)
 ```
 
-> **경로 표기**: 플러그인(skill) 디렉토리는 본 문서가 있는 현재 디렉토리(`scripts/cli.py`의 부모)다.
-> 서브에이전트(`agents/*.md`)는 그 상위 **플러그인 루트** 아래에 있다. CLI는 스킬 디렉토리에서 실행한다.
-> 데이터셋 루트(`<WORK>`)는 `CERT_REVIEW_WORKDIR` 환경변수로 지정하거나, 미지정 시 CWD/플러그인 위치에서
-> 위로 올라가며 `standard inspection Cert cleanup data` 폴더를 가진 디렉토리를 자동 탐색한다.
+> **Path notation**: the plugin (skill) directory is the current directory where this document resides (the parent of `scripts/cli.py`).
+> The subagents (`agents/*.md`) live under the **plugin root** above it. The CLI runs from the skill directory.
+> The dataset root (`<WORK>`) is specified by the `CERT_REVIEW_WORKDIR` environment variable, or when unset it is auto-discovered by walking
+> up from the CWD/plugin location to find a directory containing a `standard inspection Cert cleanup data` folder.
 
 ---
 
-## PowerShell 사용 예시
+## PowerShell usage example
 
 ```powershell
 $env:PYTHONIOENCODING = "utf-8"
-$env:CERT_REVIEW_WORKDIR = "<WORK>"   # (선택) 미지정 시 자동 탐색
-Set-Location "<플러그인 디렉토리: 본 SKILL.md가 있는 곳>"
+$env:CERT_REVIEW_WORKDIR = "<WORK>"   # (optional) auto-detected if unset
+Set-Location "<plugin (skill) directory: where this SKILL.md lives>"
 
-python -m scripts.cli build-manifest                    # Phase 0: cert/MPS 인덱스
-python -m scripts.cli cache-status --case 4 | --all     # 캐시 게이트 (fresh|legacy|stale|missing)
-python -m scripts.cli prep-inputs --case 4 [--dpi 300] [--force]   # Phase 1: PNG 렌더 + 사이드카
-python -m scripts.cli tile-inputs --case 4 | --all      # Phase 1: 페이지 PNG → 2×2 중첩 타일 (페이지당 4)
-python -m scripts.cli prep-mps --case 4 [--dpi 300]     # Phase 1: MPS PDF → mps_png + mps_tiles (mps-extractor 입력)
-python -m scripts.cli merge-parts --case 4              # fragment(>6p) 구간 병합
-python -m scripts.cli check-extraction --case 4 | --all # Phase 2.5: 완전성 게이트
-python -m scripts.cli crop --case 4 --stem <stem> --page 2 --bbox 0.10,0.42,0.55,0.50 --dpi 300  # 모호 셀 재판독
-python -m scripts.cli validate-refs                     # Phase 3: CSV 출처 검증
-python -m scripts.cli limits --case 4                   # Phase 4: 관련 기준값 행 + provenance
-python -m scripts.cli merge-reviews --case 4            # 검토 5에이전트 부분 산출 병합
-python -m scripts.cli evaluate --case 4 | --all         # Phase 6: comments.md 기준 평가
+python -m scripts.cli build-manifest                    # Phase 0: cert/MPS index
+python -m scripts.cli cache-status --case 4 | --all     # cache gate (fresh|legacy|stale|missing)
+python -m scripts.cli prep-inputs --case 4 [--dpi 300] [--force]   # Phase 1: PNG render + sidecar
+python -m scripts.cli tile-inputs --case 4 | --all      # Phase 1: page PNG → 2×2 overlapping tiles (4 per page)
+python -m scripts.cli prep-mps --case 4 [--dpi 300]     # Phase 1: MPS PDF → mps_png + mps_tiles (mps-extractor input)
+python -m scripts.cli merge-parts --case 4              # merge fragment (>6p) segments
+python -m scripts.cli check-extraction --case 4 | --all # Phase 2.5: completeness gate
+python -m scripts.cli crop --case 4 --stem <stem> --page 2 --bbox 0.10,0.42,0.55,0.50 --dpi 300  # re-read ambiguous cell
+python -m scripts.cli validate-refs                     # Phase 3: CSV provenance validation
+python -m scripts.cli limits --case 4                   # Phase 4: relevant reference-value rows + provenance
+python -m scripts.cli merge-reviews --case 4            # merge the 5 review agents' partial outputs
+python -m scripts.cli evaluate --case 4 | --all         # Phase 6: evaluation against comments.md
 ```
 
 ---
 
-## 시간 예산 (케이스 복잡도별 차등)
+## Time budget (tiered by case complexity)
 
-정확도를 시간을 위해 희생하지 않는다 — opus의 수치 셀 crop 정밀 판독은 케이스 복잡도가 요구하는 만큼 수행한다. 시간은 결과이지 상한이 아니다. 케이스 복잡도에 따라 목표 wall-clock을 차등 적용한다:
+Do not sacrifice accuracy for time — opus's precise crop reading of numeric cells is performed as much as the case complexity demands. Time is an outcome, not a ceiling. The target wall-clock is applied in tiers by case complexity:
 
-- **단순** (1~3페이지, 1~2 품목): 목표 **≤30분**.
-- **표준** (4~6페이지, 수 개 품목): 목표 **≤60분**.
-- **복합** (>6페이지 또는 7품목 이상 또는 다중 grade): **60~90분 허용**. 다중 케이스 동시 fan-out 시 opus 동시 호출 throttle로 더 늘 수 있다.
+- **Simple** (1–3 pages, 1–2 items): target **≤30 min**.
+- **Standard** (4–6 pages, several items): target **≤60 min**.
+- **Complex** (>6 pages, or 7+ items, or multiple grades): **60–90 min allowed**. With simultaneous multi-case fan-out, it may grow further due to opus concurrent-call throttling.
 
-시간을 복잡도에 비례시키는 구조적 장치: ① 식별 확정은 ocr-extractor 1회로 단일화(검토자 재검증 금지) ② 검토자 crop은 판정 임계 셀 위주(무차별 전수 crop 금지) ③ 대형 cert(≤4p 구간) 병렬화(아래) ④ **타일링(tile-inputs)** — ocr-extractor가 2×2 중첩 타일을 판독하면 전체 페이지 대비 OCR이 **~2.6배 빨라지고 crop이 거의 0**으로 떨어진다(다운샘플로 뭉개지던 작은 숫자를 crop 없이 판독) ⑤ **MPS digest 공유(mps-extractor)** — MPS 스캔을 1회만 추출해 영역별 digest로 공유하면 검토 5에이전트의 MPS 중복 OCR이 제거되어 검토 wall이 **~3배 단축**된다(검토자별 각자 Vision-OCR ~95분 → digest 소비 ~32분, recall 회귀 없음). 다중 케이스 실행 시 케이스 내 5에이전트 병렬과 케이스 간 병렬이 겹치므로 총 동시 에이전트 6~10 상한을 유지한다.
+Structural devices that keep time proportional to complexity: ① identification is finalized in a single ocr-extractor pass (no reviewer re-verification) ② reviewer crops focus on judgment-critical cells (no indiscriminate full-coverage crop) ③ parallelization of large certs (≤4p segments) (below) ④ **tiling (tile-inputs)** — when ocr-extractor reads 2×2 overlapping tiles, OCR becomes **~2.6× faster and crops drop to nearly 0** relative to the full page (small digits that smeared under downsampling are read without crop) ⑤ **MPS digest sharing (mps-extractor)** — extracting the MPS scan only once and sharing it as a per-domain digest removes the 5 review agents' redundant MPS OCR, shortening the review wall **~3×** (per-reviewer separate Vision-OCR ~95 min → digest consumption ~32 min, with no recall regression). In multi-case runs, the intra-case 5-agent parallelism overlaps with inter-case parallelism, so keep the total concurrent-agent cap of 6–10.
 
 ---
 
-## 병렬 실행 규칙 (2차원 오케스트레이션: 케이스 × 에이전트)
+## Parallel-execution rules (2-dimensional orchestration: case × agent)
 
-> **[MANDATORY] 본 루프(오케스트레이터)가 전 케이스의 에이전트 위임을 직접 스케줄링한다.**
-> 케이스 래퍼 서브에이전트는 폐지한다 — 서브에이전트는 중첩 스폰이 불가하므로, 케이스 fan-out과
-> 에이전트 fan-out을 모두 본 루프가 직접 수행한다.
+> **[MANDATORY] This loop (the orchestrator) directly schedules the agent delegations for all cases.**
+> The case-wrapper subagent is abolished — because subagents cannot spawn nested subagents, both the case fan-out and
+> the agent fan-out are performed directly by this loop.
 
-병렬화는 속도 규칙일 뿐 어떤 품질 의무도 대체하지 않는다. 토큰량·절차·evidence 의무는 동일하다.
+Parallelization is only a speed rule and does not replace any quality obligation. The token budget, procedure, and evidence obligations are unchanged.
 
-| 규칙 | 내용 |
+| Rule | Content |
 |---|---|
-| **Phase 0·3 선실행** | `build-manifest`·`validate-refs`는 fan-out 이전에 **각각 1회** 불변 실행. `validate-refs` exit 0 아니면 fan-out 시작 금지 |
-| **동시 에이전트 총량** | 전체 합산 **6~10** 상한 (OCR·MPS 추출·검토 에이전트 합) |
-| **케이스 파이프라인 중첩** | 케이스별로 OCR(Phase 1·2)·MPS 추출(`mps-extractor`, cert OCR과 병렬)·완전성 게이트(2.5)·검토(Phase 4)가 진행되며, **OCR 완료·2.5 통과·`<id>_mps_digest.json` 산출 케이스부터 검토 5에이전트를 투입**한다. 케이스 간 OCR 단계와 검토 단계의 중첩을 허용한다 (한 케이스가 OCR 중일 때 다른 케이스는 검토 중일 수 있음) |
-| **Phase 5·6 일괄** | 보고서(Phase 5)·평가(Phase 6)는 **전 케이스 merge-reviews 완료 후** 본 루프 또는 `evaluate --all`로 일괄 수행 |
+| **Phase 0·3 pre-execution** | `build-manifest` and `validate-refs` each run **once** invariantly before fan-out. If `validate-refs` is not exit 0, do not start the fan-out |
+| **Total concurrent agents** | Combined cap of **6–10** (sum of OCR, MPS extraction, and review agents) |
+| **Case pipeline overlap** | Per case, OCR (Phase 1·2), MPS extraction (`mps-extractor`, parallel to cert OCR), the completeness gate (2.5), and review (Phase 4) proceed, and **the 5 review agents are deployed starting from cases that have completed OCR, passed 2.5, and produced `<id>_mps_digest.json`**. Overlap of the OCR stage and the review stage across cases is allowed (while one case is in OCR, another may be in review) |
+| **Phase 5·6 batch** | The report (Phase 5) and evaluation (Phase 6) are performed in a batch **after all cases' merge-reviews complete**, by this loop or `evaluate --all` |
 
-단일 케이스 실행은 아래 Phase 0→6 순차 흐름을 그대로 따른다 (fan-out 없이 동일 절차).
+A single-case run follows the Phase 0→6 sequential flow below as-is (the same procedure without fan-out).
 
 ---
 
 ## Phase 0: build-manifest
 
-**목적**: cert/MPS cleanup 두 디렉토리를 스캔하여 케이스 인덱스(`manifest.json`)를 생성한다 (`build-manifest`). **fan-out 이전에 1회만 실행한다** (공유 단일 파일 — 동시 쓰기 충돌 방지).
+**Purpose**: scan the two cert/MPS cleanup directories to generate the case index (`manifest.json`) (`build-manifest`). **Run only once before fan-out** (a shared single file — to prevent concurrent-write conflicts).
 
-- 성적서·MPS 입력 디렉토리(env 미지정 시 테스트 하니스 기본값 `standard inspection Cert cleanup data/`·`standard inspection MPS cleanup data/`)를 스캔한다.
-- `rawdata/`와 `standard inspection GT data/`는 **스캔하지 않는다** (입력 가드).
-- 산출물: 플러그인 디렉토리 `manifest.json` (schema_version: "2.0").
-- 성공 기준: exit 0, `case_count` 출력.
+- Scan the certificate and MPS input directories (when env is unset, the test-harness defaults `standard inspection Cert cleanup data/` and `standard inspection MPS cleanup data/`).
+- `rawdata/` and `standard inspection GT data/` are **not scanned** (input guard).
+- Output: the plugin directory `manifest.json` (schema_version: "2.0").
+- Success criterion: exit 0, prints `case_count`.
 
 ---
 
-## Phase 1·2·2.5: 입력 준비 + OCR 전사 (오케스트레이터 시퀀스)
+## Phase 1·2·2.5: input preparation + OCR transcription (orchestrator sequence)
 
-케이스별로 아래 시퀀스를 수행한다. **결정적 CLI는 오케스트레이터가 직접 실행하고, Vision 전사만 `ocr-extractor`에 위임한다.**
+Perform the sequence below per case. **The orchestrator runs the deterministic CLI directly and delegates only the Vision transcription to `ocr-extractor`.**
 
-### 1) 캐시 게이트 (오케스트레이터 실행)
+### 1) Cache gate (orchestrator-run)
 
-> **[MANDATORY] 입력 준비 이전에 `cache-status --case <id>`를 먼저 실행한다.**
+> **[MANDATORY] Before input preparation, run `cache-status --case <id>` first.**
 >
-> | 상태 | 의미 | 처리 |
+> | Status | Meaning | Handling |
 > |---|---|---|
-> | `fresh` | PDF sha256+dpi 일치, 추출 완전 | **Phase 1·2를 스킵**하고 기존 `<stem>_extracted.json`을 그대로 사용 |
-> | `legacy` | 추출은 완전하나 구버전 사이드카(자동 backfill됨) | `fresh`와 **동일 취급** — Phase 1·2 스킵 |
-> | `stale` | PDF sha256 불일치(원본이 바뀜) 또는 dpi 불일치 | Phase 1·2 **수행**(재렌더 + 재위임) |
-> | `missing` | 추출 산출물 없음 | Phase 1·2 **수행** |
+> | `fresh` | PDF sha256+dpi match, extraction complete | **Skip Phase 1·2** and use the existing `<stem>_extracted.json` as-is |
+> | `legacy` | Extraction is complete but the sidecar is an old version (auto-backfilled) | **Treated the same** as `fresh` — skip Phase 1·2 |
+> | `stale` | PDF sha256 mismatch (the source changed) or dpi mismatch | **Perform** Phase 1·2 (re-render + re-delegate) |
+> | `missing` | No extraction output | **Perform** Phase 1·2 |
 >
-> - PDF가 바뀌면 사이드카 sha256과 불일치하여 자동으로 `stale`이 되고 재추출이 강제된다 — 낡은 추출이 묵시 재사용되지 않는다.
-> - **Phase 2.5 check-extraction 게이트는 캐시 히트(fresh/legacy) 여부와 무관하게 항상 실행한다.** 캐시 스킵이 완전성 검증을 면제하지 않는다.
-> - 입력 무변경 재실행(evaluate 반복, 기준 개정 후 Phase 4만 재실행)에서는 전 케이스가 `fresh`/`legacy`가 되어 OCR Read가 0회로 떨어진다.
+> - If the PDF changes, it no longer matches the sidecar sha256, automatically becomes `stale`, and re-extraction is forced — a stale extraction is never implicitly reused.
+> - **The Phase 2.5 check-extraction gate always runs regardless of a cache hit (fresh/legacy).** A cache skip does not exempt the completeness check.
+> - On a re-run with unchanged inputs (repeated evaluate, or re-running only Phase 4 after a criteria revision), all cases become `fresh`/`legacy` and OCR Reads drop to zero.
 
-### 2) prep-inputs (오케스트레이터 직접 실행, 결정적) — `prep-inputs --case <id>`
+### 2) prep-inputs (orchestrator runs directly, deterministic) — `prep-inputs --case <id>`
 
-- cert PDF를 `pypdfium2`로 렌더링하여 `.cache/<case>/png/<stem>_p01.png`, `_p02.png`, … 생성 (DPI 300, `--dpi`로 변경).
-- **주의**: 기존 DPI 200 캐시는 dpi 불일치로 `stale` 처리되어 다음 실행 시 재렌더+재추출된다.
-- 추출 스켈레톤 JSON(`<stem>_extracted.json`)과 사이드카(`<stem>_prep.json`, sha256+dpi)를 함께 작성한다.
-- **실행 후 케이스의 PNG 수를 확인**하여 다음 단계 모드(full / fragment)를 결정한다.
+- Render the cert PDF with `pypdfium2` to produce `.cache/<case>/png/<stem>_p01.png`, `_p02.png`, … (DPI 300, change via `--dpi`).
+- **Note**: an existing DPI 200 cache is treated as `stale` due to dpi mismatch and is re-rendered + re-extracted on the next run.
+- Also writes the extraction skeleton JSON (`<stem>_extracted.json`) and the sidecar (`<stem>_prep.json`, sha256+dpi).
+- **After running, check the case's PNG count** to determine the next-stage mode (full / fragment).
 
-### 2.5) tile-inputs (오케스트레이터 직접 실행, 결정적) — `tile-inputs --case <id>`
+### 2.5) tile-inputs (orchestrator runs directly, deterministic) — `tile-inputs --case <id>`
 
-- prep-inputs 직후 실행한다. `.cache/<case>/png/` 의 각 페이지 PNG를 페이지당 **2×2 중첩 타일**(`.cache/<case>/tiles/<stem>_pNN_rRcC.png`, `r0`=상단·`r1`=하단, `c0`=좌·`c1`=우, 6% 중첩)로 분할한다.
-- 이유: 모델이 PNG를 Read할 때 긴 변 ~1568px로 다운샘플되어 전체 페이지(~3500px)는 작은 숫자가 뭉개진다. 2×2 타일은 긴 변 ~1957px라 다운샘플 후에도 ~1.8배 선명해 ocr-extractor가 **crop 없이** 판독한다.
-- 다음 단계 모드(full / fragment) 분기는 **여전히 PNG 수 기준**이며 타일링과 독립이다.
+- Run immediately after prep-inputs. Split each page PNG in `.cache/<case>/png/` into **2×2 overlapping tiles** per page (`.cache/<case>/tiles/<stem>_pNN_rRcC.png`, `r0`=top·`r1`=bottom, `c0`=left·`c1`=right, 6% overlap).
+- Why: when the model reads a PNG it downsamples to ~1568px on the long edge, so a full page (~3500px) smears small digits. A 2×2 tile is ~1957px on the long edge, ~1.8× sharper even after downsampling, so ocr-extractor reads it **without crop**.
+- The next-stage mode (full / fragment) branch is **still based on PNG count** and is independent of tiling.
 
-### 2.6) prep-mps (오케스트레이터 직접 실행, 결정적) — `prep-mps --case <id>`
+### 2.6) prep-mps (orchestrator runs directly, deterministic) — `prep-mps --case <id>`
 
-- tile-inputs 직후 실행한다. `standard inspection MPS cleanup data/<case>/`의 MPS PDF를 `pypdfium2`로 렌더해 `.cache/<case>/mps_png/`에 PNG로, 이어서 페이지당 2×2 중첩 타일을 `.cache/<case>/mps_tiles/`에 생성한다(cert 타일링과 동일 원리 — 다운샘플로 뭉개지는 스캔 글자를 선명화).
-- 이 산출물은 다음 단계의 `mps-extractor` 위임 입력이다. cert OCR 경로(prep-inputs/tile-inputs)와 독립적이므로 cert OCR 위임과 병렬로 진행할 수 있다.
+- Run immediately after tile-inputs. Render the MPS PDF in `standard inspection MPS cleanup data/<case>/` with `pypdfium2` into PNGs in `.cache/<case>/mps_png/`, then generate 2×2 overlapping tiles per page into `.cache/<case>/mps_tiles/` (the same principle as cert tiling — sharpening scan characters that smear under downsampling).
+- This output is the input for the next stage's `mps-extractor` delegation. Because it is independent of the cert OCR path (prep-inputs/tile-inputs), it can proceed in parallel with the cert OCR delegation.
 
-### 3) ocr-extractor / mps-extractor 병렬 위임 (PNG 수에 따라 모드 분기, 타일 판독)
+### 3) ocr-extractor / mps-extractor parallel delegation (mode branches by PNG count, tile reading)
 
-> cert 전사(`ocr-extractor`)와 MPS 추출(`mps-extractor`)은 **서로 독립적이므로 한 메시지에 병렬 위임**한다. `mps-extractor`는 `mps_tiles/`를 1회 판독해 영역별 블록(`chemistry`/`mechanical`/`heat_treatment`/`nde_microstructure`/`document_requirements`, 각 항목 원문 source+verbatim 인용)으로 `<case>_mps_digest.json`을 산출한다. 이 digest는 Phase 4 검토 5에이전트가 공유 소비한다(검토자는 원본 MPS를 다시 OCR하지 않는다).
+> Cert transcription (`ocr-extractor`) and MPS extraction (`mps-extractor`) are **independent, so delegate them in parallel in a single message**. `mps-extractor` reads `mps_tiles/` once and produces `<case>_mps_digest.json` as per-domain blocks (`chemistry`/`mechanical`/`heat_treatment`/`nde_microstructure`/`document_requirements`, each item with a source-text source + verbatim quote). The 5 Phase 4 review agents share-consume this digest (reviewers do not re-OCR the original MPS).
 
-- **PNG ≤ 6장 → full 모드**: `ocr-extractor` **1회 위임**. 에이전트가 케이스 전 페이지를 전사하여 `<stem>_extracted.json`을 직접 완성한다.
-- **PNG > 6장 → fragment 모드**: 페이지를 **구간(≤4p)별로 분할**하여 `ocr-extractor`를 **병렬 위임**(한 메시지에 다중 위임)한다. 각 위임은 `parts/<stem>__pSSS-EEE.json` fragment를 저장한다. **전 구간 완료 후** 오케스트레이터가 `merge-parts --case <id>`로 병합한다 (스켈레톤 top-level 보존, 페이지 중복 시 결정적 우선순위·issue 보고).
+- **PNG ≤ 6 → full mode**: **a single `ocr-extractor` delegation**. The agent transcribes all pages of the case and completes `<stem>_extracted.json` directly.
+- **PNG > 6 → fragment mode**: split the pages into **segments (≤4p)** and **delegate `ocr-extractor` in parallel** (multiple delegations in one message). Each delegation saves a `parts/<stem>__pSSS-EEE.json` fragment. **After all segments complete**, the orchestrator merges with `merge-parts --case <id>` (preserving the skeleton top-level, with deterministic priority and issue reporting on page duplication).
 
-**위임 컨텍스트 명세** (각 `ocr-extractor` 위임에 반드시 포함):
-- 케이스 id
-- 스킬 디렉토리 **절대경로**
-- 모드(full / fragment) 및 fragment일 경우 담당 페이지 구간
-- 준수 지시: **C1~C8, 입력 3개 카테고리 화이트리스트, 타일 판독(페이지당 4 타일, crop 원칙적 생략), verbatim 전사, 전 페이지 의무**
+**Delegation context spec** (must be included in each `ocr-extractor` delegation):
+- case id
+- the skill directory **absolute path**
+- the mode (full / fragment) and, for fragment, the assigned page segment
+- compliance instructions: **C1–C8, the 3-category input whitelist, tile reading (4 tiles per page, crop omitted as a rule), verbatim transcription, all-pages obligation**
 
-> 전사 세부 절차(타일 배치 Read, 페이지별 entry, spec verbatim, (Grade,Class,Heat) 인벤토리, 화학 1차 스크리닝 등)는 `agents/ocr-extractor.md`가 보유한다 — **SKILL.md에 중복 기재 금지**.
+> The transcription detail procedure (tile-batch Read, per-page entry, spec verbatim, (Grade,Class,Heat) inventory, first-pass chemistry screening, etc.) is held by `agents/ocr-extractor.md` — **do not duplicate it in SKILL.md**.
 
-**mps-extractor 위임 컨텍스트 명세** (`mps-extractor` 위임에 반드시 포함):
-- 케이스 id
-- 스킬 디렉토리 **절대경로**
-- 산출 의무: `.cache/<case>/<case>_mps_digest.json` (영역별 블록 + 항목별 원문 source+verbatim 인용)
-- 준수 지시: **C1~C8, 입력 3개 카테고리 화이트리스트, MPS 타일 판독, verbatim 인용, 전 페이지 의무**
+**mps-extractor delegation context spec** (must be included in the `mps-extractor` delegation):
+- case id
+- the skill directory **absolute path**
+- output obligation: `.cache/<case>/<case>_mps_digest.json` (per-domain blocks + per-item source-text source + verbatim quote)
+- compliance instructions: **C1–C8, the 3-category input whitelist, MPS tile reading, verbatim quoting, all-pages obligation**
 
-> MPS 추출 세부 절차(영역별 블록 분류, 요건 마크 판독, verbatim 인용 규칙 등)는 `agents/mps-extractor.md`가 보유한다 — **SKILL.md에 중복 기재 금지**.
+> The MPS extraction detail procedure (per-domain block classification, requirement-mark reading, verbatim quoting rules, etc.) is held by `agents/mps-extractor.md` — **do not duplicate it in SKILL.md**.
 
-### 4) check-extraction 게이트 (오케스트레이터 실행, 항상) — `check-extraction --case <id>`
+### 4) check-extraction gate (orchestrator-run, always) — `check-extraction --case <id>`
 
-- 각 cert PDF에 대해 `page_extraction`이 모든 렌더 페이지를 커버하고 `channels.body.pages`가 일치해야 **exit 0**.
-- 빈 추출·페이지 누락 시 exit 1 — **누락 페이지 구간만 `ocr-extractor`에 재위임**(fragment 모드)하고 다시 게이트한다.
-- **이 게이트 통과 전에는 Phase 4 검토를 시작하지 않는다.**
+- For each cert PDF, `page_extraction` must cover all rendered pages and `channels.body.pages` must match for **exit 0**.
+- On empty extraction or missing pages, exit 1 — **re-delegate only the missing page segment to `ocr-extractor`** (fragment mode) and gate again.
+- **Do not start Phase 4 review until this gate passes.**
 
 ---
 
 ## Phase 3: validate-refs
 
-**목적**: `data/*.csv`의 모든 row가 C2/C8 준수(출처 메타 3종 완비)임을 검증한다 (`validate-refs`). **fan-out 이전에 1회만 실행한다** (전 케이스 공통 선결 게이트).
+**Purpose**: verify that every row in `data/*.csv` complies with C2/C8 (all three source-metadata fields present) (`validate-refs`). **Run only once before fan-out** (a precondition gate common to all cases).
 
-- `source_validator`가 각 CSV row의 `source_file` 존재, `snippet` 포함을 확인한다.
-- **exit 0이 아니면 이후 단계를 진행하지 않는다.**
-- 검증 대상 CSV 7종: `chemistry_limits` · `mechanical_limits` · `heat_treatment` · `nde_rules` · `grade_routing` · `mps_overrides` · `code_edition_map`.
+- `source_validator` checks each CSV row for the existence of `source_file` and the inclusion of `snippet`.
+- **If not exit 0, do not proceed to subsequent stages.**
+- The 7 CSVs validated: `chemistry_limits` · `mechanical_limits` · `heat_treatment` · `nde_rules` · `grade_routing` · `mps_overrides` · `code_edition_map`.
 
 ---
 
-## Phase 4: compliance 검토 (오케스트레이터 시퀀스)
+## Phase 4: compliance review (orchestrator sequence)
 
-**목적**: Phase 2 추출값을 ref_code/CSV 기준값 및 MPS 한계와 비교하여 findings를 생성한다. 영역별 판정은 5개 검토 에이전트에 병렬 위임하고, 오케스트레이터가 결정적으로 병합한다.
+**Purpose**: compare the Phase 2 extracted values against the ref_code/CSV reference values and MPS limits to generate findings. Per-domain judgment is delegated in parallel to the 5 review agents, and the orchestrator merges them deterministically.
 
-### 1) limits 조회 (오케스트레이터 실행, 1회) — `limits --case <id>`
+### 1) limits lookup (orchestrator-run, once) — `limits --case <id>`
 
-- 케이스 추출 인벤토리(grade·class)를 기반으로 관련 CSV 행만 추려 provenance 3종(`source_file`/`anchor`/`snippet`) 포함 JSON으로 `.cache/<case>/<case>_limits.json`에 산출한다. **수치는 여전히 CSV 유래이며 snippet/anchor가 보존되어 C2/C8을 충족한다.**
-- 산출 JSON의 `unrouted`에 grade 라우팅 실패가 명시되면, **그 grade에 한해서만** CSV 원본·`review-criteria.md`로 수동 라우팅 정보를 확정하고, **위임 컨텍스트에 그 해소 정보를 첨부**한다. (라우팅 성공 grade는 추가 작업 불필요.)
+- Based on the case extraction inventory (grade·class), select only the relevant CSV rows and produce `.cache/<case>/<case>_limits.json` as JSON including the 3 provenance fields (`source_file`/`anchor`/`snippet`). **The values are still CSV-derived, and snippet/anchor are preserved so C2/C8 are satisfied.**
+- If a grade routing failure is stated in the output JSON's `unrouted`, then **only for that grade** finalize the manual routing information from the CSV source and `review-criteria.md`, and **attach that resolution information to the delegation context**. (A successfully routed grade needs no extra work.)
 
-### 2) 검토 5에이전트 병렬 위임 (한 메시지에 동시)
+### 2) Parallel delegation of the 5 review agents (concurrently in one message)
 
-`limits` 완료 후(그리고 해당 케이스 `mps-extractor`가 `<case>_mps_digest.json`을 산출한 뒤), 아래 5개 에이전트를 **한 메시지에 병렬 위임**한다. 각 위임에 포함할 컨텍스트:
-- 케이스 id
-- 스킬 디렉토리 **절대경로**
-- 자기 도메인 부분 산출 의무: `.cache/<case>/<case>_review_<domain>.json`
-- (해당 시) unrouted grade 해소 정보
-- **MPS 특별요구는 `<case>_mps_digest.json`의 자기 영역 블록에서 읽고 원본 MPS PDF/PNG는 열지 않는다**(digest에 해당 grade 요구가 없을 때만 폴백).
+After `limits` completes (and after that case's `mps-extractor` has produced `<case>_mps_digest.json`), **delegate the 5 agents below in parallel in a single message**. The context to include in each delegation:
+- case id
+- the skill directory **absolute path**
+- its own domain's partial-output obligation: `.cache/<case>/<case>_review_<domain>.json`
+- (if applicable) unrouted-grade resolution information
+- **read MPS special requirements from its own domain block in `<case>_mps_digest.json` and do not open the original MPS PDF/PNG** (fall back only when the digest has no requirement for that grade).
 
-검토 에이전트는 ocr-extractor가 확정한 식별 필드(header의 grade/heat_no/cert_no/size/qty)를 재검증하지 않는다(시간 예산 절 참조).
+The review agents do not re-verify the identification fields finalized by ocr-extractor (the header's grade/heat_no/cert_no/size/qty) (see the time-budget section).
 
-**기준 번호 라우팅 표** (어떤 에이전트가 어떤 기준을 담당하는지만 — 판정 절차는 각 에이전트 문서 소관):
+**Routing table by 기준 number** (only which agent owns which 기준 — the judgment procedure belongs to each agent's document):
 
-| 에이전트 | 담당 기준 |
+| Agent | Assigned 기준 |
 |---|---|
-| `chemistry-reviewer` | 기준 3.1 (A106 C/Mn 각주), MPS override, Cev 역산 |
-| `mechanical-reviewer` | TS/YS/EL/RA/경도 범위 |
-| `heat-treatment-reviewer` | 단계별 온도·시간, ±10°C 룰 |
-| `nde-reviewer` | 기준 NDE 룰(MILL/STOCK notch), NDE 적용성 분리 보고, δ-ferrite·Code Case·PMI |
-| `format-reviewer` | 기준 11.2 (식별 spec 계열), 기준 14 (자체 인쇄기준 자기정합), 기준 15 (spec 표기 검증), 기준 16 (Class 제한·인벤토리 커버리지) |
+| `chemistry-reviewer` | 기준 3.1 (A106 C/Mn footnote), MPS override, Cev back-calculation |
+| `mechanical-reviewer` | TS/YS/EL/RA/hardness ranges |
+| `heat-treatment-reviewer` | per-step temperature·time, the ±10°C rule |
+| `nde-reviewer` | 기준 NDE rules (MILL/STOCK notch), separate NDE-applicability reporting, δ-ferrite·Code Case·PMI |
+| `format-reviewer` | 기준 11.2 (identification spec family), 기준 14 (self-consistency of the cert's own print criteria), 기준 15 (spec-notation verification), 기준 16 (Class restriction·inventory coverage) |
 
-> 영역별 판정 세부(Cev 역산식, ±10°C 분기, 기준 11.2/14/15/16 적용 절차, finding 게이트(기준 17)·표준 어휘(기준 18))는 각 에이전트 문서 및 `references/review-criteria.md` 소관 — **SKILL.md에 중복 기재 금지**.
+> The per-domain judgment details (the Cev back-calculation formula, the ±10°C branch, the 기준 11.2/14/15/16 application procedure, the finding gate (기준 17) and standard vocabulary (기준 18)) belong to each agent's document and `references/review-criteria.md` — **do not duplicate in SKILL.md**.
 
-**도메인 경계 표 (중복 발행 방지)**:
+**Domain-boundary table (preventing duplicate issuance)**:
 
-| 항목 | 담당 도메인 |
+| Item | Owning domain |
 |---|---|
-| N / Al 수치 판정 | chemistry |
+| N / Al numeric judgment | chemistry |
 | δ-ferrite · Code Case · PMI | nde |
-| 인쇄 기준 표기 오류 라벨(문서 결함) | format |
-| 측정값 자체 판정(인쇄 기준 대비) | chemistry / mechanical (수치 소관 도메인) |
-| 치수 / 수량 / Heat No | format |
+| print-criteria notation-error label (document defect) | format |
+| judgment of the measured value itself (against the print criteria) | chemistry / mechanical (the numeric-owning domain) |
+| dimensions / quantity / Heat No | format |
 
-### 3) merge-reviews (오케스트레이터 실행, 전원 완료 후) — `merge-reviews --case <id>`
+### 3) merge-reviews (orchestrator-run, after all complete) — `merge-reviews --case <id>`
 
-검토 에이전트가 grade 정정(인벤토리와 상이)을 보고하면, 오케스트레이터는 해당 케이스의 `limits --case`를 재실행해 정정 grade의 기준값 행(MPS override 포함)을 재공급하고 영향 영역을 재위임하는 것이 원칙이다(에이전트의 CSV 원본 수동 보강은 보조 경로).
+If a review agent reports a grade correction (differing from the inventory), the orchestrator's rule is to re-run that case's `limits --case` to re-supply the corrected grade's reference-value rows (including MPS override) and re-delegate the affected domains (an agent's manual augmentation from the CSV source is a secondary path).
 
-- 부분 5파일(`<case>_review_chemistry.json` … `_format.json`)을 단일 `<case>_review.json`으로 **결정적 병합**한다: 전역 finding 재채번, verdict 최악값 집계. **하류 Phase 5/6 계약 불변.**
+- **Deterministically merge** the 5 partial files (`<case>_review_chemistry.json` … `_format.json`) into a single `<case>_review.json`: global finding renumbering, worst-value aggregation of the verdict. **The downstream Phase 5/6 contract is unchanged.**
 
-### 출처 인용 규칙 (C2)
+### Source-citation rule (C2)
 
-> **evidence가 없으면 finding을 작성하지 않는다.** 각 finding의 `evidence` 배열에 최소 하나의 항목을 두고, `snippet`은 채널 원문(body/MPS)에 literal로 존재해야 한다(`source_validator`가 부재 snippet을 격리). **수치 기준은 CSV에서만 인용 — 코드 하드코딩 수치 사용 금지.**
+> **If there is no evidence, do not write the finding.** Place at least one item in each finding's `evidence` array, and the `snippet` must exist literally in the channel source text (body/MPS) (`source_validator` quarantines a missing snippet). **Cite numeric criteria only from the CSV — do not use code-hardcoded numbers.**
 
 ---
 
-## Phase 5: compliance_report (6시트 한글 Excel)
+## Phase 5: compliance_report (6-sheet Korean Excel)
 
-**목적**: `review.json`의 findings를 6시트 한국어 Excel 보고서로 출력한다.
+**Purpose**: output the findings in `review.json` as a 6-sheet Korean Excel report.
 
-- `compliance_report.build_compliance_report`가 `review.json`을 읽어 보고서를 생성한다.
-- 산출물: `output/reports/<case_id>/<case_id>_MTC_Review.xlsx`
-- **6-시트 구성**:
+- `compliance_report.build_compliance_report` reads `review.json` and generates the report.
+- Output: `output/reports/<case_id>/<case_id>_MTC_Review.xlsx`
+- **6-sheet structure**:
 
-  | # | 시트명 | 내용 |
+  | # | Sheet name | Content |
   |---|---|---|
-  | 1 | 종합 요약 | 케이스별 PASS/FAIL, finding 집계, 검토 일시 |
-  | 2 | 화학성분 | Heat/Product 원소별 값 vs 기준, 판정 |
-  | 3 | 기계적 성질 | TS/YS/EL/RA/경도 vs 기준, 판정 |
-  | 4 | 열처리 | 단계별 온도·시간 vs 기준, 판정 |
-  | 5 | NDE / 특별요구 | UT/MT/PT/PMI 수행 여부, notch 규격, δ-ferrite |
-  | 6 | Finding 목록 | finding_id, category, severity, issue_summary, evidence 요약 |
+  | 1 | 종합 요약 | per-case PASS/FAIL, finding aggregation, review timestamp |
+  | 2 | 화학성분 | per-element Heat/Product values vs reference, verdict |
+  | 3 | 기계적 성질 | TS/YS/EL/RA/hardness vs reference, verdict |
+  | 4 | 열처리 | per-step temperature·time vs reference, verdict |
+  | 5 | NDE / 특별요구 | whether UT/MT/PT/PMI were performed, notch spec, δ-ferrite |
+  | 6 | Finding 목록 | finding_id, category, severity, issue_summary, evidence summary |
 
-- 보고서 문구에 절 기호(섹션 부호)를 사용하지 않는다. 기준 조항 참조는 `기준 3.1` 형식으로 표기한다.
-- 파일 인코딩: `openpyxl` 기본(UTF-8). 한국어 폰트 폴백 사용.
-
----
-
-## Phase 6: evaluate (comments.md 기준 평가)
-
-**목적**: compliance `review.json` 예측을 케이스별 검토자 실제 지적(`comments.md`)과 비교하여
-PASS/FAIL을 판정한다 (`evaluate --case <id>` / `--all`).
-
-- `scripts/eval_harness.py`가 `standard inspection GT data/<case>/comments.md`를 읽는 **유일한 모듈**이다. 이 명령 외 어느 경로에서도 GT 디렉토리를 직접 열지 않는다 (입력 가드).
-- GT는 검토자 실제 지적을 **페이지×주제로 클러스터링**한 `comments.md`이며, 예측 finding과 매칭하여 recall/precision/case_pass를 산출한다.
-- 산출물: `output/eval/<case_id>_eval.json` 또는 `output/eval/all_eval.json`, 요약 markdown 리포트.
+- **Output language**: the 6-sheet report and all finding text (`issue_summary`/`content`/`notes`/`doc_checks`) are authored in Korean (reviewer vocabulary), unchanged from current behavior. The sheet names above (종합 요약, 화학성분, 기계적 성질, 열처리, NDE / 특별요구, Finding 목록) are emitted verbatim in Korean.
+- Do not use the section sign (§) in report text. Cite criteria clauses in the `기준 3.1` format.
+- File encoding: `openpyxl` default (UTF-8). Uses Korean font fallback.
 
 ---
 
-## 전체 실행 흐름 요약
+## Phase 6: evaluate (evaluation against comments.md)
+
+**Purpose**: compare the compliance `review.json` predictions against each case's actual reviewer findings (`comments.md`) to decide
+PASS/FAIL (`evaluate --case <id>` / `--all`).
+
+- `scripts/eval_harness.py` is the **only module** that reads `standard inspection GT data/<case>/comments.md`. No path other than this command opens the GT directory directly (input guard).
+- The GT is `comments.md`, the reviewer's actual findings **clustered by page × topic**, and it is matched against the predicted findings to compute recall/precision/case_pass.
+- Output: `output/eval/<case_id>_eval.json` or `output/eval/all_eval.json`, plus a summary markdown report.
+
+---
+
+## Overall execution flow summary
 
 ```
-[다중] Phase 0·3 fan-out 전 1회 → 본 루프가 케이스×에이전트 2차원 스케줄링
-       (동시 6~10, OCR 완료·2.5 통과 케이스부터 검토 투입)   [단일] 아래 순차 (fan-out 없이 동일)
+[Multi] Phase 0·3 once before fan-out → this loop schedules the case × agent 2 dimensions
+        (concurrency 6–10, deploy review starting from cases that completed OCR and passed 2.5)   [Single] sequential below (same without fan-out)
 
-Phase 0   build-manifest    → manifest.json                                    ※ fan-out 전 1회
-Phase 3   validate-refs     → exit 0 필수                                       ※ fan-out 전 1회
-──── 이하 케이스별 (오케스트레이터 시퀀스) ────
-[GATE]    cache-status      → fresh/legacy = Phase 1·2 스킵 / stale/missing = 수행
-Phase 1   prep-inputs       → png/*.png + <stem>_prep.json (직접 실행) → PNG 수로 모드 결정
-          tile-inputs       → tiles/*_pNN_rRcC.png (페이지당 2×2 중첩 타일, 직접 실행)
-          prep-mps          → mps_png/*.png + mps_tiles/*.png (MPS 렌더+타일, 직접 실행)
-Phase 2   [위임 ocr-extractor/opus]  ≤6p full 1회 → <stem>_extracted.json   ┐ 병렬
-                                       >6p fragment 병렬(≤4p) → parts/*.json → merge-parts │
-          [위임 mps-extractor/opus]  mps_tiles 1회 판독 → <id>_mps_digest.json           ┘
-                            (타일 판독·C1·verbatim·전 페이지 의무, 세부 agents/ocr-extractor.md·mps-extractor.md)
-Phase 2.5 check-extraction  → exit 0 필수 (항상 실행, 실패 시 누락 구간만 재위임)
-──── OCR 완료·2.5 통과·mps_digest 산출 케이스부터 ────
-Phase 4   limits → <id>_limits.json  → [위임 검토5/claude-opus-4-8 한 메시지 병렬]
+Phase 0   build-manifest    → manifest.json                                    ※ once before fan-out
+Phase 3   validate-refs     → exit 0 required                                  ※ once before fan-out
+──── below is per-case (orchestrator sequence) ────
+[GATE]    cache-status      → fresh/legacy = skip Phase 1·2 / stale/missing = perform
+Phase 1   prep-inputs       → png/*.png + <stem>_prep.json (run directly) → mode decided by PNG count
+          tile-inputs       → tiles/*_pNN_rRcC.png (2×2 overlapping tiles per page, run directly)
+          prep-mps          → mps_png/*.png + mps_tiles/*.png (MPS render+tile, run directly)
+Phase 2   [delegate ocr-extractor/opus]  ≤6p full once → <stem>_extracted.json   ┐ parallel
+                                       >6p fragment parallel(≤4p) → parts/*.json → merge-parts │
+          [delegate mps-extractor/opus]  read mps_tiles once → <id>_mps_digest.json           ┘
+                            (tile reading·C1·verbatim·all-pages obligation, details in agents/ocr-extractor.md·mps-extractor.md)
+Phase 2.5 check-extraction  → exit 0 required (always runs; on failure re-delegate only the missing segment)
+──── starting from cases that completed OCR, passed 2.5, and produced mps_digest ────
+Phase 4   limits → <id>_limits.json  → [delegate 5 reviewers/claude-opus-4-8 in one message, parallel]
             chemistry·mechanical·heat_treatment·nde·format → <id>_review_<domain>.json
-            (MPS 특별요구는 <id>_mps_digest.json 자기 영역 블록 소비 — 원본 MPS 미개봉)
-          merge-reviews → <id>_review.json (재채번·verdict 최악값, 하류 계약 불변)
-──── 전 케이스 merge-reviews 후 일괄 ────
-Phase 5   compliance_report → output/reports/<id>/<id>_MTC_Review.xlsx (6 시트)
+            (MPS special requirements consumed from <id>_mps_digest.json's own domain block — original MPS not opened)
+          merge-reviews → <id>_review.json (renumber·worst-value verdict, downstream contract unchanged)
+──── batched after all cases' merge-reviews ────
+Phase 5   compliance_report → output/reports/<id>/<id>_MTC_Review.xlsx (6 sheets)
 Phase 6   evaluate --case <id> | --all → output/eval/*  (recall/precision/case_pass)
 ```
 
-> **모델 주의**: 전 에이전트 claude-opus-4-8(OCR·검토 동일)은 각 에이전트 frontmatter의 model로
-> 적용된다. `CLAUDE_CODE_SUBAGENT_MODEL`이 설정돼 있으면 이를 덮어쓰므로 **해제 상태로 실행**한다.
+> **Model note**: all agents use claude-opus-4-8 (same for OCR and review), applied via each agent's frontmatter model.
+> If `CLAUDE_CODE_SUBAGENT_MODEL` is set it overrides this, so **run with it unset**.
 
 ---
 
-## 도메인 규칙 참조 위치
+## Domain-rule reference locations
 
-수치 판정 기준은 반드시 아래 위치에서 인용한다. 본 문서에 기재된 수치는 가독성을 위한 사본이며,
-**런타임 판정에는 CSV만 사용**한다 (C2/C8).
+Numeric judgment criteria must be cited from the locations below. The values written in this document are copies for readability;
+**runtime judgment uses only the CSV** (C2/C8).
 
-| 판정 항목 | CSV 파일 | 비고 |
+| Judgment item | CSV file | Remarks |
 |---|---|---|
-| 화학성분 범위 | `data/chemistry_limits.csv` | Heat/Product 구분, MPS override 별도 |
-| MPS 우선 항목 | `data/mps_overrides.csv` | MPS > Code인 경우만 등재 |
-| 기계적 성질 | `data/mechanical_limits.csv` | TS/YS/EL/RA/경도 |
-| 열처리 조건 | `data/heat_treatment.csv` | 단계별 온도·시간, ±10°C 룰 |
-| NDE 규칙 | `data/nde_rules.csv` | MILL/STOCK notch 구분 |
-| Grade → Spec | `data/grade_routing.csv` | grade 문자열 → ASME spec 매핑 |
-| ref_code 연도 | `data/code_edition_map.csv` | 연도 불일치 시 비고(C3) |
+| Chemical composition range | `data/chemistry_limits.csv` | Heat/Product distinction, MPS override separate |
+| MPS-priority items | `data/mps_overrides.csv` | listed only when MPS > Code |
+| Mechanical properties | `data/mechanical_limits.csv` | TS/YS/EL/RA/hardness |
+| Heat-treatment conditions | `data/heat_treatment.csv` | per-step temperature·time, the ±10°C rule |
+| NDE rules | `data/nde_rules.csv` | MILL/STOCK notch distinction |
+| Grade → Spec | `data/grade_routing.csv` | grade string → ASME spec mapping |
+| ref_code year | `data/code_edition_map.csv` | remark on year mismatch (C3) |
 
-Claude 판정 시 세부 도메인 규칙(화학 복합 룰, NDE 특별요건, finding 카테고리 정의,
-severity 결정 룰 등)은 각 검토 에이전트 문서(`agents/*-reviewer.md`)와
-`references/review-criteria.md`를 참조한다.
+For Claude's judgment, refer to each review agent's document (`agents/*-reviewer.md`) and
+`references/review-criteria.md` for the detailed domain rules (complex chemistry rules, NDE special requirements, finding category definitions,
+severity decision rules, etc.).
