@@ -141,7 +141,7 @@ The schema is as follows. The nde array item format and findings format must mat
       "grade_spec": "...",
       "size": "...",
       "qty": "...",
-      "verdict": "PASS|주의|FAIL",
+      "verdict": "PASS | 주의 | FAIL | N/A (use exactly ONE; no other vocabulary; applies to every row-level verdict too)",
       "nde": [
         {"item": "MT", "spec": "100% on butt weld bevel 단부 (MPS item 6)", "cert": "M.T: GOOD", "verdict": "PASS", "note": "..."}
       ]

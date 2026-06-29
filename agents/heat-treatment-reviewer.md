@@ -119,7 +119,7 @@ Write `SKILL_DIR\.cache\<case>\<case>_review_heat_treatment.json` using the foll
       "grade_spec": "<routed spec>",
       "size": "<dimensions>",
       "qty": "<quantity>",
-      "verdict": "<overall verdict limited to this heat treatment domain: PASS | 주의 | FAIL>",
+      "verdict": "<heat-treatment-scope-only overall verdict — use exactly ONE of: PASS | 주의 | FAIL | N/A (no other vocabulary; applies to every row-level verdict too)>",
       "heat_treatment": [
         {"stage": "Normalizing", "cert": "...", "spec": "...", "source": "MPS+Code", "verdict": "PASS", "note": "..."}
       ]

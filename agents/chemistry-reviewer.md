@@ -147,7 +147,7 @@ Schema:
       "grade_spec": "<routed ASME spec>",
       "size": "<dimensions>",
       "qty": "<quantity>",
-      "verdict": "<chemistry-scope-only overall verdict (PASS|주의|FAIL, etc.)>",
+      "verdict": "<chemistry-scope-only overall verdict — use exactly ONE of: PASS | 주의 | FAIL | N/A (no other vocabulary; applies to every row-level verdict too)>",
       "chemistry": [ /* same format as chemistry array in 10_review.json */ ]
     }
   ],

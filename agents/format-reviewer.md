@@ -137,7 +137,7 @@ Write `SKILL_DIR\.cache\<case>\<case>_review_format.json` using the following sc
       "grade_spec": "<routed spec>",
       "size": "<dimensions>",
       "qty": "<quantity>",
-      "verdict": "<overall verdict for format/identification scope only: PASS | 주의 | FAIL>",
+      "verdict": "<format/identification-scope-only overall verdict — use exactly ONE of: PASS | 주의 | FAIL | N/A (no other vocabulary; applies to every row-level verdict too)>",
       "doc_checks": [
         {"page": "p.1", "location": "...", "mtc_value": "...", "expected": "...", "verdict": "PASS", "note": "..."}
       ]

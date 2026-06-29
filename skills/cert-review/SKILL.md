@@ -331,6 +331,7 @@ If a review agent reports a grade correction (differing from the inventory), the
   | 5 | NDE / 특별요구 | whether UT/MT/PT/PMI were performed, notch spec, δ-ferrite |
   | 6 | Finding 목록 | finding_id, category, severity, issue_summary, evidence summary |
 
+- **Verdict / severity vocabulary (canonical)**: every cell verdict (overall + per-row, all domains) must be exactly one of **`PASS | 주의 | FAIL | N/A`**; finding severity must be one of **`Reject | ActionRequired | Question | Minor | Info`**. `compliance_report` deterministically **canonicalises** any non-standard label (e.g. `합격`→PASS, `REVIEW`/`ActionRequired`→주의, `INFO`/`정보성`/`확인 불가`→N/A) and **always applies a colour** (PASS=green, FAIL=red, 주의=yellow, N/A=grey). Agents should still emit the canonical tokens directly — do not invent variants.
 - **Output language**: the 6-sheet report and all finding text (`issue_summary`/`content`/`notes`/`doc_checks`) are authored in Korean (reviewer vocabulary), unchanged from current behavior. The sheet names above (종합 요약, 화학성분, 기계적 성질, 열처리, NDE / 특별요구, Finding 목록) are emitted verbatim in Korean.
 - Do not use the section sign (§) in report text. Cite criteria clauses in the `기준 3.1` format.
 - File encoding: `openpyxl` default (UTF-8). Uses Korean font fallback.

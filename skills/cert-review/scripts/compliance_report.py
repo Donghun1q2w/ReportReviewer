@@ -22,7 +22,7 @@ Review JSON schema
       "grade_spec": "SA-106-B",             # ordered/spec grade
       "size": "48.3 x 7.14",                # optional
       "qty": 120,                            # optional
-      "verdict": "FAIL",                    # PASS | FAIL | 주의 | 조건부 PASS
+      "verdict": "FAIL",                    # PASS | FAIL | 주의 | N/A (report canonicalises any variant)
       "chemistry":      [ {"element","analysis"?, "cert","spec_range","source","verdict","note"?} ],
       "mechanical":     [ {"property","cert","spec","source","verdict","note"?} ],
       "heat_treatment": [ {"stage","cert","spec","source","verdict","note"?} ],
@@ -50,30 +50,88 @@ _TITLE_FONT = Font(bold=True)
 _PASS_FILL = PatternFill("solid", fgColor="FFC6EFCE")
 _FAIL_FILL = PatternFill("solid", fgColor="FFFFC7CE")
 _WARN_FILL = PatternFill("solid", fgColor="FFFFEB9C")
+_NA_FILL = PatternFill("solid", fgColor="FFD9D9D9")
+
+# --- Verdict / severity canonicalisation -------------------------------------
+# Sub-agents emit free verdict/severity vocabulary ("합격", "ActionRequired",
+# "정보성", "REVIEW", "N/A", …). To keep the report self-consistent, every cell
+# verdict is collapsed to a fixed display set {PASS | FAIL | 주의 | N/A} and a
+# colour is ALWAYS applied (no blank verdict cells). The keys below are matched
+# case-insensitively (looked up verbatim first, then upper-cased).
+
+# Cell verdict canonical set: PASS | FAIL | 주의 | N/A
+_VERDICT_ALIASES = {
+    # PASS
+    "PASS": "PASS", "합격": "PASS", "적합": "PASS", "OK": "PASS",
+    # FAIL
+    "FAIL": "FAIL", "불합격": "FAIL", "부적합": "FAIL", "REJECT": "FAIL",
+    "DOCUMENTERROR": "FAIL", "DOCUMENT ERROR": "FAIL", "기준 미달": "FAIL",
+    "기준값 초과": "FAIL",
+    # 주의 (warning / review / conditional / action-required leaking in as verdict)
+    "주의": "주의", "WARNING": "주의", "WARN": "주의", "REVIEW": "주의",
+    "QUESTION": "주의", "ACTIONREQUIRED": "주의", "ACTION REQUIRED": "주의",
+    "MINOR": "주의", "PASS_WITH_FINDINGS": "주의",
+    "조건부 PASS": "주의", "조건부PASS": "주의", "조건부합격": "주의",
+    # N/A (not-applicable / informational)
+    "N/A": "N/A", "NA": "N/A", "N.A.": "N/A", "INFO": "N/A", "INFORMATION": "N/A",
+    "정보": "N/A", "정보성": "N/A", "참고": "N/A",
+    "확인 불가": "N/A", "확인불가": "N/A", "미판정": "N/A",
+}
+_VERDICT_FILL = {
+    "PASS": _PASS_FILL, "FAIL": _FAIL_FILL, "주의": _WARN_FILL, "N/A": _NA_FILL,
+}
+
+# Finding severity canonical set: Reject | ActionRequired | Question | Minor | Info
+_SEVERITY_ALIASES = {
+    "REJECT": "Reject", "FAIL": "Reject", "불합격": "Reject", "부적합": "Reject",
+    "ACTIONREQUIRED": "ActionRequired", "ACTION REQUIRED": "ActionRequired",
+    "DOCUMENTERROR": "ActionRequired", "DOCUMENT ERROR": "ActionRequired",
+    "QUESTION": "Question", "주의": "Question", "WARNING": "Question",
+    "MINOR": "Minor",
+    "INFO": "Info", "INFORMATION": "Info",
+    "정보": "Info", "정보성": "Info", "참고": "Info",
+}
+_SEVERITY_FILL = {
+    "Reject": _FAIL_FILL, "ActionRequired": _FAIL_FILL,
+    "Question": _WARN_FILL, "Minor": _WARN_FILL, "Info": _NA_FILL,
+}
 
 
-def _verdict_fill(v: str) -> PatternFill:
-    v = (v or "").strip().upper()
-    if v == "PASS":
-        return _PASS_FILL
-    if v == "FAIL":
-        return _FAIL_FILL
-    if v in ("주의", "WARNING", "조건부 PASS", "조건부PASS"):
-        return _WARN_FILL
-    # Korean labels arrive non-upper
-    raw = (v or "")
-    return PatternFill()
+def _canon_verdict(v: Any) -> str:
+    """Collapse any verdict variant to one of PASS | FAIL | 주의 | N/A.
+
+    Empty/None → N/A. Unrecognised non-empty token → 주의 (surfaced for review
+    rather than silently shown as a benign N/A)."""
+    if v is None:
+        return "N/A"
+    key = str(v).strip()
+    if not key:
+        return "N/A"
+    return _VERDICT_ALIASES.get(key) or _VERDICT_ALIASES.get(key.upper()) or "주의"
 
 
-def _fill_for(verdict: str) -> PatternFill:
-    s = (verdict or "").strip()
-    if s.upper() == "PASS":
-        return _PASS_FILL
-    if s.upper() == "FAIL":
-        return _FAIL_FILL
-    if s in ("주의", "조건부 PASS", "조건부PASS") or s.upper() == "WARNING":
-        return _WARN_FILL
-    return PatternFill()
+def _canon_severity(s: Any) -> str:
+    """Collapse a finding severity to the canonical 5-level set; unknown
+    non-empty tokens are kept verbatim (and shaded grey)."""
+    if s is None:
+        return ""
+    key = str(s).strip()
+    if not key:
+        return ""
+    return _SEVERITY_ALIASES.get(key) or _SEVERITY_ALIASES.get(key.upper()) or key
+
+
+def _verdict_fill(v: Any) -> PatternFill:
+    return _VERDICT_FILL.get(_canon_verdict(v), _NA_FILL)
+
+
+def _fill_for(verdict: Any) -> PatternFill:
+    """Verdict-cell fill (canonical PASS/FAIL/주의/N/A); always a solid colour."""
+    return _VERDICT_FILL.get(_canon_verdict(verdict), _NA_FILL)
+
+
+def _severity_fill(s: Any) -> PatternFill:
+    return _SEVERITY_FILL.get(_canon_severity(s), _NA_FILL)
 
 
 def _title(ws, text: str, ncols: int) -> None:
@@ -124,20 +182,42 @@ def _grouped_sheet(wb, sheet, title, headers, widths, materials, key,
         start = r
         for row in rows:
             ws.cell(row=r, column=2).value = row.get(row_fields[0], "")
-            ws.cell(row=r, column=3).value = row.get("source", "") or row.get("required_by", "")
+            ws.cell(row=r, column=3).value = _src_str(row.get("source", "")) or _src_str(row.get("required_by", ""))
             ws.cell(row=r, column=4).value = row.get(row_fields[1], "")
             ws.cell(row=r, column=5).value = _fmt(row.get(row_fields[2], ""))
             vc = ws.cell(row=r, column=6)
-            vc.value = row.get("verdict", "")
+            vc.value = _canon_verdict(row.get("verdict", ""))
             vc.fill = _fill_for(row.get("verdict", ""))
             ws.cell(row=r, column=7).value = row.get("note", "")
             r += 1
         _merge_label(ws, start, r - 1, _mat_label(m))
 
 
+def _src_str(v: Any) -> str:
+    """Render a provenance value as a readable cell string.
+
+    Review rows may carry `source` either as a plain string or as a provenance
+    dict ({source_file, anchor, snippet}); openpyxl cannot write a dict to a
+    cell, so collapse the dict into `source_file#anchor — snippet`.
+    """
+    if v is None:
+        return ""
+    if isinstance(v, dict):
+        head = v.get("source_file") or v.get("file") or ""
+        anchor = v.get("anchor") or ""
+        snippet = v.get("snippet") or ""
+        loc = f"{head}#{anchor}" if head and anchor else (head or anchor)
+        return f"{loc} — {snippet}" if loc and snippet else (loc or snippet)
+    if isinstance(v, (list, tuple)):
+        return "; ".join(_src_str(x) for x in v if x)
+    return str(v)
+
+
 def _fmt(v: Any) -> str:
     if v is None:
         return ""
+    if isinstance(v, (dict, list, tuple)):
+        return _src_str(v)
     return str(v)
 
 
@@ -198,7 +278,7 @@ def build_compliance_report(review_path: Path, out_path: Path) -> Path:
         ws.cell(row=r, column=6).value = m.get("heat_no", "")
         ws.cell(row=r, column=7).value = _fmt(m.get("qty", ""))
         vc = ws.cell(row=r, column=8)
-        vc.value = m.get("verdict", "")
+        vc.value = _canon_verdict(m.get("verdict", ""))
         vc.fill = _fill_for(m.get("verdict", ""))
         r += 1
 
@@ -237,7 +317,7 @@ def build_compliance_report(review_path: Path, out_path: Path) -> Path:
             ws.cell(row=r, column=3).value = _fmt(d.get("mtc_value", ""))
             ws.cell(row=r, column=4).value = _fmt(d.get("expected", ""))
             vc = ws.cell(row=r, column=5)
-            vc.value = d.get("verdict", "")
+            vc.value = _canon_verdict(d.get("verdict", ""))
             vc.fill = _fill_for(d.get("verdict", ""))
             ws.cell(row=r, column=6).value = d.get("note", "")
             r += 1
@@ -245,9 +325,9 @@ def build_compliance_report(review_path: Path, out_path: Path) -> Path:
             ws.cell(row=r, column=1).value = ""
             ws.cell(row=r, column=2).value = f"NDE: {n.get('item','')} ({m.get('heat_no','')})"
             ws.cell(row=r, column=3).value = _fmt(n.get("cert", ""))
-            ws.cell(row=r, column=4).value = _fmt(n.get("spec", "")) or n.get("source", "")
+            ws.cell(row=r, column=4).value = _fmt(n.get("spec", "")) or _src_str(n.get("source", ""))
             vc = ws.cell(row=r, column=5)
-            vc.value = n.get("verdict", "")
+            vc.value = _canon_verdict(n.get("verdict", ""))
             vc.fill = _fill_for(n.get("verdict", ""))
             ws.cell(row=r, column=6).value = n.get("note", "")
             r += 1
@@ -261,8 +341,8 @@ def build_compliance_report(review_path: Path, out_path: Path) -> Path:
     for f in review.get("findings") or []:
         ws.cell(row=r, column=1).value = _fmt(f.get("no", ""))
         sc = ws.cell(row=r, column=2)
-        sc.value = f.get("severity", "")
-        sc.fill = _fill_for(f.get("severity", ""))
+        sc.value = _canon_severity(f.get("severity", ""))
+        sc.fill = _severity_fill(f.get("severity", ""))
         ws.cell(row=r, column=3).value = f.get("category", "")
         ws.cell(row=r, column=4).value = f.get("location", "")
         cc = ws.cell(row=r, column=5)

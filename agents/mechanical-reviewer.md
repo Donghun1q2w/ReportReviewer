@@ -142,7 +142,7 @@ Schema:
       "grade_spec": "<routed ASME spec>",
       "size": "<dimensions>",
       "qty": "<quantity>",
-      "verdict": "<overall verdict for this mechanical section only (PASS|주의|FAIL, etc.)>",
+      "verdict": "<mechanical-scope-only overall verdict — use exactly ONE of: PASS | 주의 | FAIL | N/A (no other vocabulary; applies to every row-level verdict too)>",
       "mechanical": [ /* same format as the mechanical array in 10_review.json */ ]
     }
   ],
