@@ -1,5 +1,21 @@
 # Revision History
 
+## 2026-07-01 — OCR 모델 A/B 벤치마크 (Sonnet 5 vs Opus 4.8) — 코드 무변경, Opus 유지
+
+**Plan**: [2026-07-01_ocr-model-ab-sonnet5-vs-opus48](plans/2026-07-01_ocr-model-ab-sonnet5-vs-opus48.md) · **결과**: [ocr-model-ab-2026-07-01-results](ocr-model-ab-2026-07-01-results.md)
+
+### 결정
+- `agents/ocr-extractor.md` 모델을 **opus 4.8로 유지** (Sonnet 5 교체 안 함). frontmatter/SKILL 변경 없음.
+
+### 근거 (실측)
+- 8 cert stem(22p/88타일)에 동일 타일·동일 지침으로 opus/sonnet 격리 전사 후 결정적 필드 diff + PNG 육안 판정.
+- 셀 일치율 **90.5%**(791/874), 출력 토큰 opus 255,254 / sonnet 249,136(≈동일). 불일치 대부분은 cosmetic(NDE 표현·구두점) 또는 키 명명 아티팩트(HT/NDE) — 실제 데이터 누락 아님.
+- **결정적 차이 1건**: c4(SA106C)에서 sonnet이 화학 `×100`/`×1000` 배율 미적용 → 11개 원소 100×/1000× 오류(C=20%, Mn=116% 물리 불가). opus는 전 stem 배율 정확. hardness 분쟁은 다중 판독값 대표 선택 차이(TIE).
+- 안전-critical 화학 정확도 도메인에서 배율 해석 실패는 disqualifying. 선행 근거("병목은 opus 숫자 검증", "sonnet 실측 탈락")를 Sonnet 5로 재확인.
+
+### 산출물 (참조용, `.cache/`는 gitignore)
+- 전사물 `.cache/<case>/<stem>_extracted__{opus,sonnet}.json`, diff `scratchpad/ocr_ab_diff.json`, 채점 `scratchpad/diff_extractions.py`.
+
 ## 2026-06-29 — cert-review-annotate 신규 스킬(검토 결과 PDF 주석 표기)
 
 **Plan**: docs(workspace) plans/2026-06-29_160845_cert-review-annotate-skill.md
