@@ -59,6 +59,12 @@ _RANK_VERDICT = {1: "PASS", 2: "주의", 3: "FAIL"}
 
 _WS_RE = re.compile(r"\s+")
 
+# Item-number discriminator parsed from item_name. Domains name the same item
+# differently — "ITEM 011", "Seamless Alloy Steel Pipe (PO Item No. 011)",
+# "(PO Item 011)", "(ITEM 011)" — but all carry the item number, which
+# int-normalisation makes zero-padding-insensitive.
+_ITEM_NO_RE = re.compile(r"(?:PO\s*)?ITEM(?:\s*NO\.?)?\s*[#:]?\s*0*(\d+)", re.IGNORECASE)
+
 
 def _norm_ws(value: str | None) -> str:
     """strip + collapse internal whitespace runs to a single space."""
@@ -67,9 +73,40 @@ def _norm_ws(value: str | None) -> str:
     return _WS_RE.sub(" ", str(value)).strip()
 
 
-def _material_key(material: dict) -> tuple[str, str]:
-    """Whitespace-normalised (heat_no, grade_cert) match key."""
-    return (_norm_ws(material.get("heat_no")), _norm_ws(material.get("grade_cert")))
+def _item_token(material: dict) -> str:
+    """Per-item discriminator for multi-item certs sharing heat_no + grade.
+
+    One MTC can cover several PO items from the SAME heat and grade that differ
+    only in size/qty (e.g. ITEM 011 660*35.1mm vs ITEM 013 660*40mm). Keying on
+    (heat_no, grade_cert) alone collapses those into one merged material whose
+    header comes from the first item while each domain section is overwritten
+    by the last — i.e. mislabelled data. Discriminate by:
+
+    1. the item number parsed from item_name (format varies per domain, the
+       number does not);
+    2. else the normalised size up to the first comma (some domains append
+       ", Length ..." after the base size);
+    3. else "" — single-item behaviour, key degrades to (heat_no, grade_cert).
+
+    Cross-domain naming inconsistency can at worst SPLIT a material into two
+    visible rows (loud, reviewable) — never silently mislabel values.
+    """
+    m = _ITEM_NO_RE.search(_norm_ws(material.get("item_name")))
+    if m:
+        return f"item:{int(m.group(1))}"
+    size = _norm_ws(material.get("size")).split(",")[0].strip()
+    if size:
+        return f"size:{size}"
+    return ""
+
+
+def _material_key(material: dict) -> tuple[str, str, str]:
+    """Whitespace-normalised (heat_no, grade_cert, item_token) match key."""
+    return (
+        _norm_ws(material.get("heat_no")),
+        _norm_ws(material.get("grade_cert")),
+        _item_token(material),
+    )
 
 
 def partial_path(case_cache: Path, domain: str) -> Path:
@@ -115,10 +152,10 @@ def merge_case(case_id: str, cache_root: Path) -> dict:
     notes: list[str] = []
 
     # materials: preserve first-seen order across domains.
-    mat_order: list[tuple[str, str]] = []
-    mat_by_key: dict[tuple[str, str], dict] = {}
+    mat_order: list[tuple[str, str, str]] = []
+    mat_by_key: dict[tuple[str, str, str], dict] = {}
     # per-material accumulated domain verdict rank (worst).
-    mat_verdict_rank: dict[tuple[str, str], int] = {}
+    mat_verdict_rank: dict[tuple[str, str, str], int] = {}
 
     # findings accumulated in domain order; re-numbered globally at the end.
     merged_findings: list[dict] = []

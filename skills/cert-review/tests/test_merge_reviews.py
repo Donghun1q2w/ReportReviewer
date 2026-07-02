@@ -12,6 +12,8 @@ from pathlib import Path
 import pytest
 
 from scripts.merge_reviews import (
+    _item_token,
+    _material_key,
     discover_partials,
     merge_all,
     merge_case,
@@ -355,6 +357,100 @@ def test_discover_and_partial_path_helpers(tmp_path):
     # discover returns domains in the fixed merge order, not write order.
     assert discover_partials(case) == ["chemistry", "nde"]
     assert partial_path(case, "nde").name == "99_review_nde.json"
+
+
+# --- multi-item same-heat/grade regression (real case P2600721-01) ---------
+#
+# One MTC covered two PO items from the SAME heat (S12601002QX) and grade
+# (P91 Type1): ITEM 011 (660*35.1mm, qty 2) and ITEM 013 (660*40mm, qty 4).
+# Keying materials on (heat_no, grade_cert) alone collapsed them into one
+# merged material — header from the first item, every domain section
+# overwritten by the last — i.e. ITEM 011's row silently carried ITEM 013's
+# measured values. _item_token discriminates by parsed item number (naming
+# format varies per domain), falling back to the normalised size prefix.
+
+
+@pytest.mark.parametrize(
+    "item_name",
+    [
+        "ITEM 011",
+        "Seamless Alloy Steel Pipe (PO Item No. 011)",
+        "Seamless Alloy Steel Pipe (PO Item 011)",
+        "Seamless Alloy Steel Pipe (ITEM 011)",
+        "item no: 11",
+    ],
+)
+def test_item_token_folds_naming_variants(item_name):
+    assert _item_token({"item_name": item_name}) == "item:11"
+
+
+def test_item_token_size_fallback_strips_length_suffix():
+    base = _item_token({"item_name": "Pipe", "size": '660*35.1mm (26"*AWT35.1)'})
+    with_len = _item_token(
+        {"item_name": "Pipe", "size": '660*35.1mm (26"*AWT35.1), Length 6000mm'}
+    )
+    assert base == with_len
+    assert base.startswith("size:")
+
+
+def test_material_key_degrades_to_legacy_when_no_item_no_size():
+    m = {"item_name": "Pipe", "heat_no": "N100", "grade_cert": "A106 Gr.B"}
+    assert _material_key(m) == ("N100", "A106 Gr.B", "")
+
+
+def test_multi_item_same_heat_grade_stay_separate(tmp_path):
+    case = tmp_path / "99"
+    heat, grade = "S12601002QX", "P91 Type1 UT"
+    # Domain-specific naming variants observed in the real case.
+    _write_partial(case, "chemistry", materials=[
+        _material("chemistry", heat_no=heat, grade_cert=grade,
+                  item_name="Seamless Alloy Steel Pipe (PO Item No. 011)",
+                  size='660*35.1mm (26"*AWT35.1)', qty="2 (Pieces)",
+                  rows=[{"element": "C", "value": "0.10"}]),
+        _material("chemistry", heat_no=heat, grade_cert=grade,
+                  item_name="Seamless Alloy Steel Pipe (PO Item No. 013)",
+                  size='660*40mm (26"*AWT40)', qty="4 (Pieces)",
+                  rows=[{"element": "C", "value": "0.09"}]),
+    ])
+    _write_partial(case, "mechanical", materials=[
+        _material("mechanical", heat_no=heat, grade_cert=grade,
+                  item_name="ITEM 011", size='660*35.1mm (26"*AWT35.1)',
+                  qty="2", rows=[{"specimen": "016", "ts": 680}]),
+        _material("mechanical", heat_no=heat, grade_cert=grade, verdict="주의",
+                  item_name="ITEM 013", size='660*40mm (26"*AWT40)',
+                  qty="4", rows=[{"specimen": "989", "ts": 670}]),
+    ])
+    _write_partial(case, "format", materials=[
+        _material("format", heat_no=heat, grade_cert=grade,
+                  item_name="Seamless Alloy Steel Pipe (PO Item No. 011)",
+                  size='660*35.1mm (26"*AWT35.1), Length 6000mm',
+                  qty="Pieces 2 / Weight(MT) 6.397", rows=[{"check": "p.1"}]),
+        _material("format", heat_no=heat, grade_cert=grade,
+                  item_name="Seamless Alloy Steel Pipe (PO Item No. 013)",
+                  size='660*40mm (26"*AWT40), Length 6000mm',
+                  qty="Pieces 4 / Weight(MT) 14.675", rows=[{"check": "p.2"}]),
+    ])
+
+    result = merge_case("99", tmp_path)
+    out = json.loads((case / "99_review.json").read_text(encoding="utf-8"))
+
+    assert result["n_materials"] == 2
+    by_item = {_item_token(m): m for m in out["materials"]}
+    assert set(by_item) == {"item:11", "item:13"}
+    # Each item keeps its OWN domain rows — no cross-item mixing.
+    assert by_item["item:11"]["mechanical"] == [{"specimen": "016", "ts": 680}]
+    assert by_item["item:13"]["mechanical"] == [{"specimen": "989", "ts": 670}]
+    assert by_item["item:11"]["chemistry"] == [{"element": "C", "value": "0.10"}]
+    assert by_item["item:13"]["chemistry"] == [{"element": "C", "value": "0.09"}]
+    assert by_item["item:11"]["doc_checks"] == [{"check": "p.1"}]
+    assert by_item["item:13"]["doc_checks"] == [{"check": "p.2"}]
+    # Identity fields stay per-item; verdict aggregates per-item (worst).
+    assert by_item["item:11"]["qty"] == "2 (Pieces)"
+    assert by_item["item:13"]["qty"] == "4 (Pieces)"
+    assert by_item["item:11"]["verdict"] == "PASS"
+    assert by_item["item:13"]["verdict"] == "주의"
+    # No cross-item identity divergence issues (size/qty of 013 vs 011).
+    assert not any("'660*40mm" in i and "'660*35.1mm" in i for i in result["issues"])
 
 
 def test_merge_all_only_cases_with_partials(tmp_path):
