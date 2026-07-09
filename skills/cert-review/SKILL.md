@@ -50,10 +50,11 @@ prohibited. Evaluation does not need direct access because `eval_harness.py` rea
 
 ## Subagents (`agents/`)
 
-The review work is delegated to **7 plugin subagents**. Each writes only a partial output, and the orchestrator merges them via deterministic CLI. **The detailed procedures (transcription rules, per-domain judgment rules) belong to each agent's document — they are not duplicated in this SKILL.md.**
+The review work is delegated to **8 plugin subagents**. Each writes only a partial output, and the orchestrator merges them via deterministic CLI. **The detailed procedures (transcription rules, per-domain judgment rules) belong to each agent's document — they are not duplicated in this SKILL.md.**
 
 | Agent | model | Role | Partial output |
 |---|---|---|---|
+| `page-aligner` | claude-opus-4-8 | Phase 1.5 per-page **rotation detection** from contact sheets (detection only — rotation is applied by `align-inputs`) | `<stem>_orientation.json` |
 | `ocr-extractor` | claude-opus-4-8 | Phase 2 Vision **tile-reading** transcription only (full / fragment modes) | `<stem>_extracted.json` or `parts/<stem>__pSSS-EEE.json` |
 | `mps-extractor` | claude-opus-4-8 | **Single extraction** of the MPS scan just before Phase 4 → produces the shared digest consumed by the 5 review agents | `<case>_mps_digest.json` |
 | `chemistry-reviewer` | claude-opus-4-8 | Phase 4 chemical composition review | `<case>_review_chemistry.json` |
@@ -83,6 +84,7 @@ The review work is delegated to **7 plugin subagents**. Each writes only a parti
 ├── output/                                         ← report outputs and evaluation results
 └── ... plugin/ReportReviewer/                      ← plugin root
     ├── agents/                                     ← plugin subagents (includes frontmatter model)
+    │   ├── page-aligner.md                         ← Phase 1.5 rotation detection (claude-opus-4-8)
     │   ├── ocr-extractor.md                        ← Phase 2 Vision transcription (opus 4.8)
     │   ├── chemistry-reviewer.md                   ← Phase 4 chemistry (claude-opus-4-8)
     │   ├── mechanical-reviewer.md                  ← Phase 4 mechanical (claude-opus-4-8)
@@ -92,11 +94,14 @@ The review work is delegated to **7 plugin subagents**. Each writes only a parti
     └── skills/cert-review/                         ← this skill directory (CLI execution base)
         ├── SKILL.md  ·  manifest.json (produced by build-manifest)
         ├── .cache/<case>/                          ← per-case intermediate outputs
-        │   ├── png/                                ← prep-inputs rendered PNG
+        │   ├── png/                                ← prep-inputs rendered PNG (upright after align-inputs)
+        │   ├── orient/                             ← orient-sheets contact sheets + sheets_index.json (page-aligner input)
+        │   ├── <stem>_orientation.json             ← page-aligner output (per-page clockwise rotation 0/90/180/270)
+        │   ├── <stem>_alignment.json               ← align-inputs applied-rotation record (idempotency + crop/annotate space)
         │   ├── tiles/                              ← tile-inputs 2×2 overlapping tiles (4 tiles per page, <stem>_pNN_rRcC.png)
         │   ├── mps_png/                            ← prep-mps rendered MPS PNG
         │   ├── mps_tiles/                          ← prep-mps MPS 2×2 overlapping tiles (for mps-extractor reading)
-        │   ├── <stem>_prep.json                    ← sidecar (PDF sha256+dpi, for the cache gate)
+        │   ├── <stem>_prep.json                    ← sidecar (PDF sha256+dpi+applied rotations, for the cache gate)
         │   ├── parts/<stem>__pSSS-EEE.json         ← fragment-mode segment extraction (merge-parts input)
         │   ├── crops/                              ← crop CLI high-DPI region PNG (re-read of ambiguous cells)
         │   ├── <stem>_extracted.json               ← Vision OCR output (channels: body)
@@ -127,6 +132,8 @@ Set-Location "<plugin (skill) directory: where this SKILL.md lives>"
 python -m scripts.cli build-manifest                    # Phase 0: cert/MPS index
 python -m scripts.cli cache-status --case 4 | --all     # cache gate (fresh|legacy|stale|missing)
 python -m scripts.cli prep-inputs --case 4 [--dpi 300] [--force]   # Phase 1: PNG render + sidecar
+python -m scripts.cli orient-sheets --case 4            # Phase 1.5: labelled contact sheets (page-aligner input)
+python -m scripts.cli align-inputs --case 4             # Phase 1.5: apply detected rotations to page PNGs (idempotent)
 python -m scripts.cli tile-inputs --case 4 | --all      # Phase 1: page PNG → 2×2 overlapping tiles (4 per page)
 python -m scripts.cli prep-mps --case 4 [--dpi 300]     # Phase 1: MPS PDF → mps_png + mps_tiles (mps-extractor input)
 python -m scripts.cli merge-parts --case 4              # merge fragment (>6p) segments
@@ -148,7 +155,7 @@ Do not sacrifice accuracy for time — opus's precise crop reading of numeric ce
 - **Standard** (4–6 pages, several items): target **≤60 min**.
 - **Complex** (>6 pages, or 7+ items, or multiple grades): **60–90 min allowed**. With simultaneous multi-case fan-out, it may grow further due to opus concurrent-call throttling.
 
-Structural devices that keep time proportional to complexity: ① identification is finalized in a single ocr-extractor pass (no reviewer re-verification) ② reviewer crops focus on judgment-critical cells (no indiscriminate full-coverage crop) ③ parallelization of large certs (≤4p segments) (below) ④ **tiling (tile-inputs)** — when ocr-extractor reads 2×2 overlapping tiles, OCR becomes **~2.6× faster and crops drop to nearly 0** relative to the full page (small digits that smeared under downsampling are read without crop) ⑤ **MPS digest sharing (mps-extractor)** — extracting the MPS scan only once and sharing it as a per-domain digest removes the 5 review agents' redundant MPS OCR, shortening the review wall **~3×** (per-reviewer separate Vision-OCR ~95 min → digest consumption ~32 min, with no recall regression). In multi-case runs, the intra-case 5-agent parallelism overlaps with inter-case parallelism, so keep the total concurrent-agent cap of 6–10.
+Structural devices that keep time proportional to complexity: ① identification is finalized in a single ocr-extractor pass (no reviewer re-verification) ② reviewer crops focus on judgment-critical cells (no indiscriminate full-coverage crop) ③ parallelization of large certs (≤4p segments) (below) ④ **tiling (tile-inputs)** — when ocr-extractor reads 2×2 overlapping tiles, OCR becomes **~2.6× faster and crops drop to nearly 0** relative to the full page (small digits that smeared under downsampling are read without crop) ⑤ **MPS digest sharing (mps-extractor)** — extracting the MPS scan only once and sharing it as a per-domain digest removes the 5 review agents' redundant MPS OCR, shortening the review wall **~3×** (per-reviewer separate Vision-OCR ~95 min → digest consumption ~32 min, with no recall regression) ⑥ **pre-OCR page alignment (orient-sheets + page-aligner + align-inputs)** — rotated scan pages are straightened before tiling, so the tile semantics (r0=header) and digit legibility hold on rotated inputs too; detection costs ~1 sheet Read per 12 pages plus one delegation per case. In multi-case runs, the intra-case 5-agent parallelism overlaps with inter-case parallelism, so keep the total concurrent-agent cap of 6–10.
 
 ---
 
@@ -192,10 +199,10 @@ Perform the sequence below per case. **The orchestrator runs the deterministic C
 >
 > | Status | Meaning | Handling |
 > |---|---|---|
-> | `fresh` | PDF sha256+dpi match, extraction complete | **Skip Phase 1·2** and use the existing `<stem>_extracted.json` as-is |
-> | `legacy` | Extraction is complete but the sidecar is an old version (auto-backfilled) | **Treated the same** as `fresh` — skip Phase 1·2 |
-> | `stale` | PDF sha256 mismatch (the source changed) or dpi mismatch | **Perform** Phase 1·2 (re-render + re-delegate) |
-> | `missing` | No extraction output | **Perform** Phase 1·2 |
+> | `fresh` | PDF sha256+dpi match, extraction complete | **Skip Phase 1·1.5·2** and use the existing `<stem>_extracted.json` as-is |
+> | `legacy` | Extraction is complete but the sidecar is an old version (auto-backfilled) | **Treated the same** as `fresh` — skip Phase 1·1.5·2 |
+> | `stale` | PDF sha256 mismatch (the source changed), dpi mismatch, or **alignment pending** (the PNGs were re-rendered after the last alignment — e.g. `--force`/`--dpi` rerun; sidecar `rotations: null`) | **Perform** Phase 1·1.5·2 (re-render — which resets the rotation records — + re-align + re-delegate). Alignment-pending only: prep-inputs will report all certs cached — proceed from Phase 1.5 (orient-sheets) onward |
+> | `missing` | No extraction output | **Perform** Phase 1·1.5·2 |
 >
 > - If the PDF changes, it no longer matches the sidecar sha256, automatically becomes `stale`, and re-extraction is forced — a stale extraction is never implicitly reused.
 > - **The Phase 2.5 check-extraction gate always runs regardless of a cache hit (fresh/legacy).** A cache skip does not exempt the completeness check.
@@ -206,11 +213,30 @@ Perform the sequence below per case. **The orchestrator runs the deterministic C
 - Render the cert PDF with `pypdfium2` to produce `.cache/<case>/png/<stem>_p01.png`, `_p02.png`, … (DPI 300, change via `--dpi`).
 - **Note**: an existing DPI 200 cache is treated as `stale` due to dpi mismatch and is re-rendered + re-extracted on the next run.
 - Also writes the extraction skeleton JSON (`<stem>_extracted.json`) and the sidecar (`<stem>_prep.json`, sha256+dpi).
+- A re-render (stale/--force) also deletes the stem's `<stem>_orientation.json`/`<stem>_alignment.json` so Phase 1.5 re-detects rotation on the fresh (unaligned) render.
 - **After running, check the case's PNG count** to determine the next-stage mode (full / fragment).
+
+### 2.2) orient-sheets (orchestrator runs directly, deterministic) — `orient-sheets --case <id>`
+
+- Run immediately after prep-inputs. Compose the rendered cert pages into labelled **contact sheets** (3×4 thumbnails per sheet, upright `pNN` label bars) under `.cache/<case>/orient/` plus `orient/sheets_index.json`.
+- Why: scanned certs arrive with per-page rotation mixed inside one PDF (metadata `/Rotate`=0, scan content sideways — 0°/90° mixed is common). Sheets compress orientation detection to ~1 Read per 12 pages instead of 1 per page.
+
+### 2.3) page-aligner delegation (Phase 1.5, MANDATORY before tiling/OCR)
+
+- **Delegate `page-aligner`** to read the contact sheets and write per-stem `.cache/<case>/<stem>_orientation.json` (clockwise 0/90/180/270 per page; uncertain pages fall back to the full-page PNG, then to 0 + `uncertain_pages`).
+- **Delegation context spec** (must be included): case id · the skill directory **absolute path** · output obligation (`<stem>_orientation.json`, every page recorded) · compliance instructions (**C1, the 3-category input whitelist, judge page content not the upright labels**).
+- The detection detail procedure (reading rules, angle semantics, self-check) is held by `agents/page-aligner.md` — **do not duplicate it in SKILL.md**.
+
+### 2.4) align-inputs (orchestrator runs directly, deterministic) — `align-inputs --case <id>`
+
+- Apply the detected rotations to the page PNGs in place (Pillow lossless transpose, per-page two-phase commit — crash-safe, never double-rotates). The sidecar's `rotations` map flips from `null` (render pending alignment) to the applied map, which is what the cache gate checks.
+- **[GATE] exit 0 required.** Exit 1 means an uncovered stem (a rendered cert with no `<stem>_orientation.json` — re-delegate `page-aligner` for it) or failed pages (fix the reported PNGs) — **do not proceed to tile-inputs/OCR until exit 0.**
+- `crop` and `annotate` re-render from the source PDF, so they consult the same applied map to reproduce the aligned image space — fractional bboxes are **always aligned-space**.
+- If page-aligner reported every page as 0 (already upright), this is a no-op — still run it (cheap) so the alignment record exists and the sidecar marker clears.
 
 ### 2.5) tile-inputs (orchestrator runs directly, deterministic) — `tile-inputs --case <id>`
 
-- Run immediately after prep-inputs. Split each page PNG in `.cache/<case>/png/` into **2×2 overlapping tiles** per page (`.cache/<case>/tiles/<stem>_pNN_rRcC.png`, `r0`=top·`r1`=bottom, `c0`=left·`c1`=right, 6% overlap).
+- Run immediately after align-inputs (tiles must be cut from **upright** pages — the `r0`=header semantics assume it). Split each page PNG in `.cache/<case>/png/` into **2×2 overlapping tiles** per page (`.cache/<case>/tiles/<stem>_pNN_rRcC.png`, `r0`=top·`r1`=bottom, `c0`=left·`c1`=right, 6% overlap).
 - Why: when the model reads a PNG it downsamples to ~1568px on the long edge, so a full page (~3500px) smears small digits. A 2×2 tile is ~1957px on the long edge, ~1.8× sharper even after downsampling, so ocr-extractor reads it **without crop**.
 - The next-stage mode (full / fragment) branch is **still based on PNG count** and is independent of tiling.
 
@@ -358,9 +384,12 @@ PASS/FAIL (`evaluate --case <id>` / `--all`).
 Phase 0   build-manifest    → manifest.json                                    ※ once before fan-out
 Phase 3   validate-refs     → exit 0 required                                  ※ once before fan-out
 ──── below is per-case (orchestrator sequence) ────
-[GATE]    cache-status      → fresh/legacy = skip Phase 1·2 / stale/missing = perform
+[GATE]    cache-status      → fresh/legacy = skip Phase 1·1.5·2 / stale/missing = perform
 Phase 1   prep-inputs       → png/*.png + <stem>_prep.json (run directly) → mode decided by PNG count
-          tile-inputs       → tiles/*_pNN_rRcC.png (2×2 overlapping tiles per page, run directly)
+Phase 1.5 orient-sheets     → orient/*__sheetNN.png + sheets_index.json (run directly)
+          [delegate page-aligner/opus] read sheets → <stem>_orientation.json (per-page 0/90/180/270)
+          align-inputs      → rotate png/*.png upright + <stem>_alignment.json (run directly, idempotent)
+Phase 1   tile-inputs       → tiles/*_pNN_rRcC.png (2×2 overlapping tiles per page, run directly)
           prep-mps          → mps_png/*.png + mps_tiles/*.png (MPS render+tile, run directly)
 Phase 2   [delegate ocr-extractor/opus]  ≤6p full once → <stem>_extracted.json   ┐ parallel
                                        >6p fragment parallel(≤4p) → parts/*.json → merge-parts │

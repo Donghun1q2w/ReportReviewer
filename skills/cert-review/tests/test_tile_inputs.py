@@ -78,6 +78,21 @@ def test_missing_pngs_raises(tmp_path: Path):
         tile_case("99", tmp_path / ".cache")
 
 
+def test_hundred_plus_pages_are_tiled(tmp_path: Path):
+    """Pages >= 100 (3-digit) must be tiled like any other page."""
+    cache_root = tmp_path / ".cache"
+    png_dir = cache_root / "99" / "png"
+    png_dir.mkdir(parents=True)
+    for p in (99, 100):
+        Image.new("RGB", (1200, 900), "white").save(png_dir / f"CERT_A_p{p:02d}.png")
+
+    summary = tile_case("99", cache_root)
+    assert summary["certs"][0]["page_count"] == 2
+    assert summary["certs"][0]["tile_count"] == 8
+    tiles = sorted(p.name for p in (cache_root / "99" / "tiles").glob("*.png"))
+    assert "CERT_A_p100_r1c1.png" in tiles
+
+
 def test_no_ocr_import():
     """Guard: tiling imports no OCR/text library (C1) — AST so docstrings that
     name forbidden libs don't trip the check."""

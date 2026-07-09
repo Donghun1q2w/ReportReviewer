@@ -280,3 +280,43 @@ def test_annotate_case_missing_annotations_raises(tmp_path: Path):
             case_id="9", work_dir=work, cache_root=tmp_path, cert_dir=cert_root,
             annotations_path=tmp_path / "nope.json",
         )
+
+
+@requires_font
+def test_render_rotations_emit_upright_page(tmp_path: Path):
+    """A page align-inputs rotated is burned in the aligned (upright) space."""
+    src = tmp_path / "c.pdf"
+    _write_pdf(src, 1)  # 400x300 (landscape source)
+    ann = A.Annotation(stem="c", page=1, bbox=(0.2, 0.2, 0.8, 0.6), verdict="FAIL", label="FAIL")
+    out = tmp_path / "c_annotated.pdf"
+    render_annotated_pdf(src, {1: [ann]}, out, dpi=100, font_path=_FONT, rotations={1: 90})
+
+    page = PdfReader(str(out)).pages[0]
+    assert float(page.mediabox.height) > float(page.mediabox.width), (
+        "burned page must be emitted in the rotated (aligned) orientation"
+    )
+
+
+@requires_font
+def test_annotate_case_consumes_alignment_record(tmp_path: Path):
+    work = tmp_path / "work"
+    cert_root = work / CERT_CLEANUP_DIRNAME
+    _write_pdf(cert_root / "9" / "certA.pdf", 1)  # 400x300 landscape
+    case_cache = tmp_path / "9"
+    case_cache.mkdir(parents=True)
+    (case_cache / "certA_alignment.json").write_text(
+        json.dumps({"applied": {"1": 90}}), encoding="utf-8"
+    )
+    ann_path = tmp_path / "9_annotations.json"
+    _write_annotations(
+        ann_path,
+        [{"stem": "certA", "page": 1, "bbox": [0.1, 0.1, 0.5, 0.3], "verdict": "FAIL", "label": "F"}],
+        case_id="9",
+    )
+    summary = annotate_case(
+        case_id="9", work_dir=work, cache_root=tmp_path, cert_dir=cert_root,
+        out_dir=tmp_path / "out", annotations_path=ann_path, dpi=100, font_path=_FONT,
+    )
+    assert summary["boxes_drawn"] == 1
+    page = PdfReader(str(tmp_path / "out" / "certA_annotated.pdf")).pages[0]
+    assert float(page.mediabox.height) > float(page.mediabox.width)

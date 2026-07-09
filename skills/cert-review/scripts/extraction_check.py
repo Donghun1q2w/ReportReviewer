@@ -224,6 +224,19 @@ def cache_status_case(
         sha_matches = bool(sidecar) and bool(cur_sha) and sidecar.get("pdf_sha256") == cur_sha
         backfilled = False
 
+        # Phase 1.5 tri-state marker: prep-inputs stamps rotations=None on
+        # every (re-)render and align-inputs replaces it with the applied map.
+        # An explicit None means the current PNGs were rendered AFTER the last
+        # alignment (e.g. --force / --dpi rerun of an unchanged PDF) — the
+        # aligned-space extraction/bboxes must not be trusted against them.
+        # A sidecar WITHOUT the key predates the alignment feature (fresh-
+        # eligible as before — those renders were consumed as-is).
+        alignment_pending = (
+            sidecar is not None
+            and "rotations" in sidecar
+            and sidecar.get("rotations") is None
+        )
+
         if not has_extracted:
             status = "missing"
         elif sidecar is None:
@@ -248,6 +261,8 @@ def cache_status_case(
                 status = "stale"
         elif (cur_sha and not sha_matches) or not png_set_ok:
             status = "stale"
+        elif alignment_pending:
+            status = "stale"
         elif extraction_complete:
             status = "fresh"
         else:
@@ -262,6 +277,7 @@ def cache_status_case(
             "sidecar": bool(sidecar) or backfilled,
             "backfilled": backfilled,
             "sha_matches": sha_matches,
+            "alignment_pending": alignment_pending,
         })
 
     case_issues = list(coverage["issues"])

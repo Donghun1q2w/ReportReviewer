@@ -108,3 +108,41 @@ def test_crop_region_page_out_of_range(tmp_path: Path):
     _write_pdf(work / CERT_CLEANUP_DIRNAME / "9" / "certA.pdf", 1)
     with pytest.raises(ValueError, match="out of range"):
         crop_region("9", "certA", 5, "0,0,1,1", work, cache, dpi=72)
+
+
+def test_crop_region_reproduces_aligned_space(tmp_path: Path):
+    """A page align-inputs rotated must be cropped in the SAME (aligned) space."""
+    import json
+
+    work = tmp_path / "work"
+    cache = tmp_path / "cache"
+    _write_pdf(work / CERT_CLEANUP_DIRNAME / "9" / "certA.pdf", 1)  # 200x300 pt
+    case_cache = cache / "9"
+    case_cache.mkdir(parents=True)
+    (case_cache / "certA_alignment.json").write_text(
+        json.dumps({"applied": {"1": 90}}), encoding="utf-8"
+    )
+
+    out = crop_region("9", "certA", 1, "0.00,0.00,1.00,1.00", work, cache, dpi=72)
+    from PIL import Image
+    im = Image.open(out)
+    # portrait 200x300 rendered then rotated 90 CW -> landscape 300x200.
+    assert im.size == (300, 200)
+
+
+def test_crop_region_unaligned_page_unchanged(tmp_path: Path):
+    """No alignment record (or 0deg) -> legacy behaviour, no rotation."""
+    import json
+
+    work = tmp_path / "work"
+    cache = tmp_path / "cache"
+    _write_pdf(work / CERT_CLEANUP_DIRNAME / "9" / "certA.pdf", 2)
+    case_cache = cache / "9"
+    case_cache.mkdir(parents=True)
+    (case_cache / "certA_alignment.json").write_text(
+        json.dumps({"applied": {"1": 90}}), encoding="utf-8"
+    )
+
+    out = crop_region("9", "certA", 2, "0.00,0.00,1.00,1.00", work, cache, dpi=72)
+    from PIL import Image
+    assert Image.open(out).size == (200, 300)  # page 2 has no applied rotation

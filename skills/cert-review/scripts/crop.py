@@ -145,6 +145,14 @@ def crop_region(
     finally:
         doc.close()
 
+    # Reproduce the aligned image space (align-inputs may have rotated the
+    # rendered page the reviewers saw); fractional bboxes are aligned-space.
+    from scripts.align_inputs import page_rotation, rotate_upright  # noqa: PLC0415
+
+    deg = page_rotation(Path(cache_root) / str(case_id), cert_stem, page)
+    if deg:
+        pil_image = rotate_upright(pil_image, deg)
+
     width_px, height_px = pil_image.size
     box = bbox_to_pixels(parsed, width_px, height_px)
     crop = pil_image.crop(box)

@@ -17,8 +17,13 @@ canonicalisation and the four verdict colours are reused from
 
 Coordinate convention: fractional bbox ``[x0, y0, x1, y1]`` in ``[0, 1]`` with a
 top-left origin — identical to ``crop.py`` — applied to the *same*
-``pypdfium2`` ``page.render(scale=dpi/72)`` raster. Because pdfium applies the
-page ``/Rotate`` when rendering, no rotation maths are needed here.
+``pypdfium2`` ``page.render(scale=dpi/72)`` raster. pdfium applies the page
+``/Rotate`` when rendering; scan CONTENT rotation (metadata 0, image sideways)
+is instead corrected by align-inputs on the cached PNGs, so annotated pages are
+re-rotated here by the same applied map (``align_inputs.applied_rotations``) to
+keep bboxes in the aligned image space the annotation-locator saw. A burned
+page of a rotated original is therefore emitted upright (it is a raster page
+either way — legibility wins); untouched pages stay verbatim.
 
 Reassembly is *copy-through*: only pages that carry annotations are rasterised
 and re-embedded; every other page is preserved verbatim from the original PDF
@@ -39,6 +44,7 @@ import pypdfium2 as pdfium
 from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader, PdfWriter
 
+from scripts.align_inputs import applied_rotations, rotate_upright
 from scripts.compliance_report import (
     _FAIL_FILL,
     _NA_FILL,
@@ -255,11 +261,15 @@ def render_annotated_pdf(
     out_pdf: Path | str,
     dpi: int = 200,
     font_path: str = DEFAULT_FONT,
+    rotations: dict[int, int] | None = None,
 ) -> tuple[Path, int, int, int]:
     """Copy-through burn-in: rasterise only annotated pages, keep the rest.
 
     Owns the page-range guard: annotations whose page is outside ``1..n_pages``
-    are counted into the returned ``oob_count`` and not drawn. Returns
+    are counted into the returned ``oob_count`` and not drawn. ``rotations``
+    (``{page: deg_cw}``, the align-inputs applied map) re-rotates each rendered
+    page into the aligned image space before drawing, so bboxes derived from
+    the aligned cache match. Returns
     ``(out_path, boxes_drawn, page_count, oob_count)``. Opens the source PDF once.
     """
     pdf_path, out_pdf = Path(pdf_path), Path(out_pdf)
@@ -278,6 +288,9 @@ def render_annotated_pdf(
                 writer.add_page(reader.pages[i])  # copy-through (verbatim)
                 continue
             img = _render_page_pil(doc[i], dpi)
+            deg = rotations.get(i + 1, 0) if rotations else 0
+            if deg:
+                img = rotate_upright(img, deg)
             drawn_total += _draw_annotations(img, anns, font, dpi)
             buf = io.BytesIO()
             # quality high to keep burned Korean labels crisp (legibility QA'd)
@@ -360,8 +373,11 @@ def annotate_case(
     boxes_drawn = 0
     for pdf_path, by_page in groups.items():
         out_pdf = out_dir / f"{pdf_path.stem}_annotated.pdf"
+        rotations = applied_rotations(cache_root / str(case_id), pdf_path.stem)
         # render_annotated_pdf owns the page-range guard and opens the PDF once.
-        _, drawn, pages, oob = render_annotated_pdf(pdf_path, by_page, out_pdf, dpi, font_path)
+        _, drawn, pages, oob = render_annotated_pdf(
+            pdf_path, by_page, out_pdf, dpi, font_path, rotations=rotations
+        )
         boxes_drawn += drawn
         if oob:
             rows_skipped += oob

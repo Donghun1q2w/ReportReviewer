@@ -9,7 +9,8 @@
 ## 핵심 특징
 
 - **2차원 병렬 아키텍처**: 오케스트레이터(SKILL.md)가 케이스 × 도메인 에이전트를 직접 스케줄링 (동시 6~10). 케이스 래퍼 에이전트 없음 — 서브에이전트는 중첩 스폰 불가이므로 모든 fan-out을 오케스트레이터가 직접 수행한다.
-- **역할 분리 서브에이전트**: OCR 전용(`ocr-extractor`, claude-opus-4-8) + MPS 추출 전용(`mps-extractor`, claude-opus-4-8) + 도메인별 검토 5종(`claude-opus-4-8`) — 전사(판독)·MPS 추출·판정을 역할로 분리.
+- **역할 분리 서브에이전트**: 페이지 정렬 전용(`page-aligner`) + OCR 전용(`ocr-extractor`, claude-opus-4-8) + MPS 추출 전용(`mps-extractor`, claude-opus-4-8) + 도메인별 검토 5종(`claude-opus-4-8`) — 방향 감지·전사(판독)·MPS 추출·판정을 역할로 분리.
+- **OCR 이전 페이지 회전 자동 정렬(Phase 1.5)**: 스캔이 페이지별로 회전 혼재된 파일도 컨택트시트 기반 감지(`orient-sheets`→`page-aligner`)와 결정적 무손실 회전(`align-inputs`, 멱등)으로 타일링 전에 정방향 교정. crop/annotate도 동일 적용 맵을 참조해 좌표계 일관 유지.
 - **결정적 병합 단계**: 검토 5에이전트가 각자 부분 산출물을 쓰고, `merge-reviews` CLI가 전역 재채번 및 verdict 최악값으로 결정적 병합. 하류 Phase 5/6 계약 불변.
 - **Claude Vision OCR 강제**: Python OCR 라이브러리 일체 미사용 (`pytesseract`/`easyocr`/`pymupdf` 등 금지, AST 회귀로 검증). PDF는 `pypdfium2`로 페이지를 렌더링하고, `pypdf`는 출처 검증용 임베디드 텍스트 추출에만 쓴다
 - **출처 강제(provenance)**: 모든 판정 근거에 `source_file`/`anchor`/`snippet` 3종 메타. 미검증 근거는 자동 격리
@@ -54,6 +55,9 @@ python -m scripts.cli build-manifest            # Phase 0: cert/MPS 인덱스
 python -m scripts.cli validate-refs             # Phase 3: CSV 출처 검증 (fan-out 전 1회)
 python -m scripts.cli cache-status --case <id>  # Phase 1: 캐시 게이트 (fresh/legacy면 OCR 스킵)
 python -m scripts.cli prep-inputs --case <id>   # Phase 1: cert PDF→PNG (300 DPI)
+python -m scripts.cli orient-sheets --case <id> # Phase 1.5: 방향 감지용 컨택트시트 (page-aligner 입력)
+#  -> page-aligner 위임: 시트 판독→<stem>_orientation.json (페이지별 0/90/180/270)
+python -m scripts.cli align-inputs --case <id>  # Phase 1.5: 감지 회전각 적용(무손실·멱등) + <stem>_alignment.json
 python -m scripts.cli tile-inputs --case <id>   # Phase 1: 페이지 PNG→2×2 중첩 타일 (ocr-extractor 판독 입력)
 python -m scripts.cli prep-mps   --case <id>    # Phase 1: MPS PDF→PNG+타일 (mps-extractor 입력)
 #  -> ocr-extractor + mps-extractor(claude-opus-4-8) 병렬 위임 (SKILL.md Phase 2)
@@ -87,6 +91,7 @@ python -m scripts.cli evaluate --all            # Phase 6: GT 평가(있을 시)
 ReportReviewer/
 ├── .claude-plugin/marketplace.json   # 플러그인 마켓플레이스 매니페스트
 ├── agents/                           # 플러그인 서브에이전트 (frontmatter model 포함)
+│   ├── page-aligner.md               # Phase 1.5 페이지 회전 감지 (claude-opus-4-8) → <stem>_orientation.json
 │   ├── ocr-extractor.md              # Phase 2 Vision 전사 (claude-opus-4-8, full/fragment 모드)
 │   ├── mps-extractor.md              # Phase 4 직전 MPS 스캔 1회 추출 (claude-opus-4-8) → <case>_mps_digest.json
 │   ├── chemistry-reviewer.md         # Phase 4 화학성분 검토 (claude-opus-4-8)
@@ -98,12 +103,14 @@ ReportReviewer/
 ├── skills/cert-review/
 │   ├── SKILL.md                      # Claude 오케스트레이션 절차서 (Phase 0~6)
 │   ├── scripts/                      # 결정적 Python 모듈 (CLI/엔진/평가)
+│   │   ├── orient_sheets.py          # Phase 1.5 방향 감지용 컨택트시트 합성 (page-aligner 입력)
+│   │   ├── align_inputs.py           # Phase 1.5 회전 적용 (2단계 커밋, 멱등·크래시-세이프)
 │   │   ├── merge_reviews.py          # 검토 5에이전트 부분 산출 결정적 병합
 │   │   ├── annotate_pdf.py           # (cert-review-annotate) 주석 PDF 렌더러 (copy-through burn-in)
 │   │   └── ...
 │   ├── data/*.csv                    # 참조 기준값 7종 (출처 3종 메타 검증)
 │   ├── references/                   # review-criteria / conventions / extraction-schema
-│   └── tests/                        # 111개 단위 테스트 (test_annotate_pdf.py 16·test_merge_reviews.py 12 포함)
+│   └── tests/                        # 145개 단위 테스트 (test_align_inputs.py 15·test_orient_sheets.py 8 포함)
 ├── skills/cert-review-annotate/      # 주석 표기 스킬 (cert-review 래핑 + 후순위 주석)
 │   └── SKILL.md                      # Phase A(cert-review) → B(locator) → C(annotate CLI)
 ├── docs/eval-summary.md              # 평가 결과·잔여 분석
@@ -113,10 +120,11 @@ ReportReviewer/
 
 ## 서브에이전트 (`agents/`)
 
-오케스트레이터(SKILL.md)가 위임하는 **7개 플러그인 서브에이전트**. 각자 부분 산출물만 작성하고, 오케스트레이터가 결정적 CLI(`merge-reviews`)로 병합한다.
+오케스트레이터(SKILL.md)가 위임하는 **8개 플러그인 서브에이전트**. 각자 부분 산출물만 작성하고, 오케스트레이터가 결정적 CLI(`merge-reviews`)로 병합한다.
 
 | 에이전트 | model | 담당 | 부분 산출물 |
 |---|---|---|---|
+| `page-aligner` | claude-opus-4-8 | Phase 1.5 페이지 회전 감지 (적용은 `align-inputs` CLI) | `<stem>_orientation.json` |
 | `ocr-extractor` | claude-opus-4-8 | Phase 2 Vision 전사 (full / fragment 두 모드) | `<stem>_extracted.json` |
 | `mps-extractor` | claude-opus-4-8 | Phase 4 직전 MPS 스캔 1회 추출 → 검토 5에이전트가 공유 소비하는 digest 산출 | `<case>_mps_digest.json` |
 | `chemistry-reviewer` | claude-opus-4-8 | 화학성분 검토 + Cev 역산·crop 확정 | `<case>_review_chemistry.json` |
@@ -127,7 +135,7 @@ ReportReviewer/
 
 **모델 원칙**: 전 에이전트 claude-opus-4-8(정확도 우선 — 다품목 MTC 식별·수치 판독, 300 DPI 필수). OCR(전사)과 검토(판정)는 모델이 아니라 역할로 분리되며, 복잡도별 차등 예산(단순 ≤30분 / 표준 ≤60분 / 복합 60~90분, 정확도 최우선)으로 운용한다. `CLAUDE_CODE_SUBAGENT_MODEL` 환경변수가 설정돼 있으면 각 에이전트 frontmatter의 model을 덮어쓰므로 **해제 상태**로 실행한다.
 
-> 별도 주석 스킬 `cert-review-annotate`는 위 7개와 독립적으로 `annotation-locator`(claude-opus-4-8) 1개를 위임해, 검토 후(후순위) review.json의 주의/N/A/FAIL 항목에 대한 주석 좌표 `<case>_annotations.json`을 산출한다.
+> 별도 주석 스킬 `cert-review-annotate`는 위 8개와 독립적으로 `annotation-locator`(claude-opus-4-8) 1개를 위임해, 검토 후(후순위) review.json의 주의/N/A/FAIL 항목에 대한 주석 좌표 `<case>_annotations.json`을 산출한다.
 
 ## 병합 CLI (`merge-reviews`)
 
@@ -168,7 +176,7 @@ python -m scripts.cli annotate --all            # annotations.json 있는 케이
 cd skills/cert-review; $env:PYTHONIOENCODING="utf-8"
 
 # 단위 테스트 — 데이터셋 없이도 실행 (이식성 테스트 포함, 데이터셋 의존 테스트는 skip).
-# 데이터셋이 있으면 CERT_REVIEW_WORKDIR 지정 시 111개 전부 실행.
+# 데이터셋이 있으면 CERT_REVIEW_WORKDIR 지정 시 145개 전부 실행.
 python -m pytest tests/ -q
 
 # 참조 CSV 출처 검증 — ref_code/MPS 원문이 있는 데이터셋 필요 (CI/testbed 작업).
@@ -182,6 +190,8 @@ python -m scripts.cli validate-refs    # 7 CSV / 583행 / 0 failures
 
 | recall | full-recall cases | precision | dropped | tests |
 |---|---|---|---|---|
-| 91/104 = 87.5% | 36/46 | 91.0% | 0 | 111/111 |
+| 91/104 = 87.5% | 36/46 | 91.0% | 0 | 145/145 |
+
+> tests 열은 현재 스위트 기준(평가 당시 111 → 페이지 정렬 기능 추가로 145). recall/precision은 2026-06 46케이스 평가 스냅샷.
 
 매칭 정의(content+grade+page+severity-tier, Issue 매칭)와 잔여 10건 분석: [`docs/eval-summary.md`](docs/eval-summary.md).

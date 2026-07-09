@@ -155,12 +155,32 @@ def _fill_extraction(cache: Path, case_id: str, stem: str, work: Path, pages: li
     )
 
 
+def _mark_aligned(cache: Path, case_id: str, stem: str) -> None:
+    """Simulate a completed Phase 1.5: align-inputs replaces the render's
+    rotations=None marker with the (possibly empty) applied map."""
+    sidecar = cache / case_id / f"{stem}_prep.json"
+    meta = json.loads(sidecar.read_text(encoding="utf-8"))
+    meta["rotations"] = {}
+    sidecar.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+
+
 def test_cache_status_fresh(tmp_path: Path):
     work, cache, _ = _build_rendered_case(tmp_path, "9", "certA", 2)
     _fill_extraction(cache, "9", "certA", work, [1, 2])
+    _mark_aligned(cache, "9", "certA")
     res = cache_status_case("9", cache, work)
     assert res["certs"][0]["status"] == "fresh", res
     assert res["counts"]["fresh"] == 1
+
+
+def test_cache_status_stale_while_alignment_pending(tmp_path: Path):
+    """A render whose Phase 1.5 has not run yet (rotations=None) is never
+    fresh, even with a complete extraction (--force rerun hole)."""
+    work, cache, _ = _build_rendered_case(tmp_path, "9", "certA", 2)
+    _fill_extraction(cache, "9", "certA", work, [1, 2])
+    res = cache_status_case("9", cache, work)
+    assert res["certs"][0]["status"] == "stale", res
+    assert res["certs"][0]["alignment_pending"] is True
 
 
 def test_cache_status_missing_when_extraction_empty(tmp_path: Path):

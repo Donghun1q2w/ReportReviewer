@@ -458,6 +458,58 @@ def cmd_tile_inputs(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_orient_sheets(args: argparse.Namespace) -> int:
+    """Phase 1.5: compose labelled contact sheets for orientation detection."""
+    from scripts.orient_sheets import build_orient_sheets  # noqa: PLC0415
+
+    try:
+        summary = build_orient_sheets(case_id=args.case, cache_root=CACHE_DIR)
+    except FileNotFoundError as e:
+        print(f"[ERROR] orient-sheets: {e}", file=sys.stderr)
+        return 1
+
+    print(f"[OK] orient-sheets --case {args.case}: {summary['n_sheets']} sheet(s)")
+    for stem, n in summary["stems"].items():
+        print(f"     {stem}: {n} page(s)")
+    print(f"     index: {summary['index_path']}")
+    return 0
+
+
+def cmd_align_inputs(args: argparse.Namespace) -> int:
+    """Phase 1.5: apply detected page rotations to rendered cert PNGs.
+
+    Gate contract: exit 0 only when every rendered stem has an orientation
+    record AND every flagged page was rotated — the orchestrator must not
+    proceed to tile-inputs/OCR otherwise.
+    """
+    from scripts.align_inputs import align_case  # noqa: PLC0415
+
+    try:
+        summary = align_case(case_id=args.case, cache_root=CACHE_DIR)
+    except FileNotFoundError as e:
+        print(f"[ERROR] align-inputs: {e}", file=sys.stderr)
+        return 1
+
+    verdict = "OK" if summary["ok"] else "FAIL"
+    total_rotated = sum(s["rotated"] for s in summary["stems"])
+    print(f"[{verdict}] align-inputs --case {args.case}: {total_rotated} page(s) rotated")
+    for s in summary["stems"]:
+        print(
+            f"     {s['stem']}: detected {s['pages_detected']}p, "
+            f"rotated {s['rotated']}, already-applied {s['skipped_already_applied']}"
+        )
+        if s["failed_pages"]:
+            print(f"        FAILED pages: {s['failed_pages']}")
+        for issue in s["issues"]:
+            print(f"        issue: {issue}")
+    if summary["uncovered_stems"]:
+        print(
+            f"     uncovered stems (no orientation record — re-delegate page-aligner): "
+            f"{summary['uncovered_stems']}"
+        )
+    return 0 if summary["ok"] else 1
+
+
 def cmd_prep_mps(args: argparse.Namespace) -> int:
     """Render + tile the case's MPS PDFs for the shared mps-extractor digest."""
     from scripts.prep_mps import prep_mps_case  # noqa: PLC0415
@@ -685,6 +737,14 @@ def main(argv: list[str] | None = None) -> int:
     group.add_argument("--case")
     group.add_argument("--all", action="store_true", help="Every manifest case with rendered PNGs")
     p.set_defaults(func=cmd_tile_inputs)
+
+    p = sub.add_parser("orient-sheets", help="Compose labelled contact sheets for page-orientation detection (page-aligner input)")
+    p.add_argument("--case", required=True)
+    p.set_defaults(func=cmd_orient_sheets)
+
+    p = sub.add_parser("align-inputs", help="Apply detected page rotations to rendered cert PNGs (idempotent)")
+    p.add_argument("--case", required=True)
+    p.set_defaults(func=cmd_align_inputs)
 
     p = sub.add_parser("prep-mps", help="Render + tile MPS PDFs for the shared mps-extractor digest")
     p.add_argument("--case", required=True)

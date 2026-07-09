@@ -19,6 +19,7 @@ still does all text recognition.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from PIL import Image
@@ -65,12 +66,21 @@ def tile_image(
     return tiles
 
 
+_PAGE_PNG_RE = re.compile(r"^(?P<stem>.+)_p(?P<page>\d+)\.png$")
+
+
 def _stems_in_png_dir(png_dir: Path) -> dict[str, list[Path]]:
-    """Group rendered page PNGs by cert stem (strips trailing _pNN)."""
+    """Group rendered page PNGs by cert stem (strips trailing _pNN).
+
+    Regex-based (like extraction_check) rather than a ``[0-9][0-9]`` glob so
+    certs with 100+ pages keep their 3-digit pages in every page inventory.
+    """
     stems: dict[str, list[Path]] = {}
-    for png in sorted(png_dir.glob("*_p[0-9][0-9].png")):
-        stem = png.stem.rsplit("_p", 1)[0]
-        stems.setdefault(stem, []).append(png)
+    for png in sorted(png_dir.glob("*.png")):
+        m = _PAGE_PNG_RE.match(png.name)
+        if not m:
+            continue
+        stems.setdefault(m.group("stem"), []).append(png)
     return stems
 
 

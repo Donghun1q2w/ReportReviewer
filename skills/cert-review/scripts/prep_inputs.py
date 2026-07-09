@@ -28,6 +28,7 @@ Never reference the literal ground-truth or rawdata directories.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from scripts.pdf_split import split_pdf
@@ -36,6 +37,28 @@ from scripts.source_validator import compute_sha256_fresh
 CERT_CLEANUP_DIRNAME = "standard inspection Cert cleanup data"
 
 _PREP_SIDECAR_SUFFIX = "_prep.json"
+
+
+def _purge_stem_renders(case_cache: Path, cert_stem: str) -> None:
+    """Remove every previous render artifact of a stem before re-rendering.
+
+    A shrinking PDF would otherwise leave phantom high-numbered page PNGs,
+    stale tiles and stale contact sheets that downstream page inventories
+    (orientation detection, tiling, the check-extraction gate) would keep
+    counting. Matching is regex-exact on the stem so a stem that is a prefix
+    of another (``certA`` vs ``certA_pipe``) never purges its sibling.
+    """
+    targets = (
+        (case_cache / "png", re.compile(re.escape(cert_stem) + r"_p\d+\.png(\.rot\.tmp)?\Z")),
+        (case_cache / "tiles", re.compile(re.escape(cert_stem) + r"_p\d+_r\dc\d\.png\Z")),
+        (case_cache / "orient", re.compile(re.escape(cert_stem) + r"__sheet\d+\.png\Z")),
+    )
+    for directory, pattern in targets:
+        if not directory.is_dir():
+            continue
+        for path in directory.iterdir():
+            if pattern.fullmatch(path.name):
+                path.unlink(missing_ok=True)
 
 
 def _load_existing_skeleton(path: Path) -> dict | None:
@@ -157,6 +180,18 @@ def prep_case(
             notes.append(f"[skip] {cert_stem} unchanged")
         else:
             rendered = True
+            # A fresh render is unaligned: BEFORE rendering, drop the stem's
+            # orientation/alignment records (so an interrupted render cannot
+            # leave stale angles beside new pixels) and purge every previous
+            # page artifact of this stem (a shrinking PDF must not leave
+            # phantom high-numbered pages or stale contact sheets behind).
+            from scripts.align_inputs import (  # noqa: PLC0415
+                alignment_path,
+                orientation_path,
+            )
+            orientation_path(case_cache, cert_stem).unlink(missing_ok=True)
+            alignment_path(case_cache, cert_stem).unlink(missing_ok=True)
+            _purge_stem_renders(case_cache, cert_stem)
             pngs = split_pdf(cert_pdf, png_dir, dpi=dpi)
             rendered_pages = len(pngs)
             scar_path.write_text(
@@ -165,6 +200,10 @@ def prep_case(
                         "pdf_sha256": pdf_sha256,
                         "dpi": dpi,
                         "rendered_pages": rendered_pages,
+                        # None = Phase 1.5 pending for this render; align-inputs
+                        # replaces it with the applied map. Absent key = pre-
+                        # alignment-era sidecar (left untouched by the gate).
+                        "rotations": None,
                         "backfilled": False,
                     },
                     ensure_ascii=False,

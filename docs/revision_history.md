@@ -1,5 +1,13 @@
 # Revision History
 
+## 2026-07-09 — 페이지 회전 정렬(Phase 1.5) 기능 추가 — v1.3.0
+
+**Detail**: [revisions/2026-07-09_133645_page-orientation-alignment](revisions/2026-07-09_133645_page-orientation-alignment.md) · **Plan**: [2026-07-09_085623_page-orientation-alignment](plans/2026-07-09_085623_page-orientation-alignment.md)
+
+- 신설: `orient_sheets.py`(컨택트시트) · `align_inputs.py`(2단계 커밋 회전 적용) · `agents/page-aligner.md`(방향 감지, opus 4.8 블라인드 A/B 채택 95.89%) · 테스트 2종(23개)
+- 수정: cli(서브커맨드 2+게이트) · prep_inputs(재렌더 리셋/purge/rotations null) · extraction_check(alignment_pending→stale) · tile_inputs(100p+ 정규식) · crop/annotate(정렬 좌표계) · SKILL/README/marketplace(v1.3.0)
+- 적대적 리뷰(53 에이전트) 확정 결함 6종 수정. pytest **145 passed**. PU2601233(73p, 51p 회전 혼재) E2E 정렬 read-back 검증 완료.
+
 ## 2026-07-01 — OCR 모델 A/B 벤치마크 (Sonnet 5 vs Opus 4.8) — 코드 무변경, Opus 유지
 
 **Plan**: [2026-07-01_ocr-model-ab-sonnet5-vs-opus48](plans/2026-07-01_ocr-model-ab-sonnet5-vs-opus48.md) · **결과**: [ocr-model-ab-2026-07-01-results](ocr-model-ab-2026-07-01-results.md)

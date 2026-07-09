@@ -109,7 +109,8 @@ When the orchestrator splits a large cert (>6p) into segments (≤4p) and assign
 All of the following are the **orchestrator's** responsibility; this agent does not invoke them.
 
 - **Phase 1 prep-inputs** (PNG rendering + prep sidecar, **base DPI 300** — 300 DPI rendering is advantageous for identification and numeric-reading accuracy when scanned text is small) — PNGs already exist when transcription begins.
-- **tile-inputs** (immediately after prep-inputs, splits page PNGs into **2×2 overlapping tiles** per page (`.cache/<case>/tiles/<stem>_pNN_rRcC.png`, 6% overlap)) — tiles already exist when transcription begins.
+- **Phase 1.5 orient-sheets / page-aligner / align-inputs** (per-page rotation detection + upright correction of the rendered PNGs) — pages are already upright when transcription begins. **If a tile still appears rotated, do not transcribe it sideways — record the page in `remarks` and report it to the orchestrator as an alignment gap.**
+- **tile-inputs** (after align-inputs, splits page PNGs into **2×2 overlapping tiles** per page (`.cache/<case>/tiles/<stem>_pNN_rRcC.png`, 6% overlap)) — tiles already exist when transcription begins.
 - **Phase 2.5 check-extraction** (all-page extraction completeness gate).
 - **cache-status** (per-case fresh/legacy/stale/missing determination).
 - **merge-parts** (deterministic fragment merge).
