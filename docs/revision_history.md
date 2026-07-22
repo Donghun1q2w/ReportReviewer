@@ -1,5 +1,14 @@
 # Revision History
 
+## 2026-07-22 — 혼입 문서 페이지 분류(Phase 1.6 doc-classify) 및 비교 제외 — v1.4.0
+
+**Detail**: [revisions/2026-07-22_221912_mtc-doc-classification-phase16](revisions/2026-07-22_221912_mtc-doc-classification-phase16.md) · **Plan**: [2026-07-22_170520_mtc-doc-classification-phase16](plans/2026-07-22_170520_mtc-doc-classification-phase16.md)
+
+- 신설: `scripts/doctype.py`(taxonomy 단일소스+게이트) · `agents/doc-classifier.md`(Phase 1.6, opus 4.8) · 테스트 2종
+- 수정: refpack(L2 인벤토리 필터) · merge_reviews(L4 excluded_documents 주입) · compliance_report(L5 렌더) · ocr-extractor(L1 minimal-entry) · 5개 reviewer(L3 규칙) · cli(classify-sheets/check-doctype) · orient_sheets(파라미터화) · prep_inputs(멱등) · SKILL/README/marketplace(v1.4.0, 9종)
+- page-aligner·align_inputs·extraction_check·eval_harness **무수정 보존**(95.89% 실측 자산 회귀 방지). pytest **184 passed**(오케스트레이터 독립 재검증). PU2601233(73p 혼재) 육안 대조 false-exclude 0건, case 10 merge deep-equal(하위호환). 커밋 `8d38090`(push 보류, 사용자 확인 대기).
+- 선재 이슈 발견(무관): `limits` CLI의 `chemistry_limits.csv` provenance 오류 — Phase 1.6 이전 커밋에서도 재현 확인, 별도 조사 필요.
+
 ## 2026-07-09 — 페이지 회전 정렬(Phase 1.5) 기능 추가 — v1.3.0
 
 **Detail**: [revisions/2026-07-09_133645_page-orientation-alignment](revisions/2026-07-09_133645_page-orientation-alignment.md) · **Plan**: [2026-07-09_085623_page-orientation-alignment](plans/2026-07-09_085623_page-orientation-alignment.md)
