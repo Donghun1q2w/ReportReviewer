@@ -510,6 +510,74 @@ def cmd_align_inputs(args: argparse.Namespace) -> int:
     return 0 if summary["ok"] else 1
 
 
+def cmd_classify_sheets(args: argparse.Namespace) -> int:
+    """Phase 1.6: compose UPRIGHT contact sheets for document-type classification.
+
+    Must run AFTER align-inputs — the orient/ sheets are pre-alignment pixels and
+    cannot be reused (letterhead/title strings are unreadable when rotated). This
+    re-composes from the now-upright png/ into a separate classify/ directory.
+    """
+    from scripts.orient_sheets import build_orient_sheets  # noqa: PLC0415
+    from scripts.doctype import CLASSIFY_SHEETS_DIRNAME  # noqa: PLC0415
+
+    try:
+        summary = build_orient_sheets(
+            case_id=args.case,
+            cache_root=CACHE_DIR,
+            sheets_dirname=CLASSIFY_SHEETS_DIRNAME,
+        )
+    except FileNotFoundError as e:
+        print(f"[ERROR] classify-sheets: {e}", file=sys.stderr)
+        return 1
+
+    print(f"[OK] classify-sheets --case {args.case}: {summary['n_sheets']} sheet(s)")
+    for stem, n in summary["stems"].items():
+        print(f"     {stem}: {n} page(s)")
+    print(f"     index: {summary['index_path']}")
+    print("     -> delegate doc-classifier, then run check-doctype")
+    return 0
+
+
+def cmd_check_doctype(args: argparse.Namespace) -> int:
+    """Phase 1.6 gate: every rendered stem must have a valid doctype sidecar.
+
+    Gate contract (mirrors align-inputs): exit 0 only when every rendered stem
+    has a <stem>_doctype.json that fully and validly labels its pages and keeps
+    at least one page in the review — the orchestrator must not delegate the OCR
+    extractor otherwise. A high exclusion ratio is a WARNING (exit 0), not a
+    failure.
+    """
+    from scripts.doctype import check_doctype_case  # noqa: PLC0415
+
+    try:
+        summary = check_doctype_case(case_id=args.case, cache_root=CACHE_DIR)
+    except FileNotFoundError as e:
+        print(f"[ERROR] check-doctype: {e}", file=sys.stderr)
+        return 1
+
+    verdict = "OK" if summary["ok"] else "FAIL"
+    print(f"[{verdict}] check-doctype --case {args.case}:")
+    for s in summary["stems"]:
+        dist = ", ".join(f"{k}:{v}" for k, v in sorted(s["by_type"].items())) or "—"
+        print(
+            f"     {s['stem']}: {s['pages_total']}p "
+            f"(included {s['included']}, excluded {s['excluded']}) "
+            f"[{dist}]"
+        )
+        if s["uncertain_pages"]:
+            print(f"        uncertain pages: {s['uncertain_pages']}")
+        for w in s["warnings"]:
+            print(f"        [WARN] {w}")
+        for issue in s["issues"]:
+            print(f"        issue: {issue}")
+    if summary["uncovered_stems"]:
+        print(
+            f"     uncovered stems (no doctype record — re-delegate doc-classifier): "
+            f"{summary['uncovered_stems']}"
+        )
+    return 0 if summary["ok"] else 1
+
+
 def cmd_prep_mps(args: argparse.Namespace) -> int:
     """Render + tile the case's MPS PDFs for the shared mps-extractor digest."""
     from scripts.prep_mps import prep_mps_case  # noqa: PLC0415
@@ -597,6 +665,8 @@ def cmd_merge_reviews(args: argparse.Namespace) -> int:
         print(f"     sources: {', '.join(r['sources'])}")
         if r["missing_domains"]:
             print(f"     missing domains: {', '.join(r['missing_domains'])}")
+        if r.get("n_excluded_docs"):
+            print(f"     excluded docs: {r['n_excluded_docs']}")
         print(f"     written: {r['written']}")
         if r["backup"]:
             print(f"     backup:  {r['backup']}")
@@ -745,6 +815,14 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("align-inputs", help="Apply detected page rotations to rendered cert PNGs (idempotent)")
     p.add_argument("--case", required=True)
     p.set_defaults(func=cmd_align_inputs)
+
+    p = sub.add_parser("classify-sheets", help="Phase 1.6: compose upright contact sheets for document-type classification (doc-classifier input)")
+    p.add_argument("--case", required=True)
+    p.set_defaults(func=cmd_classify_sheets)
+
+    p = sub.add_parser("check-doctype", help="Phase 1.6 gate: every rendered stem must have a valid <stem>_doctype.json")
+    p.add_argument("--case", required=True)
+    p.set_defaults(func=cmd_check_doctype)
 
     p = sub.add_parser("prep-mps", help="Render + tile MPS PDFs for the shared mps-extractor digest")
     p.add_argument("--case", required=True)

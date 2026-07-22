@@ -211,6 +211,48 @@ def test_shrinking_pdf_purges_stale_page_artifacts(tmp_path: Path):
     assert not (orient / "certA__sheet01.png").exists(), "stale sheet survived"
 
 
+def test_rerender_deletes_doctype_and_classify_sheets(tmp_path: Path):
+    """T-6: a re-render (changed PDF) must drop the stale <stem>_doctype.json
+    and the classify/ contact sheets so a classification cannot outlive its
+    pixels."""
+    from scripts.doctype import doctype_path
+
+    work = tmp_path / "work"
+    cache = tmp_path / "cache"
+    _mk_case(work, "9", "certA", 2)
+    prep_case("9", work, cache, dpi=100)
+
+    case_cache = cache / "9"
+    dt = doctype_path(case_cache, "certA")
+    dt.write_text(json.dumps({"pages": {"1": "MTC_FINISHED"}}), encoding="utf-8")
+    classify = case_cache / "classify"
+    classify.mkdir()
+    (classify / "certA__sheet01.png").write_bytes(b"x")
+
+    _mk_case(work, "9", "certA", 3)  # sha256 changes -> re-render
+    summary = prep_case("9", work, cache, dpi=100)
+    assert summary["certs"][0]["rendered"] is True
+    assert not dt.exists(), "stale doctype sidecar survived a re-render"
+    assert not (classify / "certA__sheet01.png").exists(), "stale classify sheet survived"
+
+
+def test_cache_hit_preserves_doctype(tmp_path: Path):
+    """T-6: a cache HIT (unchanged PDF) must keep the doctype sidecar."""
+    from scripts.doctype import doctype_path
+
+    work = tmp_path / "work"
+    cache = tmp_path / "cache"
+    _mk_case(work, "9", "certA", 2)
+    prep_case("9", work, cache, dpi=100)
+
+    dt = doctype_path(cache / "9", "certA")
+    dt.write_text(json.dumps({"pages": {"1": "MTC_FINISHED"}}), encoding="utf-8")
+
+    summary = prep_case("9", work, cache, dpi=100)
+    assert summary["certs"][0]["rendered"] is False
+    assert dt.exists(), "cache hit must keep the doctype classification"
+
+
 def test_cache_hit_preserves_alignment_records(tmp_path: Path):
     work = tmp_path / "work"
     cache = tmp_path / "cache"

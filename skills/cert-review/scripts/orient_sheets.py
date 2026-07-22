@@ -114,14 +114,19 @@ def build_orient_sheets(
     cols: int = _DEFAULT_COLS,
     rows: int = _DEFAULT_ROWS,
     thumb_long: int = _THUMB_LONG,
+    sheets_dirname: str = SHEETS_DIRNAME,
 ) -> dict:
     """Compose labelled contact sheets from a case's rendered cert pages.
 
     Reads ``.cache/<case>/png/<stem>_pNN.png`` (cert channel only) and writes
-    ``.cache/<case>/orient/<stem>__sheetNN.png`` plus a machine-readable index
-    ``orient/sheets_index.json``. Returns a summary dict. Raises
-    FileNotFoundError when the case has no rendered PNGs (run prep-inputs
-    first).
+    ``.cache/<case>/<sheets_dirname>/<stem>__sheetNN.png`` plus a
+    machine-readable index ``<sheets_dirname>/sheets_index.json``. Returns a
+    summary dict. Raises FileNotFoundError when the case has no rendered PNGs
+    (run prep-inputs first).
+
+    ``sheets_dirname`` defaults to ``orient`` (Phase 1.5). Phase 1.6 reuses this
+    builder with ``classify`` to compose UPRIGHT sheets (post-alignment pixels)
+    for document-type reading; the default-path behaviour is byte-identical.
     """
     case_cache = Path(cache_root) / str(case_id)
     png_dir = case_cache / "png"
@@ -132,7 +137,7 @@ def build_orient_sheets(
     if not stems:
         raise FileNotFoundError(f"no <stem>_pNN.png under {png_dir}")
 
-    sheets_dir = case_cache / SHEETS_DIRNAME
+    sheets_dir = case_cache / sheets_dirname
     sheets_dir.mkdir(parents=True, exist_ok=True)
 
     per_sheet = cols * rows

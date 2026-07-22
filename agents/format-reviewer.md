@@ -49,6 +49,8 @@ This agent **cannot spawn nested sub-agents.** All reading, crop re-reads, and o
 
 > **MPS special requirements are read from the shared digest**: read only the **`document_requirements` block** from `.cache/<case>/<case>_mps_digest.json` (extracted once by mps-extractor; includes verbatim source citations per item) as evidence. **Do not open the original MPS PDF/PNG (`standard inspection MPS cleanup data/`)** — fall back to it only when the relevant grade requirement is absent from the digest. Numeric reference values remain `<case>_limits.json` (CSV-derived) first; MPS special requirement text comes from the digest. `crop` applies to cert cells only.
 
+> **Excluded-page rule (기준 19)**: Page entries whose `doc_type` is an EXCLUDED type (see 기준 19) are enclosed non-MTC documents: do not compare their values, do not register their grades/heats into `materials[]`, do not cite them as evidence. The exclusion memo is emitted deterministically by `merge-reviews` — do not raise findings about them.
+
 > If `unrouted` in `<case>_limits.json` explicitly lists a grade routing failure, supplement manually using `data\grade_routing.csv`, `data\code_edition_map.csv` originals, and the 기준 1 catalog in `references/review-criteria.md` — but only for that grade.
 
 ## Ambiguous Cell Re-read Permission (기준 17.4 / 17.5)
@@ -89,6 +91,7 @@ python -m scripts.cli crop --case <id> --stem <stem> --page <n> --bbox x0,y0,x1,
 ### 기준 16 — Class Restrictions and (Grade, Class, Heat) Coverage
 
 - Verify that **every unique (Grade, Class, Heat) combination** in the Phase 2 OCR inventory is mapped into `materials[]` and reviewed (cross-check `inventory` in `<case>_limits.json`). Even if Grade is the same, different Class is a separate item — report any missing combination.
+- Coverage is verified against the `<case>_limits.json` `inventory` (already doctype-filtered — it contains only `MTC_FINISHED`/`UNKNOWN` page grades). **Do not flag an excluded raw-material grade (동봉 원자재 등, 기준 19) as an uncovered combination** — it is intentionally absent from the inventory.
 - **Class restriction wording** in the MPS (`CL.1만 허용`, `CL.2 or 3 is not allowed`, etc.) and **handwritten / red revision notes** are promoted to checklist items. Even if measured values are within range, report non-conformance if (a) the item's Class notation itself, or (b) the printed inspection-standard (standard value) range in the cert, differs from the MPS restriction.
 
 ### 기준 14 — Printed Reference-Value Error Label Branching

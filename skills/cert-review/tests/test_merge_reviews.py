@@ -29,6 +29,7 @@ _TOPLEVEL_KEYS = {
     "code_edition_note",
     "materials",
     "findings",
+    "excluded_documents",
 }
 # Every merged material must carry all five domain section arrays.
 _MATERIAL_KEYS = {
@@ -451,6 +452,60 @@ def test_multi_item_same_heat_grade_stay_separate(tmp_path):
     assert by_item["item:13"]["verdict"] == "주의"
     # No cross-item identity divergence issues (size/qty of 013 vs 011).
     assert not any("'660*40mm" in i and "'660*35.1mm" in i for i in result["issues"])
+
+
+def _write_doctype(case_cache: Path, stem: str, pages: dict[int, str],
+                   uncertain: list[int] | None = None) -> None:
+    case_cache.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": "1.0",
+        "stem": stem,
+        "pages": {str(p): t for p, t in pages.items()},
+        "uncertain_pages": uncertain or [],
+    }
+    (case_cache / f"{stem}_doctype.json").write_text(
+        json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def test_excluded_documents_empty_without_sidecar(tmp_path):
+    """T-5: no doctype sidecar -> excluded_documents == [] (backward compat)."""
+    case = tmp_path / "99"
+    _write_partial(case, "chemistry", materials=[_material("chemistry")],
+                   findings=[_finding(1, "Chem", "Cr out of range")])
+
+    result = merge_case("99", tmp_path)
+    out = json.loads((case / "99_review.json").read_text(encoding="utf-8"))
+    assert out["excluded_documents"] == []
+    assert result["n_excluded_docs"] == 0
+    # findings untouched
+    assert [f["content"] for f in out["findings"]] == ["Cr out of range"]
+
+
+def test_excluded_documents_injected_from_sidecar(tmp_path):
+    """T-5: doctype sidecar -> excluded_documents runs injected; findings unchanged."""
+    case = tmp_path / "99"
+    _write_partial(case, "chemistry", materials=[_material("chemistry")],
+                   findings=[_finding(1, "Chem", "Cr out of range")])
+    # Two enclosed non-MTC runs on one stem: raw-material p30-31, NDE p55.
+    _write_doctype(case, "certA", {
+        1: "MTC_FINISHED", 30: "MTC_RAW_MATERIAL", 31: "MTC_RAW_MATERIAL",
+        55: "NDE_REPORT",
+    })
+
+    result = merge_case("99", tmp_path)
+    out = json.loads((case / "99_review.json").read_text(encoding="utf-8"))
+
+    ex = out["excluded_documents"]
+    assert result["n_excluded_docs"] == 2
+    assert [d["doc_type"] for d in ex] == ["MTC_RAW_MATERIAL", "NDE_REPORT"]
+    assert ex[0]["pages"] == [30, 31]
+    assert ex[0]["page_range"] == "p.30-31"
+    assert ex[1]["pages"] == [55]
+    assert ex[0]["doc_type_ko"] == "원자재 성적서(동봉 Mill Cert)"
+    assert all("제외됨" in d["note"] for d in ex)
+    # findings[] must NOT be polluted by exclusion memos (기준 17.7).
+    assert [f["content"] for f in out["findings"]] == ["Cr out of range"]
 
 
 def test_merge_all_only_cases_with_partials(tmp_path):

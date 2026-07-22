@@ -116,6 +116,10 @@
             }
           },
           "remarks": {"type": "array", "items": {"type": "string"}},
+          "doc_type": {"enum": ["MTC_FINISHED", "UNKNOWN", "MTC_RAW_MATERIAL", "PMI_REPORT",
+            "APPEARANCE_DIMENSION_REPORT", "NDE_REPORT", "PHYSICAL_CHEMICAL_TEST_REPORT",
+            "MICROSTRUCTURE_REPORT", "HEAT_TREATMENT_CHART", "REVIEWED_ANNOTATED_COPY",
+            "COVER_LETTER", "MPS_COPY", "DRAWING", null]},
           "confidence": {"enum": ["high", "medium", "low"]}
         }
       }

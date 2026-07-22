@@ -384,3 +384,35 @@ Every finding must pass the gates below to enter `findings[]`. An item caught by
 
 - The summary sentence **includes the key attribute name (element symbol·test item) and the measured·reference numeric values** (a PASS sentence such as "Cr 8.49% — SA-234 WP91 기준 8.0~9.5% 내 적합" is not used in findings).
 - When mentioning product characteristics·end shape·dimension notation, preserve the cert/drawing original notation as-is in the summary (do not lose the original keywords through arbitrary translation·paraphrase).
+
+## 19. 동봉 문서(비-완제품 성적서) 페이지 분류 및 검토 제외
+
+Received MTC PDFs frequently contain, at arbitrary positions (middle or end), pages that are **not the finished-product certificate**: enclosed raw-material Mill Certificates, PMI reports, appearance/dimension inspection reports, NDE reports, physical-chemical test reports, microstructure reports, heat-treatment furnace charts, and the like. Phase 1.6 (`doc-classifier`) labels **every page** with one of the 13 document-type codes below; the deterministic CLI/merge then **excludes non-finished-product pages from comparison**. The taxonomy single source is `scripts/doctype.py` — these exact 13 codes/labels are used everywhere (`agents/doc-classifier.md`, `references/extraction-schema.json` `doc_type` enum, and this criterion are kept in sync).
+
+| Code | 한국어 라벨 | 분류 |
+|---|---|---|
+| `MTC_FINISHED` | 완제품 성적서 | 검토 포함 |
+| `UNKNOWN` | 미상(완제품 성적서로 간주) | 검토 포함(보수적) |
+| `MTC_RAW_MATERIAL` | 원자재 성적서(동봉 Mill Cert) | 제외 |
+| `PMI_REPORT` | PMI 보고서(동봉) | 제외 |
+| `APPEARANCE_DIMENSION_REPORT` | 외관·치수검사보고서(동봉) | 제외 |
+| `NDE_REPORT` | 비파괴검사 보고서(동봉) | 제외 |
+| `PHYSICAL_CHEMICAL_TEST_REPORT` | 이화학시험성적서(동봉) | 제외 |
+| `MICROSTRUCTURE_REPORT` | 금속조직시험 보고서(동봉) | 제외 |
+| `HEAT_TREATMENT_CHART` | 열처리로 온도차트(동봉) | 제외 |
+| `REVIEWED_ANNOTATED_COPY` | 검토 주석본(입력 배제 대상) | 제외 |
+| `COVER_LETTER` | 송부문서/커버레터 | 제외 |
+| `MPS_COPY` | MPS 사본 | 제외 |
+| `DRAWING` | 도면 | 제외 |
+
+### 19.1 Whitelist principle
+- **Only `MTC_FINISHED` and `UNKNOWN` are reviewed (included).** All other 11 codes are excluded from comparison.
+- `UNKNOWN` is a **conservative include**: when classification is uncertain, the page is kept in the review (a non-MTC label is assigned only with clear evidence), so a genuine finished-product page is never dropped by mistake.
+
+### 19.2 제외 페이지 취급
+- **제외 페이지의 값은 어떤 도메인 비교에도 사용하지 않는다** — an excluded page's chemistry/mechanical/heat-treatment/NDE values are never compared against Code/MPS/CSV limits, its grade/heat is never registered into `materials[]`, and it is never cited as finding evidence.
+- **제외 사실은 findings가 아니라 review.json의 excluded_documents로 보고한다 (기준 17.7 정보성 분리와 정합)** — the exclusion is emitted deterministically by `merge-reviews` (`excluded_documents`), not as a reviewer finding. Reviewers raise no findings about excluded pages.
+
+### 19.3 Out of scope (future work)
+- **Requirement-vs-attachment auto-judgement is OUT OF SCOPE for this phase.** Whether an MPS-required test report (PMI/NDE/dimension, etc.) was *actually* attached — i.e. auto-verifying required-document completeness by matching MPS requirements against the classified enclosed documents — is deferred to future work.
+- This relates to the existing **기준 17.1 "별도 문서(동봉 문서)" rule**: a requirement to submit a separate/received document alongside the CMTR is not reported as a CMTR body-entry omission, and when the enclosed document's existence cannot be confirmed the finding is omitted. Phase 1.6 only classifies and excludes such enclosed documents; it does not yet decide whether a required enclosure is present or missing.

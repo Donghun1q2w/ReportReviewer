@@ -50,11 +50,12 @@ prohibited. Evaluation does not need direct access because `eval_harness.py` rea
 
 ## Subagents (`agents/`)
 
-The review work is delegated to **8 plugin subagents**. Each writes only a partial output, and the orchestrator merges them via deterministic CLI. **The detailed procedures (transcription rules, per-domain judgment rules) belong to each agent's document — they are not duplicated in this SKILL.md.**
+The review work is delegated to **9 plugin subagents**. Each writes only a partial output, and the orchestrator merges them via deterministic CLI. **The detailed procedures (transcription rules, per-domain judgment rules) belong to each agent's document — they are not duplicated in this SKILL.md.**
 
 | Agent | model | Role | Partial output |
 |---|---|---|---|
 | `page-aligner` | claude-opus-4-8 | Phase 1.5 per-page **rotation detection** from contact sheets (detection only — rotation is applied by `align-inputs`) | `<stem>_orientation.json` |
+| `doc-classifier` | claude-opus-4-8 | Phase 1.6 per-page document-type classification (classification only — exclusion applied by deterministic CLI/merge) | `<stem>_doctype.json` |
 | `ocr-extractor` | claude-opus-4-8 | Phase 2 Vision **tile-reading** transcription only (full / fragment modes) | `<stem>_extracted.json` or `parts/<stem>__pSSS-EEE.json` |
 | `mps-extractor` | claude-opus-4-8 | **Single extraction** of the MPS scan just before Phase 4 → produces the shared digest consumed by the 5 review agents | `<case>_mps_digest.json` |
 | `chemistry-reviewer` | claude-opus-4-8 | Phase 4 chemical composition review | `<case>_review_chemistry.json` |
@@ -85,6 +86,7 @@ The review work is delegated to **8 plugin subagents**. Each writes only a parti
 └── ... plugin/ReportReviewer/                      ← plugin root
     ├── agents/                                     ← plugin subagents (includes frontmatter model)
     │   ├── page-aligner.md                         ← Phase 1.5 rotation detection (claude-opus-4-8)
+    │   ├── doc-classifier.md                       ← Phase 1.6 per-page document-type classification (claude-opus-4-8)
     │   ├── ocr-extractor.md                        ← Phase 2 Vision transcription (opus 4.8)
     │   ├── chemistry-reviewer.md                   ← Phase 4 chemistry (claude-opus-4-8)
     │   ├── mechanical-reviewer.md                  ← Phase 4 mechanical (claude-opus-4-8)
@@ -98,6 +100,8 @@ The review work is delegated to **8 plugin subagents**. Each writes only a parti
         │   ├── orient/                             ← orient-sheets contact sheets + sheets_index.json (page-aligner input)
         │   ├── <stem>_orientation.json             ← page-aligner output (per-page clockwise rotation 0/90/180/270)
         │   ├── <stem>_alignment.json               ← align-inputs applied-rotation record (idempotency + crop/annotate space)
+        │   ├── classify/                           ← classify-sheets UPRIGHT contact sheets + sheets_index.json (doc-classifier input)
+        │   ├── <stem>_doctype.json                 ← doc-classifier output (per-page document-type labels; deterministic exclusion authority)
         │   ├── tiles/                              ← tile-inputs 2×2 overlapping tiles (4 tiles per page, <stem>_pNN_rRcC.png)
         │   ├── mps_png/                            ← prep-mps rendered MPS PNG
         │   ├── mps_tiles/                          ← prep-mps MPS 2×2 overlapping tiles (for mps-extractor reading)
@@ -135,6 +139,8 @@ python -m scripts.cli prep-inputs --case 4 [--dpi 300] [--force]   # Phase 1: PN
 python -m scripts.cli orient-sheets --case 4            # Phase 1.5: labelled contact sheets (page-aligner input)
 python -m scripts.cli align-inputs --case 4             # Phase 1.5: apply detected rotations to page PNGs (idempotent)
 python -m scripts.cli tile-inputs --case 4 | --all      # Phase 1: page PNG → 2×2 overlapping tiles (4 per page)
+python -m scripts.cli classify-sheets --case 4          # Phase 1.6: upright contact sheets (doc-classifier input)
+python -m scripts.cli check-doctype --case 4            # Phase 1.6: doctype gate (exit 0 required)
 python -m scripts.cli prep-mps --case 4 [--dpi 300]     # Phase 1: MPS PDF → mps_png + mps_tiles (mps-extractor input)
 python -m scripts.cli merge-parts --case 4              # merge fragment (>6p) segments
 python -m scripts.cli check-extraction --case 4 | --all # Phase 2.5: completeness gate
@@ -155,7 +161,7 @@ Do not sacrifice accuracy for time — opus's precise crop reading of numeric ce
 - **Standard** (4–6 pages, several items): target **≤60 min**.
 - **Complex** (>6 pages, or 7+ items, or multiple grades): **60–90 min allowed**. With simultaneous multi-case fan-out, it may grow further due to opus concurrent-call throttling.
 
-Structural devices that keep time proportional to complexity: ① identification is finalized in a single ocr-extractor pass (no reviewer re-verification) ② reviewer crops focus on judgment-critical cells (no indiscriminate full-coverage crop) ③ parallelization of large certs (≤4p segments) (below) ④ **tiling (tile-inputs)** — when ocr-extractor reads 2×2 overlapping tiles, OCR becomes **~2.6× faster and crops drop to nearly 0** relative to the full page (small digits that smeared under downsampling are read without crop) ⑤ **MPS digest sharing (mps-extractor)** — extracting the MPS scan only once and sharing it as a per-domain digest removes the 5 review agents' redundant MPS OCR, shortening the review wall **~3×** (per-reviewer separate Vision-OCR ~95 min → digest consumption ~32 min, with no recall regression) ⑥ **pre-OCR page alignment (orient-sheets + page-aligner + align-inputs)** — rotated scan pages are straightened before tiling, so the tile semantics (r0=header) and digit legibility hold on rotated inputs too; detection costs ~1 sheet Read per 12 pages plus one delegation per case. In multi-case runs, the intra-case 5-agent parallelism overlaps with inter-case parallelism, so keep the total concurrent-agent cap of 6–10.
+Structural devices that keep time proportional to complexity: ① identification is finalized in a single ocr-extractor pass (no reviewer re-verification) ② reviewer crops focus on judgment-critical cells (no indiscriminate full-coverage crop) ③ parallelization of large certs (≤4p segments) (below) ④ **tiling (tile-inputs)** — when ocr-extractor reads 2×2 overlapping tiles, OCR becomes **~2.6× faster and crops drop to nearly 0** relative to the full page (small digits that smeared under downsampling are read without crop) ⑤ **MPS digest sharing (mps-extractor)** — extracting the MPS scan only once and sharing it as a per-domain digest removes the 5 review agents' redundant MPS OCR, shortening the review wall **~3×** (per-reviewer separate Vision-OCR ~95 min → digest consumption ~32 min, with no recall regression) ⑥ **pre-OCR page alignment (orient-sheets + page-aligner + align-inputs)** — rotated scan pages are straightened before tiling, so the tile semantics (r0=header) and digit legibility hold on rotated inputs too; detection costs ~1 sheet Read per 12 pages plus one delegation per case. ⑦ **Phase 1.6 document-type classification (classify-sheets + doc-classifier + check-doctype)** — one added delegation per case adds roughly **+2–4 min (simple) / +3–5 min (standard) / +10–15 min (complex 73p)**, but this is largely **offset by the minimal-entry OCR of excluded pages** (excluded pages skip table transcription), so the net is ≈ **0±5 min** for mixed complex files; the tier targets (≤30 / ≤60 / 60–90 min) are **unchanged**. In multi-case runs, the intra-case 5-agent parallelism overlaps with inter-case parallelism, so keep the total concurrent-agent cap of 6–10.
 
 ---
 
@@ -170,7 +176,8 @@ Parallelization is only a speed rule and does not replace any quality obligation
 | Rule | Content |
 |---|---|
 | **Phase 0·3 pre-execution** | `build-manifest` and `validate-refs` each run **once** invariantly before fan-out. If `validate-refs` is not exit 0, do not start the fan-out |
-| **Total concurrent agents** | Combined cap of **6–10** (sum of OCR, MPS extraction, and review agents) |
+| **Total concurrent agents** | Combined cap of **6–10** (sum of classification, OCR, MPS extraction, and review agents) |
+| **Phase 1.6 classification** | `doc-classifier` runs **once per case** (after align-inputs, gated by `check-doctype` exit 0 before OCR). It counts toward the 6–10 concurrent-agent cap like any other delegation |
 | **Case pipeline overlap** | Per case, OCR (Phase 1·2), MPS extraction (`mps-extractor`, parallel to cert OCR), the completeness gate (2.5), and review (Phase 4) proceed, and **the 5 review agents are deployed starting from cases that have completed OCR, passed 2.5, and produced `<id>_mps_digest.json`**. Overlap of the OCR stage and the review stage across cases is allowed (while one case is in OCR, another may be in review) |
 | **Phase 5·6 batch** | The report (Phase 5) and evaluation (Phase 6) are performed in a batch **after all cases' merge-reviews complete**, by this loop or `evaluate --all` |
 
@@ -240,7 +247,27 @@ Perform the sequence below per case. **The orchestrator runs the deterministic C
 - Why: when the model reads a PNG it downsamples to ~1568px on the long edge, so a full page (~3500px) smears small digits. A 2×2 tile is ~1957px on the long edge, ~1.8× sharper even after downsampling, so ocr-extractor reads it **without crop**.
 - The next-stage mode (full / fragment) branch is **still based on PNG count** and is independent of tiling.
 
-### 2.6) prep-mps (orchestrator runs directly, deterministic) — `prep-mps --case <id>`
+### 2.6) classify-sheets (orchestrator runs directly, deterministic) — `classify-sheets --case <id>`
+
+- Run **after align-inputs** (so the sheets carry **upright** pixels). Compose the aligned page PNGs (`.cache/<case>/png/`) into UPRIGHT contact sheets under `.cache/<case>/classify/` plus `classify/sheets_index.json` (the doc-classifier input).
+- **The Phase 1.5 `orient/` sheets must NOT be reused here** — they are composed from **pre-alignment** pixels, so rotated letterheads/title-blocks are unreadable and document-type discrimination fails. classify-sheets re-composes fresh upright sheets specifically for document-type reading.
+
+### 2.7) doc-classifier delegation (Phase 1.6, MANDATORY before OCR)
+
+- **Delegate `doc-classifier`** to read the upright classify sheets (`.cache/<case>/classify/`) — and, at MTC-style run boundaries, the header tiles (`.cache/<case>/tiles/<stem>_pNN_r0c0.png`) — and write per-stem `.cache/<case>/<stem>_doctype.json` labelling **every page**.
+- **Delegation context spec** (must be included): case id · the skill directory **absolute path** · output obligation (**every page labelled; values ∈ the 13 taxonomy codes**) · compliance instructions (**C1 read-only PNG opening, the 2-label INCLUDED whitelist (`MTC_FINISHED`/`UNKNOWN`) + conservative `UNKNOWN`, the document-run continuity rule — a finished-product MTC's internal PMI/NDE/dimension sections are NOT separate documents — and judge page content, not the `pNN` label bar**).
+- The classification detail procedure (taxonomy cues, sheet-reading rules, finished-vs-raw discrimination, self-check) is held by `agents/doc-classifier.md` — **do not duplicate it in SKILL.md**.
+
+### 2.8) check-doctype (orchestrator runs directly, deterministic gate) — `check-doctype --case <id>`
+
+- **[GATE] exit 0 required.** This gate verifies every rendered stem has a valid `<stem>_doctype.json`. Exit 1 causes and handling:
+  - a rendered stem with **no `<stem>_doctype.json`** → re-delegate `doc-classifier` for it;
+  - **page coverage gaps/extras or invalid labels** (a label outside the 13 codes) → fix / re-delegate;
+  - **an entire stem classified non-finished** (no `MTC_FINISHED`/`UNKNOWN` page) → abnormal; request human confirmation and stop.
+- A **WARNING** (exclusion ratio > 60% on a stem of ≥4 pages) stays **exit 0**, but the orchestrator should re-check 2–3 boundary pages full-page before proceeding.
+- **Do not delegate `ocr-extractor` until exit 0** (same gate pattern as align-inputs).
+
+### 2.9) prep-mps (orchestrator runs directly, deterministic) — `prep-mps --case <id>`
 
 - Run immediately after tile-inputs. Render the MPS PDF in `standard inspection MPS cleanup data/<case>/` with `pypdfium2` into PNGs in `.cache/<case>/mps_png/`, then generate 2×2 overlapping tiles per page into `.cache/<case>/mps_tiles/` (the same principle as cert tiling — sharpening scan characters that smear under downsampling).
 - This output is the input for the next stage's `mps-extractor` delegation. Because it is independent of the cert OCR path (prep-inputs/tile-inputs), it can proceed in parallel with the cert OCR delegation.
@@ -257,6 +284,7 @@ Perform the sequence below per case. **The orchestrator runs the deterministic C
 - the skill directory **absolute path**
 - the mode (full / fragment) and, for fragment, the assigned page segment
 - compliance instructions: **C1–C8, the 3-category input whitelist, tile reading (4 tiles per page, crop omitted as a rule), verbatim transcription, all-pages obligation**
+- **Phase 1.6 document-type consumption**: read `.cache/<case>/<stem>_doctype.json` (absent → treat every page as `MTC_FINISHED` = current behaviour); for EXCLUDED-type pages emit only the **minimal entry** (`header: {}`, `doc_type`, the 제외 remark) instead of transcribing tables; **stamp `doc_type`** on `MTC_FINISHED`/`UNKNOWN` entries; build the `(Grade, Class, Heat)` inventory from **included pages only**; raise **"분류 재확인 요청"** on a suspected misclassification (details in `agents/ocr-extractor.md`)
 
 > The transcription detail procedure (tile-batch Read, per-page entry, spec verbatim, (Grade,Class,Heat) inventory, first-pass chemistry screening, etc.) is held by `agents/ocr-extractor.md` — **do not duplicate it in SKILL.md**.
 
@@ -303,6 +331,7 @@ After `limits` completes (and after that case's `mps-extractor` has produced `<c
 - its own domain's partial-output obligation: `.cache/<case>/<case>_review_<domain>.json`
 - (if applicable) unrouted-grade resolution information
 - **read MPS special requirements from its own domain block in `<case>_mps_digest.json` and do not open the original MPS PDF/PNG** (fall back only when the digest has no requirement for that grade).
+- **Excluded-page rule (기준 19)**: pages whose `doc_type` is an EXCLUDED type must not have their data compared, their grades/heats registered into `materials[]`, or be cited as evidence — the exclusion memo is emitted deterministically by `merge-reviews` (`excluded_documents`), so reviewers raise no findings about them.
 
 The review agents do not re-verify the identification fields finalized by ocr-extractor (the header's grade/heat_no/cert_no/size/qty) (see the time-budget section).
 
@@ -390,6 +419,9 @@ Phase 1.5 orient-sheets     → orient/*__sheetNN.png + sheets_index.json (run d
           [delegate page-aligner/opus] read sheets → <stem>_orientation.json (per-page 0/90/180/270)
           align-inputs      → rotate png/*.png upright + <stem>_alignment.json (run directly, idempotent)
 Phase 1   tile-inputs       → tiles/*_pNN_rRcC.png (2×2 overlapping tiles per page, run directly)
+Phase 1.6 classify-sheets   → classify/*__sheetNN.png + sheets_index.json (upright sheets, run directly)
+          [delegate doc-classifier/opus] read upright sheets → <stem>_doctype.json (per-page document-type label)
+          check-doctype     → exit 0 required (gate; re-delegate on gap/invalid label/all-excluded stem)
           prep-mps          → mps_png/*.png + mps_tiles/*.png (MPS render+tile, run directly)
 Phase 2   [delegate ocr-extractor/opus]  ≤6p full once → <stem>_extracted.json   ┐ parallel
                                        >6p fragment parallel(≤4p) → parts/*.json → merge-parts │

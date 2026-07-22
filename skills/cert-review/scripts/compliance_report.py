@@ -282,6 +282,24 @@ def build_compliance_report(review_path: Path, out_path: Path) -> Path:
         vc.fill = _fill_for(m.get("verdict", ""))
         r += 1
 
+    # Phase 1.6 excluded documents (enclosed non-MTC pages) — informational
+    # block below the materials table. Missing field on a legacy review.json ->
+    # `or []` -> nothing rendered (backward-compatible).
+    excluded_docs = review.get("excluded_documents") or []
+    if excluded_docs:
+        r += 1
+        hc = ws.cell(row=r, column=1)
+        hc.value = "검토 제외 문서 (완제품 성적서 아님 — 동봉 문서)"
+        hc.font = Font(bold=True)
+        r += 1
+        for d in excluded_docs:
+            ws.cell(row=r, column=1).value = "제외됨"
+            ws.cell(row=r, column=2).value = d.get("doc_type_ko", d.get("doc_type", ""))
+            ws.cell(row=r, column=3).value = d.get("stem", "")
+            ws.cell(row=r, column=4).value = d.get("page_range", "")
+            ws.cell(row=r, column=5).value = d.get("note", "")
+            r += 1
+
     # 2) 화학성분 검토
     _grouped_sheet(
         wb, "화학성분 검토", "화학성분 검토 (Chemical Composition)",

@@ -140,6 +140,67 @@ def test_collect_inventory_dedupes(tmp_path: Path):
     assert grades == ["P22", "P91"]
 
 
+def _write_doctype(case_cache: Path, stem: str, pages: dict[int, str]) -> None:
+    case_cache.mkdir(parents=True, exist_ok=True)
+    payload = {"schema_version": "1.0", "stem": stem,
+               "pages": {str(p): t for p, t in pages.items()}, "uncertain_pages": []}
+    (case_cache / f"{stem}_doctype.json").write_text(
+        json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def test_collect_inventory_excludes_raw_material_pages(tmp_path: Path):
+    """T-4 (L2): an excluded raw-material page's header (SA516 plate) must not
+    enter the inventory when a doctype sidecar marks it EXCLUDED."""
+    cache = tmp_path / "cache"
+    _write_extracted(cache, "9", "certA", [
+        {"spec": "ASME SA-335", "grade": "P22"},          # p1 finished
+        {"spec": "ASME SA-516", "grade": "Gr.70"},         # p2 raw material
+    ])
+    _write_doctype(cache / "9", "certA", {
+        1: "MTC_FINISHED", 2: "MTC_RAW_MATERIAL",
+    })
+    inv = collect_inventory(cache / "9")
+    grades = sorted(i["grade"] for i in inv)
+    assert grades == ["P22"], "raw-material grade leaked into inventory"
+
+
+def test_collect_inventory_no_sidecar_keeps_all(tmp_path: Path):
+    """T-4: without a doctype sidecar the inventory is identical to before
+    (backward compatibility — every page counts)."""
+    cache = tmp_path / "cache"
+    _write_extracted(cache, "9", "certA", [
+        {"spec": "ASME SA-335", "grade": "P22"},
+        {"spec": "ASME SA-516", "grade": "Gr.70"},
+    ])
+    inv = collect_inventory(cache / "9")
+    grades = sorted(i["grade"] for i in inv)
+    assert grades == ["Gr.70", "P22"]
+
+
+def test_collect_inventory_excludes_string_page_key(tmp_path: Path):
+    """T-4/E10: extracted entries whose `page` is a numeric STRING are matched
+    against the excluded set after int() conversion."""
+    cache = tmp_path / "cache"
+    case_cache = cache / "9"
+    case_cache.mkdir(parents=True, exist_ok=True)
+    data = {
+        "schema_version": "2.0", "case_id": "9", "cert_file": "cert/certA.pdf",
+        "cert_sha256": "0" * 64,
+        "channels": {"body": {"engine": "claude-vision", "pages": [1, 2]}},
+        "page_extraction": [
+            {"page": "1", "header": {"spec": "ASME SA-335", "grade": "P22"}},
+            {"page": "2", "header": {"spec": "ASME SA-516", "grade": "Gr.70"}},
+        ],
+    }
+    (case_cache / "certA_extracted.json").write_text(
+        json.dumps(data, ensure_ascii=False), encoding="utf-8"
+    )
+    _write_doctype(case_cache, "certA", {1: "MTC_FINISHED", 2: "MTC_RAW_MATERIAL"})
+    inv = collect_inventory(case_cache)
+    assert sorted(i["grade"] for i in inv) == ["P22"]
+
+
 def test_limits_selects_only_relevant_rows(tmp_path: Path):
     work, data = _build_fixture(tmp_path)
     cache = tmp_path / "cache"

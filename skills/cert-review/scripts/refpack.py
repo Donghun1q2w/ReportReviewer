@@ -24,6 +24,7 @@ import re
 from pathlib import Path
 
 from scripts.compare_engine import _grade_route, _resolve_grade_keys
+from scripts.doctype import excluded_pages_map
 from scripts.refdata_loader import load_csv
 
 # CSV file name -> the column that identifies the row's grade/spec scope.
@@ -89,8 +90,22 @@ def collect_inventory(case_cache: Path) -> list[dict]:
             data = json.loads(jp.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             continue
+        # L2 (deterministic): drop pages classified as enclosed non-MTC
+        # documents so raw-material grades (SA516 plate, etc.) never pollute
+        # the finished-product routing/inventory. Authority is the
+        # <stem>_doctype.json sidecar (entry.doc_type is NOT consulted here —
+        # sidecar is the single source); absent sidecar → empty map → no skips.
+        stem = jp.name[: -len("_extracted.json")]
+        excluded = excluded_pages_map(case_cache, stem)
         for entry in data.get("page_extraction") or []:
             if not isinstance(entry, dict):
+                continue
+            page = entry.get("page")
+            try:
+                page_no = int(page)
+            except (TypeError, ValueError):
+                page_no = None
+            if page_no is not None and page_no in excluded:
                 continue
             header = entry.get("header") or {}
             grade = header.get("grade")

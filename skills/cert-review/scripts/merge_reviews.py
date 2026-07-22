@@ -16,11 +16,16 @@ verdict.
 This module deterministically merges those partials into the single
 <case>_review.json consumed downstream (compliance_report.py's 6-sheet Excel and
 eval_harness.load_predictions). The merged JSON's schema is INVARIANT — top-level
-{case_id, po_number, mps_files, code_edition_note, materials[], findings[]} with
-materials[] = {item_name, heat_no, grade_cert, grade_spec, size, qty, verdict,
-chemistry[], mechanical[], heat_treatment[], nde[], doc_checks[]} and findings[]
-= {no, severity, category, location, content, action}. Merge metadata (source
-files, issues) is reported on stdout only — never written into the output JSON.
+{case_id, po_number, mps_files, code_edition_note, materials[], findings[],
+excluded_documents[]} with materials[] = {item_name, heat_no, grade_cert,
+grade_spec, size, qty, verdict, chemistry[], mechanical[], heat_treatment[],
+nde[], doc_checks[]} and findings[] = {no, severity, category, location, content,
+action}. ``excluded_documents[]`` is a deterministic Phase 1.6 injection (from the
+<stem>_doctype.json sidecars — see scripts.doctype) listing enclosed non-MTC
+document runs excluded from comparison; it never touches findings[] (기준 17.7
+informational separation, keeps eval precision unaffected) and is [] when no
+doctype sidecar exists. Merge metadata (source files, issues) is reported on
+stdout only — never written into the output JSON.
 
 Constraint: pure JSON reshaping. No domain re-judgement happens here; the merge
 only relays each partial's verdicts (aggregating a material's per-domain verdicts
@@ -33,6 +38,8 @@ import json
 import re
 import sys
 from pathlib import Path
+
+from scripts.doctype import excluded_documents_for_case
 
 # Fixed domain merge order. Drives section placement, code_edition_note join
 # order, and findings concatenation order.
@@ -283,6 +290,11 @@ def merge_case(case_id: str, cache_root: Path) -> dict:
         renum["no"] = i
         findings_out.append(renum)
 
+    # Phase 1.6 deterministic injection: enclosed non-MTC document runs excluded
+    # from comparison (from the <stem>_doctype.json sidecars). Info-only; never
+    # mixed into findings (기준 17.7). [] when the case has no doctype sidecar.
+    excluded_docs = excluded_documents_for_case(case_cache)
+
     review = {
         "case_id": merged_case_id if merged_case_id is not None else case_id_str,
         "po_number": po_number if po_number is not None else "",
@@ -290,6 +302,7 @@ def merge_case(case_id: str, cache_root: Path) -> dict:
         "code_edition_note": "\n".join(notes),
         "materials": materials_out,
         "findings": findings_out,
+        "excluded_documents": excluded_docs,
     }
 
     # Write output, backing up any existing file first.
@@ -312,6 +325,7 @@ def merge_case(case_id: str, cache_root: Path) -> dict:
         "missing_domains": missing,
         "n_materials": len(materials_out),
         "n_findings": len(findings_out),
+        "n_excluded_docs": len(excluded_docs),
         "written": str(out_path).replace("\\", "/"),
         "backup": str(backup_path).replace("\\", "/") if backup_path else None,
         "issues": issues,

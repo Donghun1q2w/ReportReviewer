@@ -52,6 +52,7 @@ def _purge_stem_renders(case_cache: Path, cert_stem: str) -> None:
         (case_cache / "png", re.compile(re.escape(cert_stem) + r"_p\d+\.png(\.rot\.tmp)?\Z")),
         (case_cache / "tiles", re.compile(re.escape(cert_stem) + r"_p\d+_r\dc\d\.png\Z")),
         (case_cache / "orient", re.compile(re.escape(cert_stem) + r"__sheet\d+\.png\Z")),
+        (case_cache / "classify", re.compile(re.escape(cert_stem) + r"__sheet\d+\.png\Z")),
     )
     for directory, pattern in targets:
         if not directory.is_dir():
@@ -189,8 +190,13 @@ def prep_case(
                 alignment_path,
                 orientation_path,
             )
+            from scripts.doctype import doctype_path  # noqa: PLC0415
             orientation_path(case_cache, cert_stem).unlink(missing_ok=True)
             alignment_path(case_cache, cert_stem).unlink(missing_ok=True)
+            # A fresh render invalidates the Phase 1.6 classification too (page
+            # count/content may change) — drop the doctype sidecar so a stale
+            # classification cannot outlive its pixels.
+            doctype_path(case_cache, cert_stem).unlink(missing_ok=True)
             _purge_stem_renders(case_cache, cert_stem)
             pngs = split_pdf(cert_pdf, png_dir, dpi=dpi)
             rendered_pages = len(pngs)

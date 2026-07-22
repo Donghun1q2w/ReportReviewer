@@ -122,6 +122,30 @@ def test_missing_pngs_raises(tmp_path: Path):
         build_orient_sheets("9", tmp_path / ".cache")
 
 
+def test_classify_sheets_dirname_writes_to_separate_dir(tmp_path: Path):
+    """T-3: sheets_dirname='classify' writes to classify/ and never touches
+    orient/ — the default-path behaviour (orient/) is unchanged."""
+    cache_root = tmp_path / ".cache"
+    _mk_pages(cache_root / "9" / "png", "CERT_A", 3)
+
+    summary = build_orient_sheets("9", cache_root, sheets_dirname="classify")
+    classify_dir = cache_root / "9" / "classify"
+    assert (classify_dir / "CERT_A__sheet01.png").exists()
+    assert (classify_dir / SHEETS_INDEX_NAME).exists()
+    # Default orient/ dir was not created by the classify build.
+    assert not (cache_root / "9" / SHEETS_DIRNAME).exists()
+    assert classify_dir.name in summary["sheets_dir"]
+
+
+def test_default_dirname_still_orient(tmp_path: Path):
+    """T-3: omitting sheets_dirname keeps the byte-identical orient/ path."""
+    cache_root = tmp_path / ".cache"
+    _mk_pages(cache_root / "9" / "png", "CERT_A", 2)
+    build_orient_sheets("9", cache_root)
+    assert (cache_root / "9" / SHEETS_DIRNAME / "CERT_A__sheet01.png").exists()
+    assert not (cache_root / "9" / "classify").exists()
+
+
 def test_no_ocr_import():
     """Guard: sheet composition imports no OCR/text library (C1)."""
     path = Path(__file__).resolve().parent.parent / "scripts" / "orient_sheets.py"

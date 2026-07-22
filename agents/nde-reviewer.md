@@ -58,6 +58,8 @@ This agent **does not spawn nested sub-agents.** All parallelization — case fa
 
 > **MPS special requirements are read from the shared digest**: read **only the agent's own scope block (`nde_microstructure`)** from `.cache/<case>/<case>_mps_digest.json` (extracted once by mps-extractor, each item includes source + verbatim citation) as evidence. **Do not open the original MPS PDF/PNG (`standard inspection MPS cleanup data/`)** — fall back to it only when the digest contains no requirements for the relevant grade. Numeric limit values still come from `<case>_limits.json` (CSV-derived) first; MPS special requirement text comes from the digest. Crop is used only on cert cells.
 
+> **Excluded-page rule (기준 19)**: Page entries whose `doc_type` is an EXCLUDED type (see 기준 19) are enclosed non-MTC documents: do not compare their values, do not register their grades/heats into `materials[]`, do not cite them as evidence. The exclusion memo is emitted deterministically by `merge-reviews` — do not raise findings about them.
+
 > **Scope enrichment on grade correction or mis-routing**: when `unrouted` handling or crop re-read corrects the grade, supplement not just the relevant grade row in `data\nde_rules.csv` but also **all NDE·Microstructure category rows for that grade in `data\mps_overrides.csv`** and the **`nde_microstructure` block special requirements in mps_digest.json** (fall back to original MPS PDF only when the digest has no requirements for that grade), then cross-check. The MPS-first principle applies equally on the manual routing path.
 
 ---

@@ -49,12 +49,16 @@ The review workflow reads only folders and files in the **3 categories** listed 
 
 Ground-truth evaluation data (reviewer `comments.md`) is accessed **only during the evaluate phase** (code guard enforced). The `rawdata/` originals are off-limits during normal operation (guard blocks access).
 
+> **혼입 동봉 문서는 Phase 1.6에서 페이지 단위 분류·제외** — enclosed mixed-in documents (원자재 성적서·PMI·NDE·치수검사보고서 등) are classified per-page by `doc-classifier` in Phase 1.6, and every non-finished-product page is deterministically excluded from comparison (whitelist: only 완제품 성적서/미상 are reviewed). See 기준 19 in `references/review-criteria.md`.
+
 > **Note on `<case>` / `--case`**: The `<case>` subdirectory and `--case <id>` argument in Quick Start / subcommands above are **exclusively for the plugin test harness (46-case regression)**. In a deployment environment, the 3-category inputs in the working folder are the review unit, and no case_id is requested at session start.
 
 ## Pipeline (Single Compliance Path)
 
 ```
-build-manifest → prep-inputs (PNG body) → [ocr-extractor/claude-opus-4-8] Vision OCR
+build-manifest → prep-inputs (PNG body) → align-inputs (Phase 1.5)
+ → classify-sheets → [doc-classifier/claude-opus-4-8] per-page doctype labels → check-doctype gate (Phase 1.6)
+ → [ocr-extractor/claude-opus-4-8] Vision OCR
  → check-extraction gate → limits lookup
  → [chemistry/mechanical/heat-treatment/nde/format-reviewer parallel delegation]
  → merge-reviews (deterministic merge of partial outputs → review.json)
@@ -65,10 +69,11 @@ build-manifest → prep-inputs (PNG body) → [ocr-extractor/claude-opus-4-8] Vi
 
 ### Review Agents and Partial Outputs
 
-The orchestrator dispatches all 5 domain review agents **in parallel in a single message** during Phase 4. Each agent writes its partial output to `.cache/<case>/`:
+The orchestrator dispatches all 5 domain review agents **in parallel in a single message** during Phase 4; the Phase 1.6 `doc-classifier` runs **once per case earlier** (before OCR, classification only). Each agent writes its partial output to `.cache/<case>/`:
 
 | Agent | model | Partial Output File |
 |---|---|---|
+| `doc-classifier` (Phase 1.6, pre-OCR) | claude-opus-4-8 | `<stem>_doctype.json` |
 | `chemistry-reviewer` | claude-opus-4-8 | `<case>_review_chemistry.json` |
 | `mechanical-reviewer` | claude-opus-4-8 | `<case>_review_mechanical.json` |
 | `heat-treatment-reviewer` | claude-opus-4-8 | `<case>_review_heat_treatment.json` |
@@ -99,7 +104,7 @@ skills/cert-review/        # plugin (skill) root — CLI execution base
 │   ├── merge_reviews.py   # deterministic merge of 5-agent partial outputs
 │   └── ...                # prep/validate/eval + domain helpers
 ├── references/            # domain rules + JSON schemas
-└── tests/                 # pytest regression (84 tests, including 11 in test_merge_reviews.py)
+└── tests/                 # pytest regression (184 tests, including 18 in test_merge_reviews.py, test_doctype.py for Phase 1.6)
 ```
 
 Sub-agent files (`agents/*.md`) reside under the **plugin root** (one level above this directory). The CLI is run from the skill directory.
