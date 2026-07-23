@@ -2,6 +2,7 @@
 
 | Date | Plan | Status |
 | --- | --- | --- |
+| 2026-07-23 | [동봉 원자재 성적서(MILL CERT) 검증 도메인·에이전트 추가(기준 21/22)](plans/2026-07-23_183734_mill-cert-review-domain.md) | Completed (v1.7.0, 커밋 008b357, pytest 280/280, DoD-a 10/10 + E2E 5/5 — PU2601564 단조 인장 전사복제 FAIL 재현) |
 | 2026-07-23 | [MPS 요구사항 대비 동봉 문서 첨부 자동판정(기준 20)](plans/2026-07-23_091508_mps-required-attachment-judgement.md) | Completed (v1.5.0, DoD 10/10, pytest 208/208, 실물 E2E PU2601565-01 AC-5·6 통과·ladder A/B/C/D 검증) |
 | 2026-07-22 | [혼입 문서 페이지 분류(Phase 1.6 doc-classify) 및 비교 제외 — 1단계](plans/2026-07-22_170520_mtc-doc-classification-phase16.md) | Completed (DoD 10/10, pytest 184/184 독립 재검증, 커밋 8d38090+4433fd1, push 완료) |
 | 2026-07-09 | [페이지 회전 정렬(문서 정렬 에이전트) — OCR 이전 페이지별 방향 교정](plans/2026-07-09_085623_page-orientation-alignment.md) | Completed (v1.3.0, pytest 145/145, opus 채택 95.89%) |

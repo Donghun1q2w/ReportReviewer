@@ -1,5 +1,14 @@
 # Revision History
 
+## 2026-07-23 — 동봉 원자재 성적서(MILL CERT) 검증 도메인·에이전트 추가(기준 21/22) — v1.7.0
+
+**Detail**: [revisions/2026-07-23_200813_mill-cert-review-domain](revisions/2026-07-23_200813_mill-cert-review-domain.md) · **Plan**: [2026-07-23_183734_mill-cert-review-domain](plans/2026-07-23_183734_mill-cert-review-domain.md)
+
+- 신설: `scripts/mill_cert.py`(결정적 교차비교 팩 — 연결성·단조 술어·인장 상태기계·화학 공통원소) · `agents/mill-cert-reviewer.md`(조건부 위임, opus 4.8) · 테스트 2종(+42)
+- 수정: cli(`mill-cert` 서브커맨드, 런 0건도 exit 0) · merge_reviews(선택적 6도메인 — 부재 시 무경고) · compliance_report(조건부 7시트 "원자재 MILL CERT 검토") · extraction-schema(가산 2.1, 인스턴스 2.0 유지) · ocr-extractor(MTC_RAW_MATERIAL 전사 예외+배율 정규화) · review-criteria(기준 21/22 신설, 19.2/20.5 예외) · SKILL/README/marketplace(v1.7.0, 10종)
+- 핵심 규칙: 화학 불일치=원소별 '주의'(동일은 정상 — 제강사 성적 인용 관행) / **단조품 인장 전부 동일=FAIL**(전사 복제 의심, PU2601564 실측 동인 — YS 447.77/TS 582.71/EL 30.94/RA 75.64 소수점 동일). n=1 보수 규칙·scale_suspect crop 절차 포함.
+- refpack·attachments·doctype·eval_harness·compare_engine **무수정 보존**. pytest **280 passed**(238+42). 커밋 `008b357`(push 보류). E2E(PU2601564 FAIL 재현)는 오케스트레이터 사후 수행 예정.
+
 ## 2026-07-23 — cert-review-annotate Phase C: 이미지 burn-in → 네이티브 PDF 주석 오브젝트 전환
 
 **Detail**: [revisions/2026-07-23_164333_cert-review-annotate-native-pdf-annotations](revisions/2026-07-23_164333_cert-review-annotate-native-pdf-annotations.md) · **Plan**: [2026-07-23_160912_cert-review-annotate-native-pdf-annotations-v2](plans/2026-07-23_160912_cert-review-annotate-native-pdf-annotations-v2.md)
