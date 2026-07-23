@@ -20,6 +20,64 @@
 - **6시트 한글 리포트**: 검토 총괄 / 화학성분 / 기계적성질 / 열처리 / 표기·형식 / 지적사항 종합
 - **검토 결과 PDF 주석(별도 스킬 `cert-review-annotate`)**: 검토 후 후순위 단계로 주의/N/A/FAIL 판정(PASS 제외)을 원본 cert PDF 위에 테두리 사각형(채우기 없음)+50자 한글 라벨로 **image burn-in**. 좌표는 전용 `annotation-locator` 에이전트가 review.json에서 산출하고 색은 리포트와 동일하며, cert-review 검토 로직은 무수정
 
+## 전체 파이프라인 (작업 순서도)
+
+Phase 0~6 전체 흐름. 사각형=결정적 CLI(Python), 육각형=Claude Vision 에이전트 위임, 마름모=게이트(실패 시 다음 단계 진행 금지).
+
+```mermaid
+flowchart TD
+    P0["Phase 0<br/>build-manifest"] --> P1
+
+    subgraph P1["Phase 1 — 입력 준비"]
+        direction TB
+        cs["cache-status<br/>(fresh/legacy 게이트)"] --> pi["prep-inputs<br/>(PDF→PNG, 300 DPI)"]
+    end
+    P1 --> P15
+
+    subgraph P15["Phase 1.5 — 페이지 회전 정렬"]
+        direction TB
+        os["orient-sheets"] --> pa{{"page-aligner 위임<br/>(opus)"}}
+        pa --> ai["align-inputs<br/>(무손실 회전, 멱등)"]
+        ai --> ti["tile-inputs<br/>(2×2 타일)"]
+    end
+    P15 --> P16
+
+    subgraph P16["Phase 1.6 — 혼입 문서 분류"]
+        direction TB
+        clss["classify-sheets"] --> dc{{"doc-classifier 위임<br/>(opus, 13종 taxonomy<br/>+ heat/PO 판독)"}}
+        dc --> cd{"check-doctype<br/>[GATE] exit 0 필수"}
+    end
+    P16 -->|통과| P2
+
+    subgraph P2["Phase 2 · 2.5 — OCR / MPS 추출"]
+        direction TB
+        pm["prep-mps"] --> oe{{"ocr-extractor 위임<br/>(opus, full/fragment)"}}
+        pm --> me{{"mps-extractor 위임<br/>(opus, digest 1회)"}}
+        oe --> ce["check-extraction<br/>[GATE]"]
+    end
+    P2 -->|통과| P4
+
+    P3["Phase 3<br/>validate-refs<br/>(CSV 7종 583행, fan-out 전 1회)"] -.-> P4
+
+    subgraph P4["Phase 4 — 규정 검토"]
+        direction TB
+        lim["limits + attachments<br/>(기준 20 heat 대조)"] --> rv{{"5개 reviewer 병렬 위임<br/>chemistry · mechanical<br/>heat-treatment · nde(+기준20)<br/>format(+기준20)"}}
+        rv --> mr["merge-reviews<br/>(결정적 병합)"]
+    end
+
+    P4 --> P5["Phase 5<br/>compliance_report<br/>(6시트 한글 Excel)"]
+    P5 --> P6["Phase 6<br/>evaluate<br/>(선택, GT 있을 시)"]
+
+    P5 -.선택.-> ANN
+
+    subgraph ANN["cert-review-annotate (후순위, 별도 스킬)"]
+        direction TB
+        al2{{"annotation-locator 위임<br/>(opus)"}} --> anc["annotate CLI<br/>(image burn-in)"]
+    end
+```
+
+각 단계의 정확한 CLI 명령은 아래 "사용" 절, 상세 절차 서술은 [`skills/cert-review/SKILL.md`](skills/cert-review/SKILL.md) 참조.
+
 ## 설치
 
 ### 1) Claude Code 플러그인으로 등록 (마켓플레이스)
