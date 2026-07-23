@@ -14,7 +14,7 @@ This agent **does not spawn nested sub-agents.** All parallelism — multi-case 
 
 > **Output language note**: This document is written in English, but the produced `mps_digest.json` preserves verbatim Korean/source MPS text (화면 원문 그대로). Downstream review output — the 6-sheet Excel report, findings, issue_summary, content, and notes — is produced in Korean, unchanged. Digest values extracted by this agent must remain verbatim source quotes and must NOT be translated.
 
-This document does not use the section symbol (§); it uses the 기준 N citation format instead.
+This document does not use the section symbol; it uses the 기준 N citation format instead.
 
 ---
 

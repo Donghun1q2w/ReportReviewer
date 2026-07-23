@@ -92,3 +92,59 @@ def test_no_excluded_documents_field_is_backward_compatible(tmp_path: Path):
     flat = [str(c) for row in rows for c in row if c is not None]
     assert not any("검토 제외 문서" in c for c in flat)
     assert any("Seamless Pipe" in c for c in flat)  # material still rendered
+
+
+def test_excluded_documents_related_heat_column_rendered(tmp_path: Path):
+    """T-4 (기준 20): related identifiers render a '관련 Heat/품목' cell; heat is
+    preferred over PO, and Korean reads back intact."""
+    review = _base_review()
+    review["excluded_documents"] = [
+        {
+            "stem": "certA", "doc_type": "NDE_REPORT",
+            "doc_type_ko": "비파괴검사 보고서(동봉)",
+            "pages": [22], "page_range": "p.22",
+            "note": "제외됨: 비파괴검사 보고서(동봉) — 동봉 문서로 분류되어 제외",
+            "related_heat_nos": ["14328912", "23215117"],
+            "related_po_items": [], "related_confidence": "high",
+        },
+        {
+            "stem": "certA", "doc_type": "PMI_REPORT",
+            "doc_type_ko": "PMI 보고서(동봉)",
+            "pages": [23], "page_range": "p.23",
+            "note": "제외됨: PMI 보고서(동봉) — 동봉 문서로 분류되어 제외",
+            "related_heat_nos": [], "related_po_items": ["PU2601565-039"],
+            "related_confidence": "high",
+        },
+    ]
+    review_path = tmp_path / "PU_review.json"
+    review_path.write_text(json.dumps(review, ensure_ascii=False), encoding="utf-8")
+
+    out = build_compliance_report(review_path, tmp_path / "out.xlsx")
+    rows = _read_summary_rows(out)
+    flat = [str(c) for row in rows for c in row if c is not None]
+
+    # heat preferred over PO.
+    assert any("관련 Heat/품목: 14328912, 23215117" in c for c in flat)
+    # PO-only report falls back to PO items.
+    assert any("관련 Heat/품목: PU2601565-039" in c for c in flat)
+    assert not any("�" in c or "占" in c for c in flat)
+
+
+def test_excluded_documents_missing_related_renders_unknown(tmp_path: Path):
+    """A record with no related fields (legacy merge) renders '확인 불가'."""
+    review = _base_review()
+    review["excluded_documents"] = [
+        {
+            "stem": "certA", "doc_type": "MTC_RAW_MATERIAL",
+            "doc_type_ko": "원자재 성적서(동봉 Mill Cert)",
+            "pages": [30], "page_range": "p.30",
+            "note": "제외됨: 원자재 성적서(동봉 Mill Cert) — 동봉 문서로 분류되어 제외",
+        },
+    ]
+    review_path = tmp_path / "PU_review.json"
+    review_path.write_text(json.dumps(review, ensure_ascii=False), encoding="utf-8")
+
+    out = build_compliance_report(review_path, tmp_path / "out.xlsx")
+    rows = _read_summary_rows(out)
+    flat = [str(c) for row in rows for c in row if c is not None]
+    assert any("관련 Heat/품목: 확인 불가" in c for c in flat)

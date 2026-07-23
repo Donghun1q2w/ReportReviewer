@@ -13,6 +13,16 @@ The single deterministic authority for exclusion is this sidecar's ``pages`` map
 even if the OCR agent forgets to stamp ``doc_type`` on an entry, the L2 inventory
 filter (refpack) and L4 report injection (merge_reviews) still exclude correctly.
 
+A 1.1 sidecar may additionally carry an advisory ``documents[]`` array whose
+entries record per-run related identifiers (``related_heat_nos`` /
+``related_po_items`` / ``related_confidence``) read verbatim from the enclosed
+document's own printed table. ``excluded_documents_for_case`` joins each run to
+its advisory entry (same doc_type + maximal page overlap) so those fields ride
+on each ``excluded_documents[]`` record — the single input for the 기준 20
+requirement-vs-attachment judgement (``scripts.attachments``). This is metadata
+only: the ``pages`` map remains the sole exclusion authority, and a 1.0 sidecar
+(no ``documents``) falls back to empty related lists + ``"low"`` confidence.
+
 Taxonomy single source: ``DOC_TYPES`` / ``DOC_TYPE_LABELS_KO`` below. The same 13
 labels are mirrored (kept in sync — see Definition of Done taxonomy check) in
 ``agents/doc-classifier.md``, ``references/extraction-schema.json`` (doc_type
@@ -150,22 +160,81 @@ def compress_pages(pages: list[int]) -> str:
     return ", ".join(parts)
 
 
+def _advisory_documents(doctype: dict) -> list[dict]:
+    """Return a sidecar's advisory ``documents[]`` entries (dicts only).
+
+    A 1.0 sidecar (no ``documents`` array) or a malformed value yields ``[]`` so
+    the join below degrades to the empty-metadata fallback.
+    """
+    docs = doctype.get("documents")
+    return [d for d in docs if isinstance(d, dict)] if isinstance(docs, list) else []
+
+
+def _match_run_meta(pages: list[int], doc_type: str, advisory: list[dict]) -> dict:
+    """Join a page RUN to its advisory ``documents[]`` entry, returning the
+    run's related-identifier metadata for 기준 20.
+
+    The matching advisory entry is the one with the same ``doc_type`` and the
+    **maximal page overlap** with the run (0 overlap → no match). Conservative
+    fallbacks: no match (or a 1.0 sidecar) → empty related lists + ``"low"``
+    confidence; an unrecognised confidence token is coerced to ``"low"``. The
+    ``pages`` map stays the exclusion authority — this only supplies advisory
+    related metadata, never affects which pages are excluded.
+    """
+    best: dict | None = None
+    best_overlap = 0
+    page_set = set(pages)
+    for d in advisory:
+        if str(d.get("doc_type")) != doc_type:
+            continue
+        try:
+            overlap = len(page_set & {int(p) for p in (d.get("pages") or [])})
+        except (TypeError, ValueError):
+            continue
+        if overlap > best_overlap:
+            best, best_overlap = d, overlap
+
+    def _strs(v) -> list[str]:
+        return [str(x) for x in v] if isinstance(v, list) else []
+
+    conf = str(best.get("related_confidence")) if best else ""
+    return {
+        "related_heat_nos": _strs(best.get("related_heat_nos")) if best else [],
+        "related_po_items": _strs(best.get("related_po_items")) if best else [],
+        "related_confidence": conf if conf in ("high", "low") else "low",
+    }
+
+
 def excluded_documents_for_case(case_cache: Path) -> list[dict]:
     """Build the ``excluded_documents[]`` list for a case from every doctype sidecar.
 
     Each stem's excluded pages are grouped into RUNS of consecutive pages
     sharing the same doc_type (a raw-material Mill Cert block, an NDE report
     block, …). Sorted by ``(stem, first page)``. No sidecar in the case → ``[]``.
-    The advisory ``documents`` array a sidecar may carry is NOT consulted here —
-    the ``pages`` map is the single authority.
+
+    The ``pages`` map is the single exclusion authority. In addition, each run is
+    joined (same doc_type + maximal page overlap) to the sidecar's advisory
+    ``documents[]`` entry so its 기준 20 related identifiers ride along on the
+    record: ``related_heat_nos``, ``related_po_items``, ``related_confidence``
+    (verbatim from the enclosed document's own printed table). A 1.0 sidecar (no
+    ``documents`` array) falls back to ``[]``/``[]``/``"low"`` — the exclusion
+    behaviour is identical to before.
     """
     case_cache = Path(case_cache)
     docs: list[dict] = []
     for jp in sorted(case_cache.glob(f"*{DOCTYPE_SUFFIX}")):
         stem = jp.name[: -len(DOCTYPE_SUFFIX)]
-        excluded = excluded_pages_map(case_cache, stem)
+        doctype = load_doctype(case_cache, stem)
+        if not doctype:
+            continue
+        excluded = {
+            page_no: label
+            for page_no, label in _page_labels(doctype).items()
+            if label in EXCLUDED_DOC_TYPES
+        }
         if not excluded:
             continue
+        advisory = _advisory_documents(doctype)
         for pages, doc_type in _group_runs(excluded):
             ko = DOC_TYPE_LABELS_KO.get(doc_type, doc_type)
             docs.append({
@@ -178,6 +247,7 @@ def excluded_documents_for_case(case_cache: Path) -> list[dict]:
                     f"제외됨: {ko} — 완제품 성적서가 아닌 동봉 문서로 분류되어 "
                     f"비교 검토에서 제외"
                 ),
+                **_match_run_meta(pages, doc_type, advisory),
             })
     docs.sort(key=lambda d: (d["stem"], d["pages"][0] if d["pages"] else 0))
     return docs

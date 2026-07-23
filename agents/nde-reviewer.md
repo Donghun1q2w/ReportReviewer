@@ -55,10 +55,11 @@ This agent **does not spawn nested sub-agents.** All parallelization — case fa
 | `.cache/<case>/<stem>_extracted.json` | `nde` block + `remarks` (PMI/ferrite/Code Case are conventionally noted in footnotes — always read `remarks` alongside) |
 | `.cache/<case>/<case>_limits.json` | Only the **`nde_rules`·`mps_overrides` rows with NDE/Microstructure category** (including 3 provenance types) |
 | MPS digest (`.cache/<case>/<case>_mps_digest.json`) | Read **only the agent's own scope block (`nde_microstructure`)** as evidence for MPS special requirements (NDE·δ-ferrite·Code Case·PMI requirements) |
+| `.cache/<case>/<case>_attachments.json` | 기준 20 attachment index (enclosed PMI/NDE/Microstructure report presence per heat). **Absent or `sidecar_present: false` → skip attachment judgement entirely (legacy behaviour).** |
 
 > **MPS special requirements are read from the shared digest**: read **only the agent's own scope block (`nde_microstructure`)** from `.cache/<case>/<case>_mps_digest.json` (extracted once by mps-extractor, each item includes source + verbatim citation) as evidence. **Do not open the original MPS PDF/PNG (`standard inspection MPS cleanup data/`)** — fall back to it only when the digest contains no requirements for the relevant grade. Numeric limit values still come from `<case>_limits.json` (CSV-derived) first; MPS special requirement text comes from the digest. Crop is used only on cert cells.
 
-> **Excluded-page rule (기준 19)**: Page entries whose `doc_type` is an EXCLUDED type (see 기준 19) are enclosed non-MTC documents: do not compare their values, do not register their grades/heats into `materials[]`, do not cite them as evidence. The exclusion memo is emitted deterministically by `merge-reviews` — do not raise findings about them.
+> **Excluded-page rule (기준 19)**: Page entries whose `doc_type` is an EXCLUDED type (see 기준 19) are enclosed non-MTC documents: do not compare their values, do not register their grades/heats into `materials[]`, do not cite them as evidence. The exclusion memo is emitted deterministically by `merge-reviews` — do not raise findings about them. **Exception (기준 20)**: the **presence** of an enclosed report and its printed identifier columns may be used for attachment judgement via `<case>_attachments.json` — the report's measurement **values** remain excluded from comparison.
 
 > **Scope enrichment on grade correction or mis-routing**: when `unrouted` handling or crop re-read corrects the grade, supplement not just the relevant grade row in `data\nde_rules.csv` but also **all NDE·Microstructure category rows for that grade in `data\mps_overrides.csv`** and the **`nde_microstructure` block special requirements in mps_digest.json** (fall back to original MPS PDF only when the digest has no requirements for that grade), then cross-check. The MPS-first principle applies equally on the manual routing path.
 
@@ -88,6 +89,25 @@ When an NDE requirement is triggered by product geometry (end configuration, etc
 - (b) **Violation determination**: "requirement not fulfilled (e.g., MT present but PT 미수행/미기재)".
 
 > Exception to the 기준 17.6 merge principle — trigger identification and requirement violation are distinct determinations; one finding each.
+
+---
+
+## Requirement-vs-Attachment (기준 20 — own doc types: PMI_REPORT · NDE_REPORT · MICROSTRUCTURE_REPORT)
+
+When the case passed the Phase 1.6 doctype gate, `<case>_attachments.json` (`sidecar_present: true`) tells you, per enclosed-report type, which finished-product heats it covers (`heat_coverage`, from high-confidence identifier reads only) and which related identifiers could not be matched (`unmatched_heat_nos`, `related_po_items`). Apply the ladder below **once** per (heat h, requirement R) — this agent is the single owner of PMI/NDE/Microstructure attachment judgement, so no cross-agent conflict is possible. **If the file is absent or `sidecar_present: false`, skip this entirely** (legacy behaviour — judge only the body-printed values as today).
+
+| 상태 | 본문 인쇄값 | 첨부 (해당 doc_type) | 처리 (nde[] row / finding) |
+|---|---|---|---|
+| **A** | 있음 (판정 가능) | 무관 | **기존 로직 그대로** (PASS/FAIL). 첨부는 row note에 참고 기재만 허용. 첨부판정 스킵 — "PMI 미첨부" finding 절대 금지 |
+| **B** | 없음 (`/`·미기재) | 케이스 전체에 해당 유형 0건 | 요구 근거 인용 가능(17.1) + `sidecar_present: true` + h가 검토 대상 material일 때만: **ActionRequired** "『R』 결과 본문 미기재 및 별도 보고서 미첨부". sidecar 부재(레거시 캐시) 시 기존대로 생략 |
+| **C** | 없음 | 있음 + `heat_coverage`에 h 포함 (`related_confidence: high`) | row **PASS**, cert에 "본문 미기재 — 별도 <유형> 보고서 첨부 확인 (p.N)". finding 없음. **첨부 보고서의 값 자체는 기준 19.2에 따라 비교하지 않음을 note에 명기** |
+| **D** | 없음 | 있음 + h 미포함(식별자 불일치·판독 불가·confidence low) | row **주의** + **Question** finding "첨부 <유형> 보고서의 대상 heat/품목 확인 불가" (`related_po_items` 있으면 본문 Detailed List로 1회 대조 시도 후 해소되면 C로 승격). 자동 FAIL 금지 |
+
+- **상태 A 우선**: whenever the cert body (header · table · remarks) carries the item's value, perform the existing verdict only and **skip attachment judgement** (structurally blocks duplicate/conflicting findings). A `heat_coverage` hit may be noted in the row for reference, never as a separate finding.
+- **상태 B** requires the 3-part gate (결정 5-1): requirement basis cited (MPS document no. + clause, or a `nde_rules` CSV row per 17.1) **and** `sidecar_present: true` **and** h is a review-target material. Severity ceiling is **ActionRequired** (never Reject — a documentation-completeness matter, 기준 9.2).
+- **상태 C**: write "첨부 보고서의 값은 기준 19.2에 따라 비교하지 않는다" into the row note. Relation to 기준 17.4 "Report No. 인용 시 주의 격하": when the body cites a Report No. **and** that type's attachment coverage matches, upgrade to 상태 C (PASS); when no such attachment exists, keep the existing '참조 리포트 확인 필요' 주의.
+- **상태 D**: attempt the PO-item resolution once (cross-check `related_po_items` against the body Detailed List); any residual uncertainty stays **Question only** — do not auto-FAIL.
+- **요구 없는 첨부는 finding 금지** (결정 5-5, 기준 17.7 정보성): if the MPS carries no requirement for a type (e.g. no PMI requirement), an enclosed report of that type produces **no finding at all** — it is reported only via `excluded_documents`.
 
 ---
 

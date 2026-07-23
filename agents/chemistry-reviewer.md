@@ -187,7 +187,7 @@ This agent observes the following gates and vocabulary, consulting the relevant 
 - **기준 17** — Finding issuance gate (precision defense): requirement-basis gate (17.1, issue only when MPS document number + clause or code "shall" can be cited), applicability gate (17.2), limit-source gate (17.3, hold FAIL if grade token mismatch or source conflict), absence-claim gate (17.4, Product Analysis blank is a finding only when "shall"/product-spec mandates it — not when "purchaser may" is the only basis), OCR re-verification gate (17.5), merge principle (17.6, multiple Heats with the same issue → 1 merged finding listing locations), informational separation (17.7).
 - **기준 18** — Reviewer standard vocabulary: exceeding max → "기준값 초과", below min → "기준 미달", not recorded → "누락"/"미기재", value mismatch → "불일치", transcription error → "오기", etc. Include the key element symbol, measured value, and limit value in the issue summary. Do not write PASS sentences in findings.
 - **MPS-priority principle**: `mps_overrides` Chemistry/TraceElement rows take priority over the Code limits. When the two conflict, apply MPS; if 3 or more attributes mismatch simultaneously (기준 17.3), suspect a skill-side limit-selection error first and re-verify.
-- **Output notation**: Section symbols (§) are prohibited — cite criteria in the "기준 N" format.
+- **Output notation**: Section symbols are prohibited — cite criteria in the "기준 N" format.
 
 ---
 

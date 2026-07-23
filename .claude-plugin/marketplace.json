@@ -5,13 +5,13 @@
   },
   "metadata": {
     "description": "파이프 자재 MTC(성적서) 자동 검토 Claude Code 플러그인",
-    "version": "1.4.0"
+    "version": "1.5.0"
   },
   "plugins": [
     {
       "name": "cert-review",
       "source": "./",
-      "description": "파이프 자재 MTC(Mill Test Certificate / 성적서)를 MPS(구매시방서) 및 ASTM/ASME 코드 기준과 대조 검토하고 6시트 한글 Excel 리포트를 생성한다. OCR 이전 페이지 회전 자동 정렬(page-aligner) + 페이지 단위 문서유형 분류·동봉 비-완제품 문서 자동 제외(Phase 1.6, doc-classifier) + 타일 기반 Claude Vision OCR + MPS digest 1회 추출 + 에이전트 9종(정렬·문서분류·OCR·MPS·화학·기계·열처리·NDE·표기형식). 모든 기준값은 ref_code/MPS/CSV에서 인용(출처 메타 검증), LLM 생성 금지.",
+      "description": "파이프 자재 MTC(Mill Test Certificate / 성적서)를 MPS(구매시방서) 및 ASTM/ASME 코드 기준과 대조 검토하고 6시트 한글 Excel 리포트를 생성한다. OCR 이전 페이지 회전 자동 정렬(page-aligner) + 페이지 단위 문서유형 분류·동봉 비-완제품 문서 자동 제외(Phase 1.6, doc-classifier) + MPS 요구 대비 동봉 문서 첨부여부 heat 단위 자동판정(기준 20) + 타일 기반 Claude Vision OCR + MPS digest 1회 추출 + 에이전트 9종(정렬·문서분류·OCR·MPS·화학·기계·열처리·NDE·표기형식). 모든 기준값은 ref_code/MPS/CSV에서 인용(출처 메타 검증), LLM 생성 금지.",
       "category": "productivity",
       "strict": false,
       "skills": [

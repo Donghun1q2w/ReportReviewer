@@ -626,6 +626,32 @@ def cmd_limits(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_attachments(args: argparse.Namespace) -> int:
+    """Emit the per-case 기준 20 attachment index (enclosed-document presence)."""
+    from scripts.attachments import build_attachments_pack  # noqa: PLC0415
+
+    try:
+        pack = build_attachments_pack(case_id=args.case, cache_root=CACHE_DIR)
+    except FileNotFoundError as e:
+        print(f"[ERROR] attachments: {e}", file=sys.stderr)
+        return 1
+
+    atts = pack["attachments"]
+    print(
+        f"[OK] attachments --case {args.case}: {len(atts)} enclosed run(s), "
+        f"sidecar_present={str(pack['sidecar_present']).lower()}"
+    )
+    cov = pack["heat_coverage"]
+    if cov:
+        parts = [f"{dt} {len(heats)} heat" for dt, heats in sorted(cov.items())]
+        print(f"     coverage: {', '.join(parts)}")
+    unmatched_total = sum(len(a.get("unmatched_heat_nos") or []) for a in atts)
+    if unmatched_total:
+        print(f"     unmatched related heats: {unmatched_total}")
+    print(f"     report: {pack['output_path']}")
+    return 0
+
+
 def cmd_merge_parts(args: argparse.Namespace) -> int:
     """Merge chunked Vision OCR fragments into <stem>_extracted.json."""
     from scripts.merge_parts import merge_case  # noqa: PLC0415
@@ -832,6 +858,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("limits", help="Per-case reference-limit pack (relevant CSV rows)")
     p.add_argument("--case", required=True)
     p.set_defaults(func=cmd_limits)
+
+    p = sub.add_parser("attachments", help="기준 20: enclosed-document attachment index (requirement-vs-attachment input)")
+    p.add_argument("--case", required=True)
+    p.set_defaults(func=cmd_attachments)
 
     p = sub.add_parser("merge-parts", help="Merge chunked Vision fragments into <stem>_extracted.json")
     p.add_argument("--case", required=True)

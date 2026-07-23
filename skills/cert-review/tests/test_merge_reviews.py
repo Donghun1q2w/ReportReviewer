@@ -504,7 +504,46 @@ def test_excluded_documents_injected_from_sidecar(tmp_path):
     assert ex[1]["pages"] == [55]
     assert ex[0]["doc_type_ko"] == "원자재 성적서(동봉 Mill Cert)"
     assert all("제외됨" in d["note"] for d in ex)
+    # 1.0 sidecar → related fields present but empty/low (E1 fallback).
+    assert all(d["related_heat_nos"] == [] for d in ex)
+    assert all(d["related_confidence"] == "low" for d in ex)
     # findings[] must NOT be polluted by exclusion memos (기준 17.7).
+    assert [f["content"] for f in out["findings"]] == ["Cr out of range"]
+
+
+def test_excluded_documents_related_fields_from_11_sidecar(tmp_path):
+    """T-3 (기준 20): a 1.1 sidecar relays related identifiers into review.json;
+    findings stay untouched."""
+    case = tmp_path / "99"
+    _write_partial(case, "chemistry", materials=[_material("chemistry")],
+                   findings=[_finding(1, "Chem", "Cr out of range")])
+    case.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": "1.1",
+        "stem": "certA",
+        "pages": {"1": "MTC_FINISHED", "22": "NDE_REPORT", "23": "PMI_REPORT"},
+        "uncertain_pages": [],
+        "documents": [
+            {"doc_type": "NDE_REPORT", "pages": [22],
+             "related_heat_nos": ["14328912"], "related_po_items": [],
+             "related_confidence": "high"},
+            {"doc_type": "PMI_REPORT", "pages": [23],
+             "related_heat_nos": [], "related_po_items": ["PU2601565-039"],
+             "related_confidence": "high"},
+        ],
+    }
+    (case / "certA_doctype.json").write_text(
+        json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+    )
+
+    merge_case("99", tmp_path)
+    out = json.loads((case / "99_review.json").read_text(encoding="utf-8"))
+    ex = {d["doc_type"]: d for d in out["excluded_documents"]}
+    assert ex["NDE_REPORT"]["related_heat_nos"] == ["14328912"]
+    assert ex["NDE_REPORT"]["related_confidence"] == "high"
+    assert ex["PMI_REPORT"]["related_po_items"] == ["PU2601565-039"]
+    assert ex["PMI_REPORT"]["related_heat_nos"] == []
+    # findings still clean.
     assert [f["content"] for f in out["findings"]] == ["Cr out of range"]
 
 

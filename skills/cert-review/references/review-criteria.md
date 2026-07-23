@@ -2,7 +2,7 @@
 
 This document is a consolidated set of domain rules referenced **only at the moment of Claude compliance judgment**. All numeric values are cited from ref_code/MPS via the source metadata (3 types) in the plugin's `data/*.csv`; the numbers written in this document are merely copies for readability, and **only the CSV is used for runtime judgment**.
 
-> **Output notation convention**: Do not use the section sign (§) in any output text — report wording, findings, notes, doc_checks, etc. All output text — findings, notes, doc_checks, issue_summary — is authored in Korean (reviewer vocabulary). When referencing a criterion clause in this document, use the "기준 N" format, e.g. `기준 3.1`, `기준 11.2`.
+> **Output notation convention**: Do not use the section sign in any output text — report wording, findings, notes, doc_checks, etc. All output text — findings, notes, doc_checks, issue_summary — is authored in Korean (reviewer vocabulary). When referencing a criterion clause in this document, use the "기준 N" format, e.g. `기준 3.1`, `기준 11.2`.
 
 ## 0. Source Enforcement Principle (C2/C8)
 
@@ -327,7 +327,7 @@ Every finding must pass the gates below to enter `findings[]`. An item caught by
 - Issue a Reject/ActionRequired finding only when you can cite **the current case MPS's document number + clause number** or a **code provision ('shall' level)**. Cannot cite → do not issue.
 - Do not put an item whose action wording ends with "confirmation request/recommended/supplementary review" and has no violating value·provision into findings.
 - **No transfer of clauses from other cases/other MPS families**: do not apply similar clauses from a different purchaser·different MPS (δ-ferrite photo, butt weld 100% MT/PT, PMI, etc.) to the current case merely because the grade is the same.
-- **Distinguish received documents**: do not report a requirement to "state it in a separate document (item list/packing list) submitted together with the CMTR" as "CMTR body entry omission". If the existence of the separate document cannot be confirmed, omit the finding.
+- **Distinguish received documents**: do not report a requirement to "state it in a separate document (item list/packing list) submitted together with the CMTR" as "CMTR body entry omission". Enclosed-document presence is decidable under 기준 20 when the case passed the Phase 1.6 doctype gate (`<case>_attachments.json`, `sidecar_present: true`): judge attachment presence/absence per the 기준 20 ladder. Omit the finding **only** when attachment status cannot be established (doctype sidecar absent — legacy cache), and downgrade to 확인 불가 (Question) when coverage is uncertain — never auto-FAIL on uncertainty.
 - When citing the MPS document-requirement table as basis, confirm by crop-reading whether the relevant row is **marked with (X)**. An empty-parenthesis `( )` item is not a requirement. Do not confuse the reporting-requirement column with the witness/hold column.
 
 ### 17.2 Applicability Gate
@@ -413,6 +413,53 @@ Received MTC PDFs frequently contain, at arbitrary positions (middle or end), pa
 - **제외 페이지의 값은 어떤 도메인 비교에도 사용하지 않는다** — an excluded page's chemistry/mechanical/heat-treatment/NDE values are never compared against Code/MPS/CSV limits, its grade/heat is never registered into `materials[]`, and it is never cited as finding evidence.
 - **제외 사실은 findings가 아니라 review.json의 excluded_documents로 보고한다 (기준 17.7 정보성 분리와 정합)** — the exclusion is emitted deterministically by `merge-reviews` (`excluded_documents`), not as a reviewer finding. Reviewers raise no findings about excluded pages.
 
-### 19.3 Out of scope (future work)
-- **Requirement-vs-attachment auto-judgement is OUT OF SCOPE for this phase.** Whether an MPS-required test report (PMI/NDE/dimension, etc.) was *actually* attached — i.e. auto-verifying required-document completeness by matching MPS requirements against the classified enclosed documents — is deferred to future work.
-- This relates to the existing **기준 17.1 "별도 문서(동봉 문서)" rule**: a requirement to submit a separate/received document alongside the CMTR is not reported as a CMTR body-entry omission, and when the enclosed document's existence cannot be confirmed the finding is omitted. Phase 1.6 only classifies and excludes such enclosed documents; it does not yet decide whether a required enclosure is present or missing.
+### 19.3 Relation to 기준 20 (requirement-vs-attachment)
+- The requirement-vs-attachment auto-judgement formerly deferred here is now specified in **기준 20**. Phase 1.6 additionally records per-run related identifiers (`documents[].related_heat_nos` / `related_po_items`, verbatim from the enclosed document's own printed table) which 기준 20 consumes.
+- 기준 19.2 is **unchanged**: an excluded page's measurement values are still never compared. 기준 20 judges only the **presence and heat/item coverage** of enclosed documents.
+
+## 20. MPS 요구 대비 동봉 문서 첨부 판정 (requirement-vs-attachment)
+
+Phase 1.6 classifies and excludes enclosed non-finished-product documents (기준 19); 기준 20 additionally decides whether an **MPS-required** separate test report (PMI/NDE/dimension, etc.) was *actually* attached, matched to the finished-product heat it covers. The deterministic input is `<case>_attachments.json` (produced by the `attachments` CLI from the doctype sidecars' related identifiers); the presence/coverage judgement is issued by the owning reviewer per the ladder below. This is a conservative, evidence-gated addition — an absent attachment is at most a documentation-completeness finding, never a numeric rejection.
+
+### 20.1 Scope and single ownership
+
+| doc_type | 요구 출처 | 판정 소유 |
+|---|---|---|
+| `PMI_REPORT` | `nde_rules.csv` PMI 행 / digest `nde_microstructure` | nde-reviewer |
+| `NDE_REPORT` | `nde_rules.csv` / digest `nde_microstructure` (MT/PT/UT/RT) | nde-reviewer |
+| `MICROSTRUCTURE_REPORT` | digest `nde_microstructure` (δ-ferrite 대표사진 등) | nde-reviewer |
+| `APPEARANCE_DIMENSION_REPORT` | digest `document_requirements`/'shall' 특별요구 (치수검사) | format-reviewer |
+| `PHYSICAL_CHEMICAL_TEST_REPORT` | digest `document_requirements` | format-reviewer |
+| `HEAT_TREATMENT_CHART` | digest `document_requirements`/열처리 기록 요구 | format-reviewer |
+| `MTC_RAW_MATERIAL` | digest `document_requirements` (원자재 성적 제출 요구) | format-reviewer |
+| 그 외 (COVER_LETTER·MPS_COPY·DRAWING·REVIEWED_ANNOTATED_COPY) | 판정 대상 아님 (정보성) | — |
+
+- Each doc_type has **exactly one** owning reviewer; a reviewer issues **no finding** on a type it does not own (structurally prevents duplicate/conflicting findings).
+
+### 20.2 Deterministic artifact — `<case>_attachments.json`
+
+- Produced by the `attachments` CLI (`scripts/attachments.py` is the authoritative schema). It joins each excluded enclosed-document run (with its verbatim related identifiers) against the finished-product heat inventory (INCLUDED pages of `*_extracted.json`).
+- Matching is **exact string equality after normalisation** (whitespace stripped, upper-cased) — no fuzzy matching (no 0/O·1/I folding). A related heat absent from the inventory goes to `unmatched_heat_nos` (never auto-failed).
+- `heat_coverage` (per doc_type → inventory heat → page ranges) includes **only `related_confidence: "high"` runs**; a `"low"`-confidence run is informational and is treated as coverage-uncertain (상태 D).
+- `sidecar_present: false` (no doctype sidecar — legacy cache) → the whole 기준 20 judgement is **skipped**; reviewers behave exactly as before.
+
+### 20.3 Precedence ladder (본문 인쇄값 > 첨부 확인 > 확인 불가 > 미첨부)
+
+| 상태 | 본문 인쇄값 | 첨부 (해당 doc_type) | 처리 |
+|---|---|---|---|
+| **A** | 있음 (판정 가능) | 무관 | 기존 로직 그대로 (PASS/FAIL); 첨부판정 스킵 — 미첨부 finding 금지 |
+| **B** | 없음 | 케이스 전체에 해당 유형 0건 | 3중 전제 충족 시 **ActionRequired** "본문 미기재 및 별도 보고서 미첨부"; sidecar 부재 시 생략 |
+| **C** | 없음 | 있음 + coverage에 h 포함(high) | row **PASS** "별도 <유형> 보고서 첨부 확인 (p.N)"; 첨부 값은 기준 19.2에 따라 미비교(note 명기) |
+| **D** | 없음 | 있음 + h 미포함(불일치·판독불가·low) | row **주의** + **Question**; `related_po_items` 있으면 본문 Detailed List 1회 대조 후 해소되면 C 승격; 자동 FAIL 금지 |
+
+- 상태 A always takes precedence: whenever the body carries the item's value, only the existing verdict is issued and attachment judgement is skipped.
+
+### 20.4 Severity policy (conservative)
+
+- 미첨부 확정 = **ActionRequired** 상한 (문서 보완 사안, 기준 9.2 정합 — 첨부 부재만으로 Reject 금지). Its 3-part gate: requirement basis cited (17.1) **and** `sidecar_present: true` **and** the target heat is a review-target material.
+- coverage 불명 = **Question** 상한.
+- **요구가 없는 첨부 = finding 금지** (기준 17.7 정보성 — `excluded_documents`로만 보고). An enclosed report of a type the MPS does not require produces no finding.
+
+### 20.5 Value-comparison prohibition
+
+- 기준 19.2 재확인 — 첨부 보고서 내부 측정값은 판정 근거로 사용 금지. 기준 20 uses only the **presence** and **heat/item coverage** of enclosed documents (their printed identifier columns), never their measured values.

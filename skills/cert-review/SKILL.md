@@ -111,6 +111,7 @@ The review work is delegated to **9 plugin subagents**. Each writes only a parti
         │   ├── <stem>_extracted.json               ← Vision OCR output (channels: body)
         │   ├── <case>_mps_digest.json              ← mps-extractor output (per-domain MPS special requirements + source-text quotes, shared by the 5 review agents)
         │   ├── <case>_limits.json                  ← limits CLI output (relevant reference values + provenance)
+        │   ├── <case>_attachments.json             ← attachments CLI output (기준 20 enclosed-report presence per heat)
         │   ├── <case>_review_<domain>.json         ← review agent partial output (chemistry|mechanical|heat_treatment|nde|format)
         │   └── <case>_review.json                  ← merge-reviews merged result (Phase 5/6 input)
         ├── .cache/cache_status.json                ← cache-status output (fresh/legacy/stale/missing)
@@ -147,6 +148,7 @@ python -m scripts.cli check-extraction --case 4 | --all # Phase 2.5: completenes
 python -m scripts.cli crop --case 4 --stem <stem> --page 2 --bbox 0.10,0.42,0.55,0.50 --dpi 300  # re-read ambiguous cell
 python -m scripts.cli validate-refs                     # Phase 3: CSV provenance validation
 python -m scripts.cli limits --case 4                   # Phase 4: relevant reference-value rows + provenance
+python -m scripts.cli attachments --case 4             # Phase 4: 기준 20 enclosed-report attachment index (sidecar 부재 시에도 exit 0)
 python -m scripts.cli merge-reviews --case 4            # merge the 5 review agents' partial outputs
 python -m scripts.cli evaluate --case 4 | --all         # Phase 6: evaluation against comments.md
 ```
@@ -161,7 +163,7 @@ Do not sacrifice accuracy for time — opus's precise crop reading of numeric ce
 - **Standard** (4–6 pages, several items): target **≤60 min**.
 - **Complex** (>6 pages, or 7+ items, or multiple grades): **60–90 min allowed**. With simultaneous multi-case fan-out, it may grow further due to opus concurrent-call throttling.
 
-Structural devices that keep time proportional to complexity: ① identification is finalized in a single ocr-extractor pass (no reviewer re-verification) ② reviewer crops focus on judgment-critical cells (no indiscriminate full-coverage crop) ③ parallelization of large certs (≤4p segments) (below) ④ **tiling (tile-inputs)** — when ocr-extractor reads 2×2 overlapping tiles, OCR becomes **~2.6× faster and crops drop to nearly 0** relative to the full page (small digits that smeared under downsampling are read without crop) ⑤ **MPS digest sharing (mps-extractor)** — extracting the MPS scan only once and sharing it as a per-domain digest removes the 5 review agents' redundant MPS OCR, shortening the review wall **~3×** (per-reviewer separate Vision-OCR ~95 min → digest consumption ~32 min, with no recall regression) ⑥ **pre-OCR page alignment (orient-sheets + page-aligner + align-inputs)** — rotated scan pages are straightened before tiling, so the tile semantics (r0=header) and digit legibility hold on rotated inputs too; detection costs ~1 sheet Read per 12 pages plus one delegation per case. ⑦ **Phase 1.6 document-type classification (classify-sheets + doc-classifier + check-doctype)** — one added delegation per case adds roughly **+2–4 min (simple) / +3–5 min (standard) / +10–15 min (complex 73p)**, but this is largely **offset by the minimal-entry OCR of excluded pages** (excluded pages skip table transcription), so the net is ≈ **0±5 min** for mixed complex files; the tier targets (≤30 / ≤60 / 60–90 min) are **unchanged**. In multi-case runs, the intra-case 5-agent parallelism overlaps with inter-case parallelism, so keep the total concurrent-agent cap of 6–10.
+Structural devices that keep time proportional to complexity: ① identification is finalized in a single ocr-extractor pass (no reviewer re-verification) ② reviewer crops focus on judgment-critical cells (no indiscriminate full-coverage crop) ③ parallelization of large certs (≤4p segments) (below) ④ **tiling (tile-inputs)** — when ocr-extractor reads 2×2 overlapping tiles, OCR becomes **~2.6× faster and crops drop to nearly 0** relative to the full page (small digits that smeared under downsampling are read without crop) ⑤ **MPS digest sharing (mps-extractor)** — extracting the MPS scan only once and sharing it as a per-domain digest removes the 5 review agents' redundant MPS OCR, shortening the review wall **~3×** (per-reviewer separate Vision-OCR ~95 min → digest consumption ~32 min, with no recall regression) ⑥ **pre-OCR page alignment (orient-sheets + page-aligner + align-inputs)** — rotated scan pages are straightened before tiling, so the tile semantics (r0=header) and digit legibility hold on rotated inputs too; detection costs ~1 sheet Read per 12 pages plus one delegation per case. ⑦ **Phase 1.6 document-type classification (classify-sheets + doc-classifier + check-doctype)** — one added delegation per case adds roughly **+2–4 min (simple) / +3–5 min (standard) / +10–15 min (complex 73p)**, but this is largely **offset by the minimal-entry OCR of excluded pages** (excluded pages skip table transcription), so the net is ≈ **0±5 min** for mixed complex files; the tier targets (≤30 / ≤60 / 60–90 min) are **unchanged**. In multi-case runs, the intra-case 5-agent parallelism overlaps with inter-case parallelism, so keep the total concurrent-agent cap of 6–10. ⑧ **기준 20 attachment judgement** — doc-classifier's related-identifier reading of EXCLUDED runs adds **+1–3 min only on cases that actually have enclosed documents**, and the reviewer-side attachment ladder is absorbed within the existing Phase 4 delegation (net ≈ **+0–3 min**); the deterministic `attachments` CLI is sub-second. Tier targets are **unchanged**.
 
 ---
 
@@ -255,7 +257,7 @@ Perform the sequence below per case. **The orchestrator runs the deterministic C
 ### 2.7) doc-classifier delegation (Phase 1.6, MANDATORY before OCR)
 
 - **Delegate `doc-classifier`** to read the upright classify sheets (`.cache/<case>/classify/`) — and, at MTC-style run boundaries, the header tiles (`.cache/<case>/tiles/<stem>_pNN_r0c0.png`) — and write per-stem `.cache/<case>/<stem>_doctype.json` labelling **every page**.
-- **Delegation context spec** (must be included): case id · the skill directory **absolute path** · output obligation (**every page labelled; values ∈ the 13 taxonomy codes**) · compliance instructions (**C1 read-only PNG opening, the 2-label INCLUDED whitelist (`MTC_FINISHED`/`UNKNOWN`) + conservative `UNKNOWN`, the document-run continuity rule — a finished-product MTC's internal PMI/NDE/dimension sections are NOT separate documents — and judge page content, not the `pNN` label bar**).
+- **Delegation context spec** (must be included): case id · the skill directory **absolute path** · output obligation (**every page labelled; values ∈ the 13 taxonomy codes**) · compliance instructions (**C1 read-only PNG opening, the 2-label INCLUDED whitelist (`MTC_FINISHED`/`UNKNOWN`) + conservative `UNKNOWN`, the document-run continuity rule — a finished-product MTC's internal PMI/NDE/dimension sections are NOT separate documents — and judge page content, not the `pNN` label bar**) · **related-identifier reading for EXCLUDED runs** (verbatim Heat/PO columns from the enclosed document's own table, into `documents[].related_heat_nos`/`related_po_items` — details in agents/doc-classifier.md; this is the sole 기준 20 attachment-matching input).
 - The classification detail procedure (taxonomy cues, sheet-reading rules, finished-vs-raw discrimination, self-check) is held by `agents/doc-classifier.md` — **do not duplicate it in SKILL.md**.
 
 ### 2.8) check-doctype (orchestrator runs directly, deterministic gate) — `check-doctype --case <id>`
@@ -318,10 +320,11 @@ Perform the sequence below per case. **The orchestrator runs the deterministic C
 
 **Purpose**: compare the Phase 2 extracted values against the ref_code/CSV reference values and MPS limits to generate findings. Per-domain judgment is delegated in parallel to the 5 review agents, and the orchestrator merges them deterministically.
 
-### 1) limits lookup (orchestrator-run, once) — `limits --case <id>`
+### 1) limits lookup + attachment index (orchestrator-run, once) — `limits --case <id>` then `attachments --case <id>`
 
 - Based on the case extraction inventory (grade·class), select only the relevant CSV rows and produce `.cache/<case>/<case>_limits.json` as JSON including the 3 provenance fields (`source_file`/`anchor`/`snippet`). **The values are still CSV-derived, and snippet/anchor are preserved so C2/C8 are satisfied.**
 - If a grade routing failure is stated in the output JSON's `unrouted`, then **only for that grade** finalize the manual routing information from the CSV source and `review-criteria.md`, and **attach that resolution information to the delegation context**. (A successfully routed grade needs no extra work.)
+- Then run `attachments --case <id>` to produce `.cache/<case>/<case>_attachments.json` — the 기준 20 attachment index (enclosed PMI/NDE/dimension report presence per finished-product heat, from the doctype sidecars' related identifiers). **Always run it — a case with no doctype sidecar still exits 0 (`sidecar_present: false`)**, and reviewers then simply skip attachment judgement.
 
 ### 2) Parallel delegation of the 5 review agents (concurrently in one message)
 
@@ -332,6 +335,7 @@ After `limits` completes (and after that case's `mps-extractor` has produced `<c
 - (if applicable) unrouted-grade resolution information
 - **read MPS special requirements from its own domain block in `<case>_mps_digest.json` and do not open the original MPS PDF/PNG** (fall back only when the digest has no requirement for that grade).
 - **Excluded-page rule (기준 19)**: pages whose `doc_type` is an EXCLUDED type must not have their data compared, their grades/heats registered into `materials[]`, or be cited as evidence — the exclusion memo is emitted deterministically by `merge-reviews` (`excluded_documents`), so reviewers raise no findings about them.
+- **기준 20 attachment judgement**: nde/format reviewers read `<case>_attachments.json` and apply the 기준 20 ladder for their own doc types (ownership table in review-criteria.md 기준 20.1); body-printed values always take precedence (상태 A), and other reviewers ignore the file. Absent or `sidecar_present: false` → skip attachment judgement entirely.
 
 The review agents do not re-verify the identification fields finalized by ocr-extractor (the header's grade/heat_no/cert_no/size/qty) (see the time-budget section).
 
@@ -356,6 +360,8 @@ The review agents do not re-verify the identification fields finalized by ocr-ex
 | print-criteria notation-error label (document defect) | format |
 | judgment of the measured value itself (against the print criteria) | chemistry / mechanical (the numeric-owning domain) |
 | dimensions / quantity / Heat No | format |
+| 동봉 보고서 첨부판정 — PMI/NDE/Microstructure 유형 (기준 20) | nde |
+| 동봉 보고서 첨부판정 — 치수/이화학/열처리차트/원자재 유형 (기준 20) | format |
 
 ### 3) merge-reviews (orchestrator-run, after all complete) — `merge-reviews --case <id>`
 
@@ -388,7 +394,7 @@ If a review agent reports a grade correction (differing from the inventory), the
 
 - **Verdict / severity vocabulary (canonical)**: every cell verdict (overall + per-row, all domains) must be exactly one of **`PASS | 주의 | FAIL | N/A`**; finding severity must be one of **`Reject | ActionRequired | Question | Minor | Info`**. `compliance_report` deterministically **canonicalises** any non-standard label (e.g. `합격`→PASS, `REVIEW`/`ActionRequired`→주의, `INFO`/`정보성`/`확인 불가`→N/A) and **always applies a colour** (PASS=green, FAIL=red, 주의=yellow, N/A=grey). Agents should still emit the canonical tokens directly — do not invent variants.
 - **Output language**: the 6-sheet report and all finding text (`issue_summary`/`content`/`notes`/`doc_checks`) are authored in Korean (reviewer vocabulary), unchanged from current behavior. The sheet names above (종합 요약, 화학성분, 기계적 성질, 열처리, NDE / 특별요구, Finding 목록) are emitted verbatim in Korean.
-- Do not use the section sign (§) in report text. Cite criteria clauses in the `기준 3.1` format.
+- Do not use the section sign in report text. Cite criteria clauses in the `기준 3.1` format.
 - File encoding: `openpyxl` default (UTF-8). Uses Korean font fallback.
 
 ---
@@ -429,9 +435,11 @@ Phase 2   [delegate ocr-extractor/opus]  ≤6p full once → <stem>_extracted.js
                             (tile reading·C1·verbatim·all-pages obligation, details in agents/ocr-extractor.md·mps-extractor.md)
 Phase 2.5 check-extraction  → exit 0 required (always runs; on failure re-delegate only the missing segment)
 ──── starting from cases that completed OCR, passed 2.5, and produced mps_digest ────
-Phase 4   limits → <id>_limits.json  → [delegate 5 reviewers/claude-opus-4-8 in one message, parallel]
+Phase 4   limits → <id>_limits.json  → attachments → <id>_attachments.json (기준 20, sidecar 부재도 exit 0)
+            → [delegate 5 reviewers/claude-opus-4-8 in one message, parallel]
             chemistry·mechanical·heat_treatment·nde·format → <id>_review_<domain>.json
-            (MPS special requirements consumed from <id>_mps_digest.json's own domain block — original MPS not opened)
+            (MPS special requirements consumed from <id>_mps_digest.json's own domain block — original MPS not opened;
+             nde/format apply the 기준 20 ladder for their own doc types from <id>_attachments.json)
           merge-reviews → <id>_review.json (renumber·worst-value verdict, downstream contract unchanged)
 ──── batched after all cases' merge-reviews ────
 Phase 5   compliance_report → output/reports/<id>/<id>_MTC_Review.xlsx (6 sheets)

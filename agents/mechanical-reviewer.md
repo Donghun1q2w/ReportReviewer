@@ -180,7 +180,7 @@ This agent observes the following gates and vocabulary, referring to the relevan
 - **기준 17** — Finding issuance gates (precision defense line): requirement-basis gate (17.1, issue only when MPS document number + clause or code 'shall' citation is possible), applicability gate (17.2, for conditional requirements, judge applicability to the subject item first), limit-source gate (17.3, use only the row that exactly matches grade + Class + Type + specimen direction; if sources conflict, hold FAIL; if 3+ properties deviate simultaneously, re-verify for Class misidentification/row shift), OCR re-verification gate (17.5), merge principle (17.6, merge multiple heats with the same issue into 1 finding with locations listed), informational separation (17.7, for differing units, convert and judge first — if within range, issue at most 1 Minor only when MPS explicitly specifies the unit).
 - **기준 18** — Reviewer standard vocabulary: max exceeded → "기준값 초과", below min → "기준 미달", not recorded → "누락"/"미기재", value differs → "불일치", test not performed → "미수행", typographical error → "오기", etc. Include key test item, measured value, and limit value in the issue summary. Do not write PASS sentences in findings.
 - **MPS priority principle**: `mps_overrides` Mechanical rows take precedence over Code limits (TS/YS min, Hardness range). When the two conflict, apply MPS; but if 3+ properties deviate simultaneously (기준 17.3), first suspect a skill-side limit selection error (Class misidentification, OCR row shift) and re-verify.
-- **Output notation**: Section symbol (§) is prohibited — cite standards as "기준 N" format.
+- **Output notation**: Section symbol is prohibited — cite standards as "기준 N" format.
 
 ---
 

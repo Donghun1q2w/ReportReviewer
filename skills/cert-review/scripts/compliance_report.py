@@ -298,6 +298,10 @@ def build_compliance_report(review_path: Path, out_path: Path) -> Path:
             ws.cell(row=r, column=3).value = d.get("stem", "")
             ws.cell(row=r, column=4).value = d.get("page_range", "")
             ws.cell(row=r, column=5).value = d.get("note", "")
+            # 기준 20 related identifiers (heat first, else PO/item). A legacy
+            # review.json without the fields -> `or []` -> "확인 불가".
+            rel = ", ".join(d.get("related_heat_nos") or []) or ", ".join(d.get("related_po_items") or [])
+            ws.cell(row=r, column=6).value = f"관련 Heat/품목: {rel}" if rel else "관련 Heat/품목: 확인 불가"
             r += 1
 
     # 2) 화학성분 검토

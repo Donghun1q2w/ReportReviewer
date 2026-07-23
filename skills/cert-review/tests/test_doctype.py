@@ -17,6 +17,7 @@ from scripts.doctype import (
     DOC_TYPES,
     EXCLUDED_DOC_TYPES,
     INCLUDED_DOC_TYPES,
+    _match_run_meta,
     check_doctype_case,
     compress_pages,
     doctype_path,
@@ -141,6 +142,116 @@ def test_excluded_documents_empty_when_no_sidecar(tmp_path):
     case = tmp_path / "9"
     case.mkdir()
     assert excluded_documents_for_case(case) == []
+
+
+# ---------------------------------------------------------------------------
+# T-1 (기준 20): excluded_documents related-identifier join (documents[])
+# ---------------------------------------------------------------------------
+
+def _write_doctype_11(case_cache: Path, stem: str, pages: dict[int, str],
+                      documents: list[dict]) -> None:
+    """Write a 1.1 sidecar carrying an advisory documents[] with related fields."""
+    case_cache.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": "1.1",
+        "stem": stem,
+        "pages": {str(p): t for p, t in pages.items()},
+        "uncertain_pages": [],
+        "documents": documents,
+    }
+    (case_cache / f"{stem}_doctype.json").write_text(
+        json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def test_related_join_from_11_sidecar(tmp_path):
+    """1.1 sidecar → related fields land on the matching excluded_documents run."""
+    case = tmp_path / "9"
+    _write_doctype_11(
+        case, "certA",
+        {1: "MTC_FINISHED", 22: "NDE_REPORT", 23: "PMI_REPORT"},
+        documents=[
+            {"doc_type": "NDE_REPORT", "pages": [22],
+             "related_heat_nos": ["14328912", "23215117"],
+             "related_po_items": [], "related_confidence": "high"},
+            {"doc_type": "PMI_REPORT", "pages": [23],
+             "related_heat_nos": [], "related_po_items": ["PU2601565-039"],
+             "related_confidence": "high"},
+        ],
+    )
+    docs = excluded_documents_for_case(case)
+    nde = next(d for d in docs if d["doc_type"] == "NDE_REPORT")
+    pmi = next(d for d in docs if d["doc_type"] == "PMI_REPORT")
+    assert nde["related_heat_nos"] == ["14328912", "23215117"]
+    assert nde["related_po_items"] == []
+    assert nde["related_confidence"] == "high"
+    assert pmi["related_heat_nos"] == []
+    assert pmi["related_po_items"] == ["PU2601565-039"]
+    assert pmi["related_confidence"] == "high"
+
+
+def test_related_join_10_sidecar_fallback(tmp_path):
+    """1.0 sidecar (no documents[]) → []/[]/'low' fallback (E1)."""
+    case = tmp_path / "9"
+    _write_doctype(case, "certA", {1: "MTC_FINISHED", 30: "MTC_RAW_MATERIAL"})
+    docs = excluded_documents_for_case(case)
+    assert len(docs) == 1
+    assert docs[0]["related_heat_nos"] == []
+    assert docs[0]["related_po_items"] == []
+    assert docs[0]["related_confidence"] == "low"
+
+
+def test_related_join_doc_type_mismatch_no_match(tmp_path):
+    """A documents[] entry of a different doc_type must not join the run."""
+    case = tmp_path / "9"
+    _write_doctype_11(
+        case, "certA", {1: "MTC_FINISHED", 22: "NDE_REPORT"},
+        documents=[
+            {"doc_type": "PMI_REPORT", "pages": [22],
+             "related_heat_nos": ["WRONG"], "related_po_items": [],
+             "related_confidence": "high"},
+        ],
+    )
+    docs = excluded_documents_for_case(case)
+    assert docs[0]["doc_type"] == "NDE_REPORT"
+    assert docs[0]["related_heat_nos"] == []
+    assert docs[0]["related_confidence"] == "low"
+
+
+def test_related_join_max_page_overlap(tmp_path):
+    """Two same-type advisory entries → the one with max page overlap wins."""
+    case = tmp_path / "9"
+    _write_doctype_11(
+        case, "certA", {10: "NDE_REPORT", 11: "NDE_REPORT", 12: "NDE_REPORT"},
+        documents=[
+            {"doc_type": "NDE_REPORT", "pages": [10],
+             "related_heat_nos": ["ONE"], "related_po_items": [],
+             "related_confidence": "high"},
+            {"doc_type": "NDE_REPORT", "pages": [10, 11, 12],
+             "related_heat_nos": ["ALLTHREE"], "related_po_items": [],
+             "related_confidence": "high"},
+        ],
+    )
+    docs = excluded_documents_for_case(case)
+    # single contiguous run p.10-12 joins the maximal-overlap entry.
+    assert docs[0]["pages"] == [10, 11, 12]
+    assert docs[0]["related_heat_nos"] == ["ALLTHREE"]
+
+
+def test_match_run_meta_tolerant_of_non_list_and_bad_confidence():
+    """Non-list related values → []; unknown confidence token → 'low'."""
+    advisory = [{
+        "doc_type": "NDE_REPORT", "pages": [22],
+        "related_heat_nos": "not-a-list",       # tolerated
+        "related_po_items": None,               # tolerated
+        "related_confidence": "medium",         # coerced to low
+    }]
+    meta = _match_run_meta([22], "NDE_REPORT", advisory)
+    assert meta == {
+        "related_heat_nos": [],
+        "related_po_items": [],
+        "related_confidence": "low",
+    }
 
 
 # ---------------------------------------------------------------------------

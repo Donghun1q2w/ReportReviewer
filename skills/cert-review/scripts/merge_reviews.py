@@ -22,7 +22,11 @@ grade_spec, size, qty, verdict, chemistry[], mechanical[], heat_treatment[],
 nde[], doc_checks[]} and findings[] = {no, severity, category, location, content,
 action}. ``excluded_documents[]`` is a deterministic Phase 1.6 injection (from the
 <stem>_doctype.json sidecars — see scripts.doctype) listing enclosed non-MTC
-document runs excluded from comparison; it never touches findings[] (기준 17.7
+document runs excluded from comparison; each record carries {stem, doc_type,
+doc_type_ko, pages, page_range, note, related_heat_nos, related_po_items,
+related_confidence} — the last three are the 기준 20 related identifiers joined
+from the sidecar's advisory documents[] (verbatim from the enclosed document's
+own table; []/[]/"low" on a 1.0 sidecar). It never touches findings[] (기준 17.7
 informational separation, keeps eval precision unaffected) and is [] when no
 doctype sidecar exists. Merge metadata (source files, issues) is reported on
 stdout only — never written into the output JSON.
