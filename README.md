@@ -18,7 +18,7 @@
 - **출처 강제(provenance)**: 모든 판정 근거에 `source_file`/`anchor`/`snippet` 3종 메타. 미검증 근거는 자동 격리
 - **단일 OCR 입력 채널**: cert 본문을 Claude Vision으로 전사하는 `channels.body` 하나만 사용한다. 입력은 3개 카테고리(① 참조 코드 ② 성적서 ③ MPS) 폴더로 인식하며, 이메일(.msg)·zip 첨부·PDF 주석을 입력 채널로 받지 않는다(원본 reviewer 주석은 입력 가드로 차단).
 - **6시트 한글 리포트**: 검토 총괄 / 화학성분 / 기계적성질 / 열처리 / 표기·형식 / 지적사항 종합
-- **검토 결과 PDF 주석(별도 스킬 `cert-review-annotate`)**: 검토 후 후순위 단계로 주의/N/A/FAIL 판정(PASS 제외)을 원본 cert PDF 위에 테두리 사각형(채우기 없음)+50자 한글 라벨로 **image burn-in**. 좌표는 전용 `annotation-locator` 에이전트가 review.json에서 산출하고 색은 리포트와 동일하며, cert-review 검토 로직은 무수정
+- **검토 결과 PDF 주석(별도 스킬 `cert-review-annotate`)**: 검토 후 후순위 단계로 주의/N/A/FAIL 판정(PASS 제외)을 원본 cert PDF에 **네이티브 PDF 주석 오브젝트**로 부착 — 테두리 사각형(/Square, 채우기 없음)+Acrobat 네이티브 빈 팝업 스레드+50자 한글 라벨(/FreeText, 자체 /AP로 전 뷰어 상시 표시). 전 페이지 원본 보존(콘텐츠 무변경), 주석은 뷰어에서 개별 삭제·이동·수정 가능. 좌표는 전용 `annotation-locator` 에이전트가 review.json에서 산출하고 색은 리포트와 동일하며, cert-review 검토 로직은 무수정
 
 ## 전체 파이프라인 (작업 순서도)
 
@@ -72,7 +72,7 @@ flowchart TD
 
     subgraph ANN["cert-review-annotate (후순위, 별도 스킬)"]
         direction TB
-        al2{{"annotation-locator 위임<br/>(opus)"}} --> anc["annotate CLI<br/>(image burn-in)"]
+        al2{{"annotation-locator 위임<br/>(opus)"}} --> anc["annotate CLI<br/>(네이티브 PDF 주석)"]
     end
 ```
 
@@ -173,7 +173,7 @@ ReportReviewer/
 │   │   ├── doctype.py                # Phase 1.6 taxonomy 단일소스·check-doctype 게이트·excluded_documents[] 산출
 │   │   ├── attachments.py            # 기준 20 결정적 heat 대조 (완전일치, unmatched 분리, 자동 FAIL 금지)
 │   │   ├── merge_reviews.py          # 검토 5에이전트 부분 산출 결정적 병합 (excluded_documents[] 포함)
-│   │   ├── annotate_pdf.py           # (cert-review-annotate) 주석 PDF 렌더러 (copy-through burn-in)
+│   │   ├── annotate_pdf.py           # (cert-review-annotate) 네이티브 PDF 주석 생성 (Square+Popup+FreeText 자체 /AP)
 │   │   └── ...
 │   ├── data/*.csv                    # 참조 기준값 7종 (출처 3종 메타 검증)
 │   ├── references/                   # review-criteria(기준 20 포함) / conventions / extraction-schema
@@ -245,9 +245,9 @@ Phase B  annotation-locator 에이전트 ──→ <case>_annotations.json  (주
 Phase C  annotate CLI ──→ output/reports/<case>/<stem>_annotated.pdf
 ```
 
-- **대상/형태**: verdict **주의 / N/A / FAIL**(PASS 제외)을 테두리 사각형(채우기 없음)+≤50자 한글 라벨로 표기. **색**: `compliance_report` 상수 재사용 → 주의 노랑·N/A 회색·FAIL 빨강(엑셀 리포트와 100% 일치).
-- **좌표**: 전용 `annotation-locator`(Vision, claude-opus-4-8)가 review.json 대상 항목을 캐시된 페이지에서 셀 bbox(Tier A — 확정 좌표만)로 산출. 추정 좌표 박스 금지.
-- **렌더**: `annotate_pdf.py`가 **copy-through image burn-in** — 주석 있는 면만 `pypdfium2` 래스터+`Pillow` 드로잉, 나머지 면은 `pypdf`로 원본 보존(텍스트 레이어·용량·메모리 최소). 신규 의존성 0, C1 준수(OCR 라이브러리 미사용).
+- **대상/형태**: verdict **주의 / N/A / FAIL**(PASS 제외) 항목당 네이티브 주석 3오브젝트 — `/Square`(verdict색 테두리, 채우기 없음) + Acrobat 네이티브 빈 `/Popup` 동반(양방향 링크 — 박스 클릭 시 코멘트 스레드) + `/FreeText` ≤50자 한글 라벨. **색**: `compliance_report` 상수 재사용 → 주의 노랑·N/A 회색·FAIL 빨강(엑셀 리포트와 100% 일치).
+- **좌표**: 전용 `annotation-locator`(Vision, claude-opus-4-8)가 review.json 대상 항목을 캐시된 페이지에서 셀 bbox(Tier A — 확정 좌표만)로 산출. 추정 좌표 박스 금지. 렌더러가 페이지 `/Rotate`+정렬 회전을 합성(T=(R+A)%360)해 사용자 공간 `/Rect`로 역변환(CropBox 오프셋·상속 /Rotate 처리).
+- **생성**: `annotate_pdf.py`가 **전 페이지 완전 copy-through**(`pypdf` clone) — 페이지 콘텐츠는 바이트 단위로 원본 그대로 보존되고 `/Annots`에만 추가되므로 주석을 뷰어에서 개별 삭제·이동·수정 가능. 라벨은 자체 `/AP`(벡터 칩+4x 한글 글리프, `Pillow`)를 내장해 pdfium 계열(Chrome 등) 포함 전 주요 뷰어에서 클릭 없이 상시 표시. 신규 의존성 0, C1 준수(OCR 라이브러리 미사용).
 
 ```powershell
 cd skills/cert-review; $env:PYTHONIOENCODING="utf-8"
@@ -255,7 +255,7 @@ python -m scripts.cli annotate --case <id>      # <case>_annotations.json 소비
 python -m scripts.cli annotate --all            # annotations.json 있는 케이스 일괄
 ```
 
-> 하위호환: `<case>_annotations.json`이 없으면 단일 케이스는 에러(1), `--all`은 해당 케이스 SKIP. 좌표가 없는 한 표기 0건으로 안전 동작한다. 폰트는 기본 `malgun.ttf`이며 `CERT_REVIEW_FONT`로 재정의한다. 전체 절차는 [`skills/cert-review-annotate/SKILL.md`](skills/cert-review-annotate/SKILL.md) 참조.
+> 하위호환: `<case>_annotations.json`이 없으면 단일 케이스는 에러(1), `--all`은 해당 케이스 SKIP. 좌표가 없는 한 표기 0건으로 안전 동작한다. 라벨 `/AP` 글리프 렌더용 한글 폰트는 기본 `malgun.ttf`이며 `CERT_REVIEW_FONT`로 재정의한다. 뷰어에서 라벨 텍스트를 수정하면 외형이 뷰어 재생성분으로 바뀐다(이동·삭제는 무관). 전체 절차는 [`skills/cert-review-annotate/SKILL.md`](skills/cert-review-annotate/SKILL.md) 참조.
 
 ## 검증 (개발)
 
