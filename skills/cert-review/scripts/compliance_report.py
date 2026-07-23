@@ -1,4 +1,4 @@
-"""Deterministic compliance-review report (6-sheet Korean Excel).
+"""Deterministic compliance-review report (6-sheet (+1 conditional mill-cert sheet) Korean Excel).
 
 Input: a structured review JSON (Cert vs MPS vs ref_code/Code comparison) — see
 schema below. Unlike report_builder (which renders only findings/violations),
@@ -27,7 +27,8 @@ Review JSON schema
       "mechanical":     [ {"property","cert","spec","source","verdict","note"?} ],
       "heat_treatment": [ {"stage","cert","spec","source","verdict","note"?} ],
       "nde":            [ {"item","spec"?, "cert"?, "source"?, "verdict","note"?} ],
-      "doc_checks":     [ {"page"?, "location","mtc_value","expected","verdict","note"?} ]
+      "doc_checks":     [ {"page"?, "location","mtc_value","expected","verdict","note"?} ],
+      "mill_cert":      [ {"item","source","mill_value","mtc_value","verdict","note"?} ]
     }
   ],
   "findings": [ {"no","severity","category","location","content","action"} ]
@@ -353,6 +354,16 @@ def build_compliance_report(review_path: Path, out_path: Path) -> Path:
             vc.fill = _fill_for(n.get("verdict", ""))
             ws.cell(row=r, column=6).value = n.get("note", "")
             r += 1
+
+    # 5.5) 원자재 MILL CERT 검토 (기준 21·22) — mill_cert 행이 있을 때만 (하위호환)
+    if any(m.get("mill_cert") for m in materials):
+        _grouped_sheet(
+            wb, "원자재 MILL CERT 검토",
+            "원자재 성적서(MILL CERT) 검증·교차비교 (기준 21·22)",
+            ["품명 / Heat", "항목", "출처", "MILL CERT 값", "MTC 값", "판정", "비고"],
+            [22, 20, 26, 16, 16, 8, 34],
+            materials, "mill_cert", ("item", "mill_value", "mtc_value"),
+        )
 
     # 6) 지적사항 종합
     ws = wb.create_sheet("지적사항 종합")

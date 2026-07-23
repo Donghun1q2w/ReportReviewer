@@ -1,10 +1,12 @@
 """merge_reviews.py — merge per-domain partial reviews into <case>_review.json.
 
-The compliance review (SKILL.md Phase 4) is split across five domain subagents
-that each write a partial review under .cache/<case>/:
+The compliance review (SKILL.md Phase 4) is split across six domain subagents
+(mill_cert는 optional — mill cert 동봉 케이스에만 존재) that each write a
+partial review under .cache/<case>/:
 
     <case>_review_<domain>.json   domain ∈ {chemistry, mechanical,
-                                            heat_treatment, nde, format}
+                                            heat_treatment, nde, format,
+                                            mill_cert}
 
 Each partial carries the SAME top-level skeleton (case_id, po_number?,
 mps_files?, code_edition_note?) plus the materials[] it could judge from its own
@@ -14,13 +16,14 @@ heat_treatment, nde → nde, format → doc_checks) and carries a domain-scoped
 verdict.
 
 This module deterministically merges those partials into the single
-<case>_review.json consumed downstream (compliance_report.py's 6-sheet Excel and
-eval_harness.load_predictions). The merged JSON's schema is INVARIANT — top-level
+<case>_review.json consumed downstream (compliance_report.py's six-sheet
+(+1 conditional mill-cert sheet) Excel and eval_harness.load_predictions). The
+merged JSON's schema is INVARIANT — top-level
 {case_id, po_number, mps_files, code_edition_note, materials[], findings[],
 excluded_documents[]} with materials[] = {item_name, heat_no, grade_cert,
 grade_spec, size, qty, verdict, chemistry[], mechanical[], heat_treatment[],
-nde[], doc_checks[]} and findings[] = {no, severity, category, location, content,
-action}. ``excluded_documents[]`` is a deterministic Phase 1.6 injection (from the
+nde[], doc_checks[], mill_cert[]} and findings[] = {no, severity, category,
+location, content, action}. ``excluded_documents[]`` is a deterministic Phase 1.6 injection (from the
 <stem>_doctype.json sidecars — see scripts.doctype) listing enclosed non-MTC
 document runs excluded from comparison; each record carries {stem, doc_type,
 doc_type_ko, pages, page_range, note, related_heat_nos, related_po_items,
@@ -47,7 +50,9 @@ from scripts.doctype import excluded_documents_for_case
 
 # Fixed domain merge order. Drives section placement, code_edition_note join
 # order, and findings concatenation order.
-_DOMAIN_ORDER = ["chemistry", "mechanical", "heat_treatment", "nde", "format"]
+_DOMAIN_ORDER = ["chemistry", "mechanical", "heat_treatment", "nde", "format", "mill_cert"]
+
+_OPTIONAL_DOMAINS = frozenset({"mill_cert"})  # 부재가 정상인 도메인 — 경고/이슈 미발생
 
 # domain -> the materials[] section key it populates.
 _DOMAIN_SECTION = {
@@ -56,10 +61,11 @@ _DOMAIN_SECTION = {
     "heat_treatment": "heat_treatment",
     "nde": "nde",
     "format": "doc_checks",
+    "mill_cert": "mill_cert",
 }
 
 # All section keys a merged material must carry (downstream reads each one).
-_SECTION_KEYS = ["chemistry", "mechanical", "heat_treatment", "nde", "doc_checks"]
+_SECTION_KEYS = ["chemistry", "mechanical", "heat_treatment", "nde", "doc_checks", "mill_cert"]
 
 # Identity fields carried verbatim from the first partial that names them.
 _IDENT_FIELDS = ["item_name", "grade_spec", "size", "qty"]
@@ -145,7 +151,7 @@ def merge_case(case_id: str, cache_root: Path) -> dict:
         raise FileNotFoundError(
             f"no partial reviews (*_review_<domain>.json) under {case_cache}"
         )
-    missing = [d for d in _DOMAIN_ORDER if d not in present]
+    missing = [d for d in _DOMAIN_ORDER if d not in present and d not in _OPTIONAL_DOMAINS]
 
     issues: list[str] = []
     for d in missing:

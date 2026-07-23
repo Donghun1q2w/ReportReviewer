@@ -393,7 +393,7 @@ Received MTC PDFs frequently contain, at arbitrary positions (middle or end), pa
 |---|---|---|
 | `MTC_FINISHED` | 완제품 성적서 | 검토 포함 |
 | `UNKNOWN` | 미상(완제품 성적서로 간주) | 검토 포함(보수적) |
-| `MTC_RAW_MATERIAL` | 원자재 성적서(동봉 Mill Cert) | 제외 |
+| `MTC_RAW_MATERIAL` | 원자재 성적서(동봉 Mill Cert) | 제외(기준 21·22 교차검증 전용 전사) |
 | `PMI_REPORT` | PMI 보고서(동봉) | 제외 |
 | `APPEARANCE_DIMENSION_REPORT` | 외관·치수검사보고서(동봉) | 제외 |
 | `NDE_REPORT` | 비파괴검사 보고서(동봉) | 제외 |
@@ -412,6 +412,7 @@ Received MTC PDFs frequently contain, at arbitrary positions (middle or end), pa
 ### 19.2 제외 페이지 취급
 - **제외 페이지의 값은 어떤 도메인 비교에도 사용하지 않는다** — an excluded page's chemistry/mechanical/heat-treatment/NDE values are never compared against Code/MPS/CSV limits, its grade/heat is never registered into `materials[]`, and it is never cited as finding evidence.
 - **제외 사실은 findings가 아니라 review.json의 excluded_documents로 보고한다 (기준 17.7 정보성 분리와 정합)** — the exclusion is emitted deterministically by `merge-reviews` (`excluded_documents`), not as a reviewer finding. Reviewers raise no findings about excluded pages.
+- **예외(기준 21/22 한정)**: `MTC_RAW_MATERIAL` 런은 Phase 2에서 전량 전사되며, 그 값은 기준 21(자체 검증)·기준 22(MTC와의 교차비교) 목적에 한해 사용한다. 완제품 materials[]의 Code/MPS/CSV 한계 판정 근거·인벤토리 등록·타 도메인 evidence 인용 금지는 여전히 유효하다.
 
 ### 19.3 Relation to 기준 20 (requirement-vs-attachment)
 - The requirement-vs-attachment auto-judgement formerly deferred here is now specified in **기준 20**. Phase 1.6 additionally records per-run related identifiers (`documents[].related_heat_nos` / `related_po_items`, verbatim from the enclosed document's own printed table) which 기준 20 consumes.
@@ -431,7 +432,7 @@ Phase 1.6 classifies and excludes enclosed non-finished-product documents (기�
 | `APPEARANCE_DIMENSION_REPORT` | digest `document_requirements`/'shall' 특별요구 (치수검사) | format-reviewer |
 | `PHYSICAL_CHEMICAL_TEST_REPORT` | digest `document_requirements` | format-reviewer |
 | `HEAT_TREATMENT_CHART` | digest `document_requirements`/열처리 기록 요구 | format-reviewer |
-| `MTC_RAW_MATERIAL` | digest `document_requirements` (원자재 성적 제출 요구) | format-reviewer |
+| `MTC_RAW_MATERIAL` | digest `document_requirements` (원자재 성적 제출 요구) | format-reviewer — 첨부 **여부** 판정은 format-reviewer 소유(불변); 첨부 문서의 **내용 검증·교차비교**는 기준 21/22(mill-cert-reviewer 소유) |
 | 그 외 (COVER_LETTER·MPS_COPY·DRAWING·REVIEWED_ANNOTATED_COPY) | 판정 대상 아님 (정보성) | — |
 
 - Each doc_type has **exactly one** owning reviewer; a reviewer issues **no finding** on a type it does not own (structurally prevents duplicate/conflicting findings).
@@ -463,3 +464,63 @@ Phase 1.6 classifies and excludes enclosed non-finished-product documents (기�
 ### 20.5 Value-comparison prohibition
 
 - 기준 19.2 재확인 — 첨부 보고서 내부 측정값은 판정 근거로 사용 금지. 기준 20 uses only the **presence** and **heat/item coverage** of enclosed documents (their printed identifier columns), never their measured values.
+- **예외**: `MTC_RAW_MATERIAL`에 한해 기준 21/22가 정의하는 검증·교차비교는 허용된다(값을 완제품 합부 판정에 쓰는 것은 여전히 금지).
+
+## 21. 동봉 원자재 성적서(MILL CERT) 검증·연결성
+
+### 21.1 범위·입력·소유
+
+- **대상**: Phase 1.6에서 `MTC_RAW_MATERIAL`로 분류된 동봉 원자재 성적서(MILL CERT) 런. Phase 2가 전량 전사한다(기준 19.2 예외 — 기준 21/22 목적 한정).
+- **결정적 입력**: `<case>_mill_cert.json` (`mill-cert` CLI, `scripts/mill_cert.py`가 권위 스키마). 런 → heat/cert 변화 기준 `mill_docs[]` 서브그룹 분할, 완제품 페이지별 `matches[]`, 연결성·단조 술어·인장 상태기계·화학 공통원소 비교를 결정적으로 산출한다.
+- **판정 소유**: `mill-cert-reviewer` (조건부 위임 — 팩 `applicable: true`인 케이스에만). verdict/finding 서술은 에이전트, state 산출은 스크립트.
+
+### 21.2 연결성 (linkage)
+
+Heat No. 정확 일치(정규화: 공백 제거·대문자, 퍼지 금지) · MTC 본문의 MILL CERT NO. 참조 대조 · grade 계열 일치(`grade_routing.csv` 라우팅 + 정규화 프로브 — "A182"형 S 누락·하이픈 변형 흡수). 판정 매핑:
+
+| 조건 | 행 verdict | finding |
+|---|---|---|
+| Heat 불일치 | 연결성 행 **FAIL** | 1건 ActionRequired/Identification |
+| MILL CERT NO. 참조 불일치 | 연결성 행 **주의** | 1건 Question |
+| grade 계열 불일치(match=False) | 연결성 행 **FAIL** | 1건 ActionRequired/Identification |
+| grade 계열 판정 불가(match=None — 편측 라우팅 불발) | 연결성 행 **N/A** + note "grade 라우팅 불가 — 계열 판정 확인 불가" | 없음 (기준 17.4) |
+| MTC에 MILL CERT NO. 참조 없음 | 연결성 행 **N/A** + note | 없음 (미기재 finding은 MPS 요구 시 format 소유 — 발행 금지) |
+
+- `mill_maker`/`starting_material`은 note 서술 전용 — 판정·fuzzy 매칭 금지.
+
+### 21.3 자체 유효성 (self-validity)
+
+- 배율(×100/×1000) 정규화된 화학성분·인장·경도가 **MILL CERT 문서 자체 인쇄 spec 한계** 내인지 1:1 대조한다(기준 14 방식 — 외부 Code/MPS/CSV 비교 아님). 한계 밖이면 해당 행 **주의** 상한 + 1건 Question (완제품 판정이 아니므로 FAIL 금지).
+- **EN10204 타입 표기는 정보성**: 결정적 regex 추출(`en10204` 필드) 결과 found → doc-check 행 **PASS** + verbatim note, 미검출 → **N/A** "EN10204 타입 표기 확인 불가". finding 금지 — MPS의 3.1 요구 충족 판정은 format-reviewer의 문서요구 교차검토 소유.
+
+### 21.4 판정 경계
+
+- 기준 20(첨부 여부)과 상호 배타: 첨부 유무 finding은 format-reviewer 소유(기준 20.1), 기준 21/22는 내용 검증·교차비교만.
+- MILL CERT 값을 완제품 합부 판정에 쓰는 것은 금지(기준 19.2/20.5 예외 조항 참조).
+- 팩/mill_doc `transcription_missing: true`(legacy 캐시 최소 엔트리) → 해당 도메인 **N/A**, finding 없음, completion report에 재추출 필요 보고.
+
+## 22. MTC ↔ MILL CERT 교차비교
+
+### 22.1 화학성분 교차비교 (불일치 시 원소별 '주의')
+
+- **채널**: MTC **Heat(H) 분석**(analysis_type ∈ {Heat, Heat+Product, 미표기}) ↔ MILL CERT **Ladle 분석**. MTC Product(P) 분석 단독 페이지는 비교에서 배제(같은 heat의 Heat 채널 페이지 폴백, 없으면 비교 불가).
+- **공통 원소만**: 배율 정규화 후 양쪽 모두 보고된 원소만 비교한다. 한쪽에만 있는 원소(Cu/Ni/As/Sn/Sb 등)는 무시(정보성 `one_sided_elements` — note 전용). 원소 키 동의어는 정규화한다(예: "Alt"→"Al"). 탄소당량류(CE/CEV/CEQ/CEF/Pcm 등)는 측정 원소가 아닌 산출값 — 비교 제외(`excluded_keys`).
+- **수치 불일치**(정규화 후 Decimal 정확 불일치, scale_suspect 아님) → **해당 원소별 '주의'**, 원소를 묶어 1건 Question (기준 17.6 병합).
+- **배율 함정 절차**: 한쪽이 정확히 ×100/×1000이면 `scale_suspect` — '주의' 확정 전 crop 재판독으로 배율 오류/실제 불일치 판별. 배율 오류면 PASS + note("crop 재판독: 배율 정규화 확인"), finding 없음.
+- **화학성분 '동일'은 정상(제강사 성적 인용 관행)이며 finding 대상이 아니다 — 아래 22.2의 인장 '동일'과 정반대.** heat 분석은 제강사 값 인용이 원칙이므로 전 원소 동일 → 행 PASS + note "동일 — heat 분석은 제강사 성적 인용 관행으로 정상 (기준 22.1)".
+
+### 22.2 단조품 인장 전사 복제 검출 (동일 시 FAIL)
+
+- **단조 술어** (분류 상수 — 수치 한계 아님): `S?A-105`/`S?A-182` 계열 spec 표기, 또는 FORGING/FORGED remark 키워드, 또는 `grade_routing.csv` asme_spec ∈ {SA-105, SA-182}. 비단조품은 본 조 미적용(값 동일 관찰은 PASS + note "단조품 아님 — 기준 22.2 미적용, 참고: 값 동일 관찰").
+- **수치 동일** = 단위 정규화(MPa/%) 후 Decimal 정확 일치(허용오차 없음, trailing zero 동치).
+- **상태기계** (n = 양쪽 공통 보고 인장 항목 수(YS·TS·EL·RA 중), k = 동일 항목 수):
+
+| 상태 | 조건 | 단조품 판정 | finding |
+|---|---|---|---|
+| `all_identical` | k = n 이고 n >= 2 | 인장 비교 행 **FAIL** | 1건 **ActionRequired**/**DocumentError** — "MTC 인장값 N건이 MILL CERT와 소수점까지 동일 — 완제품 시험 미실시(전사 복제) 의심, 재시험·소명 요구" |
+| `partial_identical` | 1 <= k < n, 또는 n = 1 & k = 1 | 행 **주의** | 1건 Question |
+| `distinct` | k = 0 | 행 **PASS** | 없음 |
+| `insufficient` | n = 0 | 행 **N/A**("확인 불가") | 없음 (기준 17.4) |
+
+- **n=1 보수 규칙**: 공통 보고 항목이 1개뿐이고 그것이 동일하면 "전체 동일"이 아니라 **partial_identical(주의)** — 단일 우연 일치로 FAIL을 걸지 않는다.
+- **보조근거 병기 규칙**: 경도 동일·열처리 사이클 동일(정규화 (단계,온도,유지시간) 집합 비교, cooling 제외)은 FAIL 트리거가 아니라 **보조 근거** — FAIL/주의 finding의 content·note에 병기하며 **별도 Info finding 금지** (기준 17.7).

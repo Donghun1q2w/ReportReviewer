@@ -31,7 +31,8 @@ _TOPLEVEL_KEYS = {
     "findings",
     "excluded_documents",
 }
-# Every merged material must carry all five domain section arrays.
+# Every merged material must carry all six domain section arrays
+# (mill_cert is optional as a PARTIAL, but the merged material always has the key).
 _MATERIAL_KEYS = {
     "item_name",
     "heat_no",
@@ -45,6 +46,7 @@ _MATERIAL_KEYS = {
     "heat_treatment",
     "nde",
     "doc_checks",
+    "mill_cert",
 }
 
 _DOMAIN_SECTION = {
@@ -53,7 +55,11 @@ _DOMAIN_SECTION = {
     "heat_treatment": "heat_treatment",
     "nde": "nde",
     "format": "doc_checks",
+    "mill_cert": "mill_cert",
 }
+
+# The five mandatory domains (mill_cert is optional — absence is normal).
+_MANDATORY_DOMAINS = ["chemistry", "mechanical", "heat_treatment", "nde", "format"]
 
 
 def _write_partial(
@@ -150,8 +156,11 @@ def test_five_partials_merge_sections_verdict_and_findings(tmp_path):
     mat = out["materials"][0]
     assert set(mat.keys()) == _MATERIAL_KEYS
     # Each domain section landed in the right array.
-    for domain, section in _DOMAIN_SECTION.items():
+    for domain in _MANDATORY_DOMAINS:
+        section = _DOMAIN_SECTION[domain]
         assert mat[section] == [{"_d": domain}], (domain, mat[section])
+    # No mill_cert partial -> empty (optional) section, no missing warning.
+    assert mat["mill_cert"] == []
     # Worst-verdict aggregation.
     assert mat["verdict"] == "FAIL"
     # Findings concatenated in domain order, re-numbered 1..5.
@@ -199,6 +208,8 @@ def test_partial_domain_missing_warns_and_proceeds(tmp_path, capsys):
     result = merge_case("99", tmp_path)
 
     assert set(result["missing_domains"]) == {"heat_treatment", "nde", "format"}
+    # Optional domain: absence never reported as missing (기준 21/22 wiring).
+    assert "mill_cert" not in result["missing_domains"]
     # Missing domains are reported as issues and warned on stderr.
     assert any("heat_treatment" in i for i in result["issues"])
     err = capsys.readouterr().err
@@ -452,6 +463,73 @@ def test_multi_item_same_heat_grade_stay_separate(tmp_path):
     assert by_item["item:13"]["verdict"] == "주의"
     # No cross-item identity divergence issues (size/qty of 013 vs 011).
     assert not any("'660*40mm" in i and "'660*35.1mm" in i for i in result["issues"])
+
+
+# --- mill_cert optional domain (기준 21/22 wiring) ---------------------------
+
+
+def test_six_partials_with_mill_cert_fail_merges_section(tmp_path):
+    """T19: 6부분(mill_cert FAIL) 병합 -> 섹션 유입 + verdict FAIL(worst)."""
+    case = tmp_path / "99"
+    for domain in _MANDATORY_DOMAINS:
+        _write_partial(case, domain, materials=[_material(domain, verdict="PASS")])
+    _write_partial(
+        case,
+        "mill_cert",
+        materials=[_material(
+            "mill_cert", verdict="FAIL",
+            rows=[{"item": "인장 TS(MPa) 교차비교",
+                   "source": "MILL CERT p.4 / MTC p.3",
+                   "mill_value": "582.71", "mtc_value": "582.71",
+                   "verdict": "FAIL",
+                   "note": "소수점 둘째 자리까지 동일 — 전사 복제 의심"}])],
+        findings=[_finding(1, "DocumentError",
+                           "MTC 인장값 4건이 MILL CERT와 소수점까지 동일")],
+    )
+
+    result = merge_case("99", tmp_path)
+    out = json.loads((case / "99_review.json").read_text(encoding="utf-8"))
+
+    mat = out["materials"][0]
+    assert set(mat.keys()) == _MATERIAL_KEYS
+    assert mat["mill_cert"][0]["item"] == "인장 TS(MPa) 교차비교"
+    assert mat["verdict"] == "FAIL"                      # worst 집계 (FAIL 우선)
+    assert result["missing_domains"] == []
+    assert any("MILL CERT" in f["content"] for f in out["findings"])
+
+
+def test_mill_cert_absent_no_warning_and_empty_section(tmp_path, capsys):
+    """T20: mill_cert 부재 -> 경고·이슈 무발생 + mill_cert: [] (선택적 도메인)."""
+    case = tmp_path / "99"
+    for domain in _MANDATORY_DOMAINS:
+        _write_partial(case, domain, materials=[_material(domain)])
+
+    result = merge_case("99", tmp_path)
+
+    assert result["missing_domains"] == []
+    assert not any("mill_cert" in i for i in result["issues"])
+    assert "mill_cert" not in capsys.readouterr().err
+    out = json.loads((case / "99_review.json").read_text(encoding="utf-8"))
+    assert out["materials"][0]["mill_cert"] == []
+
+
+def test_mill_cert_only_partial_material_preserved(tmp_path):
+    """mill_cert 단독 부분의 material 보존 (다른 도메인 섹션은 빈 배열)."""
+    case = tmp_path / "99"
+    _write_partial(case, "chemistry", materials=[_material("chemistry")])
+    _write_partial(case, "mill_cert", materials=[
+        _material("mill_cert", heat_no="B14339", grade_cert="A182-F22 CL.3",
+                  verdict="FAIL")])
+
+    merge_case("99", tmp_path)
+    out = json.loads((case / "99_review.json").read_text(encoding="utf-8"))
+
+    by_heat = {m["heat_no"]: m for m in out["materials"]}
+    mc = by_heat["B14339"]
+    assert mc["mill_cert"] == [{"_d": "mill_cert"}]
+    assert mc["verdict"] == "FAIL"
+    assert mc["chemistry"] == []
+    assert set(mc.keys()) == _MATERIAL_KEYS
 
 
 def _write_doctype(case_cache: Path, stem: str, pages: dict[int, str],

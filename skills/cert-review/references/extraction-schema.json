@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "cert-review-skill/extraction-schema.json",
   "title": "Cert Extraction Schema",
-  "version": "2.0",
-  "description": "Schema for the unified <cert_stem>_extracted.json produced by Claude Vision OCR (body channel). Python OCR libraries are forbidden. Reviewer annotations and rawdata are never read during operation.",
+  "version": "2.1",
+  "description": "Schema for the unified <cert_stem>_extracted.json produced by Claude Vision OCR (body channel). Python OCR libraries are forbidden. Reviewer annotations and rawdata are never read during operation. 2.1 adds additive-only mill-cert cross-reference header fields (mill_cert_no/mill_maker/starting_material) and the Ladle analysis_type for 기준 21/22; instances keep schema_version 2.0 (no cache re-extraction forced).",
   "type": "object",
   "required": ["schema_version", "case_id", "cert_file", "cert_sha256", "channels", "page_extraction"],
   "properties": {
@@ -44,13 +44,16 @@
               "heat_no": {"type": ["string", "null"]},
               "size_od_wt": {"type": ["string", "null"]},
               "quantity": {"type": ["integer", "null"]},
-              "length_mm": {"type": ["number", "null"]}
+              "length_mm": {"type": ["number", "null"]},
+              "mill_cert_no": {"type": ["string", "null"]},
+              "mill_maker": {"type": ["string", "null"]},
+              "starting_material": {"type": ["string", "null"]}
             }
           },
           "chemistry": {
             "type": ["object", "null"],
             "properties": {
-              "analysis_type": {"enum": ["Heat", "Product", "Heat+Product", null]},
+              "analysis_type": {"enum": ["Heat", "Product", "Heat+Product", "Ladle", null]},
               "elements": {
                 "type": "object",
                 "additionalProperties": {

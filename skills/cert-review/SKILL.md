@@ -1,6 +1,6 @@
 ---
 name: cert-review
-description: Inspection Certificate (MTC/성적서) review for piping materials. Compares scanned PDF certificates against MPS (구매시방서) and ASTM/ASME reference codes, emits a 6-sheet Korean Excel report, and evaluates against ground-truth. Use for MTC review, 성적서 검토, 자재 성적서, material test report verification.
+description: Inspection Certificate (MTC/성적서) review for piping materials. Compares scanned PDF certificates against MPS (구매시방서) and ASTM/ASME reference codes, emits a 6-sheet (+1 conditional mill-cert sheet) Korean Excel report, and evaluates against ground-truth. Use for MTC review, 성적서 검토, 자재 성적서, material test report verification.
 ---
 
 # cert-review — Claude Orchestration Procedure
@@ -50,7 +50,7 @@ prohibited. Evaluation does not need direct access because `eval_harness.py` rea
 
 ## Subagents (`agents/`)
 
-The review work is delegated to **9 plugin subagents**. Each writes only a partial output, and the orchestrator merges them via deterministic CLI. **The detailed procedures (transcription rules, per-domain judgment rules) belong to each agent's document — they are not duplicated in this SKILL.md.**
+The review work is delegated to **10 plugin subagents**. Each writes only a partial output, and the orchestrator merges them via deterministic CLI. **The detailed procedures (transcription rules, per-domain judgment rules) belong to each agent's document — they are not duplicated in this SKILL.md.**
 
 | Agent | model | Role | Partial output |
 |---|---|---|---|
@@ -63,6 +63,7 @@ The review work is delegated to **9 plugin subagents**. Each writes only a parti
 | `heat-treatment-reviewer` | claude-opus-4-8 | Phase 4 heat treatment review | `<case>_review_heat_treatment.json` |
 | `nde-reviewer` | claude-opus-4-8 | Phase 4 NDE/special-requirements review | `<case>_review_nde.json` |
 | `format-reviewer` | claude-opus-4-8 | Phase 4 document/identification/print-criteria review | `<case>_review_format.json` |
+| `mill-cert-reviewer` | claude-opus-4-8 | Phase 4 원자재 MILL CERT 검증·교차비교 (기준 21·22, mill cert 존재 케이스 한정 조건부) | `<case>_review_mill_cert.json` |
 
 - **Model**: all agents use claude-opus-4-8 — prioritizing multi-item MTC identification and numeric-reading accuracy. OCR (transcription) and review (judgment) are separated by role, not by model (300 DPI required).
 - **Tile reading**: `ocr-extractor` reads **2×2 overlapping tiles** per page (`.cache/<case>/tiles/`) instead of the full-page PNG. When the model reads a PNG, it downsamples to ~1568px on the long edge, so a full page (~3500px) smears small digits; but a 2×2 tile is ~1957px on the long edge, ~1.8× sharper even after downsampling, so it is read **without crop**.
@@ -112,7 +113,8 @@ The review work is delegated to **9 plugin subagents**. Each writes only a parti
         │   ├── <case>_mps_digest.json              ← mps-extractor output (per-domain MPS special requirements + source-text quotes, shared by the 5 review agents)
         │   ├── <case>_limits.json                  ← limits CLI output (relevant reference values + provenance)
         │   ├── <case>_attachments.json             ← attachments CLI output (기준 20 enclosed-report presence per heat)
-        │   ├── <case>_review_<domain>.json         ← review agent partial output (chemistry|mechanical|heat_treatment|nde|format)
+        │   ├── <case>_mill_cert.json               ← mill-cert CLI output (기준 21/22 교차비교 팩)
+        │   ├── <case>_review_<domain>.json         ← review agent partial output (chemistry|mechanical|heat_treatment|nde|format|mill_cert)
         │   └── <case>_review.json                  ← merge-reviews merged result (Phase 5/6 input)
         ├── .cache/cache_status.json                ← cache-status output (fresh/legacy/stale/missing)
         ├── data/*.csv                              ← 7 reference-value CSVs (see the "Domain-rule reference locations" table below)
@@ -149,7 +151,8 @@ python -m scripts.cli crop --case 4 --stem <stem> --page 2 --bbox 0.10,0.42,0.55
 python -m scripts.cli validate-refs                     # Phase 3: CSV provenance validation
 python -m scripts.cli limits --case 4                   # Phase 4: relevant reference-value rows + provenance
 python -m scripts.cli attachments --case 4             # Phase 4: 기준 20 enclosed-report attachment index (sidecar 부재 시에도 exit 0)
-python -m scripts.cli merge-reviews --case 4            # merge the 5 review agents' partial outputs
+python -m scripts.cli mill-cert --case 4                # Phase 4: 기준 21/22 교차비교 팩 (런 0건도 exit 0)
+python -m scripts.cli merge-reviews --case 4            # merge the review agents' partial outputs (최대 6부분 — mill_cert는 선택적)
 python -m scripts.cli evaluate --case 4 | --all         # Phase 6: evaluation against comments.md
 ```
 
@@ -163,7 +166,7 @@ Do not sacrifice accuracy for time — opus's precise crop reading of numeric ce
 - **Standard** (4–6 pages, several items): target **≤60 min**.
 - **Complex** (>6 pages, or 7+ items, or multiple grades): **60–90 min allowed**. With simultaneous multi-case fan-out, it may grow further due to opus concurrent-call throttling.
 
-Structural devices that keep time proportional to complexity: ① identification is finalized in a single ocr-extractor pass (no reviewer re-verification) ② reviewer crops focus on judgment-critical cells (no indiscriminate full-coverage crop) ③ parallelization of large certs (≤4p segments) (below) ④ **tiling (tile-inputs)** — when ocr-extractor reads 2×2 overlapping tiles, OCR becomes **~2.6× faster and crops drop to nearly 0** relative to the full page (small digits that smeared under downsampling are read without crop) ⑤ **MPS digest sharing (mps-extractor)** — extracting the MPS scan only once and sharing it as a per-domain digest removes the 5 review agents' redundant MPS OCR, shortening the review wall **~3×** (per-reviewer separate Vision-OCR ~95 min → digest consumption ~32 min, with no recall regression) ⑥ **pre-OCR page alignment (orient-sheets + page-aligner + align-inputs)** — rotated scan pages are straightened before tiling, so the tile semantics (r0=header) and digit legibility hold on rotated inputs too; detection costs ~1 sheet Read per 12 pages plus one delegation per case. ⑦ **Phase 1.6 document-type classification (classify-sheets + doc-classifier + check-doctype)** — one added delegation per case adds roughly **+2–4 min (simple) / +3–5 min (standard) / +10–15 min (complex 73p)**, but this is largely **offset by the minimal-entry OCR of excluded pages** (excluded pages skip table transcription), so the net is ≈ **0±5 min** for mixed complex files; the tier targets (≤30 / ≤60 / 60–90 min) are **unchanged**. In multi-case runs, the intra-case 5-agent parallelism overlaps with inter-case parallelism, so keep the total concurrent-agent cap of 6–10. ⑧ **기준 20 attachment judgement** — doc-classifier's related-identifier reading of EXCLUDED runs adds **+1–3 min only on cases that actually have enclosed documents**, and the reviewer-side attachment ladder is absorbed within the existing Phase 4 delegation (net ≈ **+0–3 min**); the deterministic `attachments` CLI is sub-second. Tier targets are **unchanged**.
+Structural devices that keep time proportional to complexity: ① identification is finalized in a single ocr-extractor pass (no reviewer re-verification) ② reviewer crops focus on judgment-critical cells (no indiscriminate full-coverage crop) ③ parallelization of large certs (≤4p segments) (below) ④ **tiling (tile-inputs)** — when ocr-extractor reads 2×2 overlapping tiles, OCR becomes **~2.6× faster and crops drop to nearly 0** relative to the full page (small digits that smeared under downsampling are read without crop) ⑤ **MPS digest sharing (mps-extractor)** — extracting the MPS scan only once and sharing it as a per-domain digest removes the 5 review agents' redundant MPS OCR, shortening the review wall **~3×** (per-reviewer separate Vision-OCR ~95 min → digest consumption ~32 min, with no recall regression) ⑥ **pre-OCR page alignment (orient-sheets + page-aligner + align-inputs)** — rotated scan pages are straightened before tiling, so the tile semantics (r0=header) and digit legibility hold on rotated inputs too; detection costs ~1 sheet Read per 12 pages plus one delegation per case. ⑦ **Phase 1.6 document-type classification (classify-sheets + doc-classifier + check-doctype)** — one added delegation per case adds roughly **+2–4 min (simple) / +3–5 min (standard) / +10–15 min (complex 73p)**, but this is largely **offset by the minimal-entry OCR of excluded pages** (excluded pages skip table transcription), so the net is ≈ **0±5 min** for mixed complex files; the tier targets (≤30 / ≤60 / 60–90 min) are **unchanged**. In multi-case runs, the intra-case 5-agent parallelism overlaps with inter-case parallelism, so keep the total concurrent-agent cap of 6–10. ⑧ **기준 20 attachment judgement** — doc-classifier's related-identifier reading of EXCLUDED runs adds **+1–3 min only on cases that actually have enclosed documents**, and the reviewer-side attachment ladder is absorbed within the existing Phase 4 delegation (net ≈ **+0–3 min**); the deterministic `attachments` CLI is sub-second. Tier targets are **unchanged**. ⑨ **기준 21/22 MILL CERT 검증** — mill cert 전사 예외는 동봉 mill cert 보유 케이스에서만 페이지당 기존 OCR 동일 비용(+통상 1~2p), `mill-cert-reviewer` 1위임 추가(조건부 — `applicable: true` 케이스 한정, 결정적 `mill-cert` CLI는 sub-second) — 티어 목표 불변.
 
 ---
 
@@ -325,10 +328,15 @@ Perform the sequence below per case. **The orchestrator runs the deterministic C
 - Based on the case extraction inventory (grade·class), select only the relevant CSV rows and produce `.cache/<case>/<case>_limits.json` as JSON including the 3 provenance fields (`source_file`/`anchor`/`snippet`). **The values are still CSV-derived, and snippet/anchor are preserved so C2/C8 are satisfied.**
 - If a grade routing failure is stated in the output JSON's `unrouted`, then **only for that grade** finalize the manual routing information from the CSV source and `review-criteria.md`, and **attach that resolution information to the delegation context**. (A successfully routed grade needs no extra work.)
 - Then run `attachments --case <id>` to produce `.cache/<case>/<case>_attachments.json` — the 기준 20 attachment index (enclosed PMI/NDE/dimension report presence per finished-product heat, from the doctype sidecars' related identifiers). **Always run it — a case with no doctype sidecar still exits 0 (`sidecar_present: false`)**, and reviewers then simply skip attachment judgement.
+- Then run `mill-cert --case <id>` to produce `.cache/<case>/<case>_mill_cert.json` — the 기준 21/22 cross-comparison pack (MTC_RAW_MATERIAL run subgrouping, linkage, forging predicate, tensile/chemistry identity states). **Always run it — a case with no mill cert run still exits 0 (`applicable: false`)**; `applicable` is the mill-cert-reviewer delegation condition below.
 
 ### 2) Parallel delegation of the 5 review agents (concurrently in one message)
 
-After `limits` completes (and after that case's `mps-extractor` has produced `<case>_mps_digest.json`), **delegate the 5 agents below in parallel in a single message**. The context to include in each delegation:
+After `limits` completes (and after that case's `mps-extractor` has produced `<case>_mps_digest.json`), **delegate the 5 agents below in parallel in a single message**.
+
+**+ 조건부 6번째: `applicable: true`인 케이스는 `mill-cert-reviewer`를 5 리뷰어와 같은 단일 메시지에 병렬 위임 (케이스당 최대 6 동시 — 총 동시 캡 6–10 내, C-M4).** 위임 컨텍스트: case id · SKILL_DIR 절대경로 · 출력 의무(`<case>_review_mill_cert.json`) · 준수사항(C1–C8, 3범주 화이트리스트, 기준 20 첨부판정 발행 금지, 재-OCR 금지). `applicable: false`인 케이스는 위임을 생략한다.
+
+The context to include in each delegation:
 - case id
 - the skill directory **absolute path**
 - its own domain's partial-output obligation: `.cache/<case>/<case>_review_<domain>.json`
@@ -348,6 +356,7 @@ The review agents do not re-verify the identification fields finalized by ocr-ex
 | `heat-treatment-reviewer` | per-step temperature·time, the ±10°C rule |
 | `nde-reviewer` | 기준 NDE rules (MILL/STOCK notch), separate NDE-applicability reporting, δ-ferrite·Code Case·PMI |
 | `format-reviewer` | 기준 11.2 (identification spec family), 기준 14 (self-consistency of the cert's own print criteria), 기준 15 (spec-notation verification), 기준 16 (Class restriction·inventory coverage) |
+| `mill-cert-reviewer` | 기준 21 (MILL CERT 검증·연결성), 기준 22 (22.1 화학 주의 / 22.2 단조 인장 전사 FAIL) |
 
 > The per-domain judgment details (the Cev back-calculation formula, the ±10°C branch, the 기준 11.2/14/15/16 application procedure, the finding gate (기준 17) and standard vocabulary (기준 18)) belong to each agent's document and `references/review-criteria.md` — **do not duplicate in SKILL.md**.
 
@@ -362,12 +371,14 @@ The review agents do not re-verify the identification fields finalized by ocr-ex
 | dimensions / quantity / Heat No | format |
 | 동봉 보고서 첨부판정 — PMI/NDE/Microstructure 유형 (기준 20) | nde |
 | 동봉 보고서 첨부판정 — 치수/이화학/열처리차트/원자재 유형 (기준 20) | format |
+| MILL CERT 자체 유효성·연결성·MTC 교차비교 (기준 21·22) | mill_cert |
+| 원자재 성적서 첨부 여부 판정 (기준 20) | format (불변) |
 
 ### 3) merge-reviews (orchestrator-run, after all complete) — `merge-reviews --case <id>`
 
 If a review agent reports a grade correction (differing from the inventory), the orchestrator's rule is to re-run that case's `limits --case` to re-supply the corrected grade's reference-value rows (including MPS override) and re-delegate the affected domains (an agent's manual augmentation from the CSV source is a secondary path).
 
-- **Deterministically merge** the 5 partial files (`<case>_review_chemistry.json` … `_format.json`) into a single `<case>_review.json`: global finding renumbering, worst-value aggregation of the verdict. **The downstream Phase 5/6 contract is unchanged.**
+- **Deterministically merge** 최대 6개 부분 파일 (`<case>_review_chemistry.json` … `_format.json` + 선택적 `<case>_review_mill_cert.json` — 부재 시 경고 없음) into a single `<case>_review.json`: global finding renumbering, worst-value aggregation of the verdict. **The downstream Phase 5/6 contract is unchanged.**
 
 ### Source-citation rule (C2)
 
@@ -375,13 +386,13 @@ If a review agent reports a grade correction (differing from the inventory), the
 
 ---
 
-## Phase 5: compliance_report (6-sheet Korean Excel)
+## Phase 5: compliance_report (6-sheet (+1 conditional mill-cert sheet) Korean Excel)
 
-**Purpose**: output the findings in `review.json` as a 6-sheet Korean Excel report.
+**Purpose**: output the findings in `review.json` as a 6시트(+조건부 1시트: 원자재 MILL CERT 검토) Korean Excel report.
 
 - `compliance_report.build_compliance_report` reads `review.json` and generates the report.
 - Output: `output/reports/<case_id>/<case_id>_MTC_Review.xlsx`
-- **6-sheet structure**:
+- **6-sheet (+1 conditional mill-cert sheet) structure**:
 
   | # | Sheet name | Content |
   |---|---|---|
@@ -390,10 +401,11 @@ If a review agent reports a grade correction (differing from the inventory), the
   | 3 | 기계적 성질 | TS/YS/EL/RA/hardness vs reference, verdict |
   | 4 | 열처리 | per-step temperature·time vs reference, verdict |
   | 5 | NDE / 특별요구 | whether UT/MT/PT/PMI were performed, notch spec, δ-ferrite |
+  | 6.5 | 원자재 MILL CERT 검토 | (조건부) 기준 21·22 연결성·자체검증·교차비교 행 — `mill_cert` 행이 있을 때만 생성 |
   | 6 | Finding 목록 | finding_id, category, severity, issue_summary, evidence summary |
 
 - **Verdict / severity vocabulary (canonical)**: every cell verdict (overall + per-row, all domains) must be exactly one of **`PASS | 주의 | FAIL | N/A`**; finding severity must be one of **`Reject | ActionRequired | Question | Minor | Info`**. `compliance_report` deterministically **canonicalises** any non-standard label (e.g. `합격`→PASS, `REVIEW`/`ActionRequired`→주의, `INFO`/`정보성`/`확인 불가`→N/A) and **always applies a colour** (PASS=green, FAIL=red, 주의=yellow, N/A=grey). Agents should still emit the canonical tokens directly — do not invent variants.
-- **Output language**: the 6-sheet report and all finding text (`issue_summary`/`content`/`notes`/`doc_checks`) are authored in Korean (reviewer vocabulary), unchanged from current behavior. The sheet names above (종합 요약, 화학성분, 기계적 성질, 열처리, NDE / 특별요구, Finding 목록) are emitted verbatim in Korean.
+- **Output language**: the 6-sheet (+1 conditional mill-cert sheet) report and all finding text (`issue_summary`/`content`/`notes`/`doc_checks`) are authored in Korean (reviewer vocabulary), unchanged from current behavior. The sheet names above (종합 요약, 화학성분, 기계적 성질, 열처리, NDE / 특별요구, (조건부) 원자재 MILL CERT 검토, Finding 목록) are emitted verbatim in Korean.
 - Do not use the section sign in report text. Cite criteria clauses in the `기준 3.1` format.
 - File encoding: `openpyxl` default (UTF-8). Uses Korean font fallback.
 
@@ -436,13 +448,14 @@ Phase 2   [delegate ocr-extractor/opus]  ≤6p full once → <stem>_extracted.js
 Phase 2.5 check-extraction  → exit 0 required (always runs; on failure re-delegate only the missing segment)
 ──── starting from cases that completed OCR, passed 2.5, and produced mps_digest ────
 Phase 4   limits → <id>_limits.json  → attachments → <id>_attachments.json (기준 20, sidecar 부재도 exit 0)
-            → [delegate 5 reviewers/claude-opus-4-8 in one message, parallel]
-            chemistry·mechanical·heat_treatment·nde·format → <id>_review_<domain>.json
+            → mill-cert → <id>_mill_cert.json (기준 21/22, 런 0건도 exit 0)
+            → [delegate 5 reviewers (+ conditional mill-cert-reviewer)/claude-opus-4-8 in one message, parallel]
+            chemistry·mechanical·heat_treatment·nde·format (+mill_cert if applicable) → <id>_review_<domain>.json
             (MPS special requirements consumed from <id>_mps_digest.json's own domain block — original MPS not opened;
              nde/format apply the 기준 20 ladder for their own doc types from <id>_attachments.json)
           merge-reviews → <id>_review.json (renumber·worst-value verdict, downstream contract unchanged)
 ──── batched after all cases' merge-reviews ────
-Phase 5   compliance_report → output/reports/<id>/<id>_MTC_Review.xlsx (6 sheets)
+Phase 5   compliance_report → output/reports/<id>/<id>_MTC_Review.xlsx (6 sheets + conditional mill-cert sheet)
 Phase 6   evaluate --case <id> | --all → output/eval/*  (recall/precision/case_pass)
 ```
 

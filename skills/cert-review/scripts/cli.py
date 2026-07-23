@@ -663,6 +663,43 @@ def cmd_attachments(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_mill_cert(args: argparse.Namespace) -> int:
+    """기준 21/22: MTC-MILL CERT 교차비교 팩 (<case>_mill_cert.json)."""
+    from scripts.mill_cert import build_mill_cert_pack  # noqa: PLC0415
+    from scripts.refdata_loader import load_csv  # noqa: PLC0415
+
+    try:
+        routing = load_csv(PLUGIN_DIR / "data" / "grade_routing.csv", WORK_DIR)
+    except Exception as e:   # 라우팅 실패는 치명 아님 — regex/keyword 술어로 강등
+        print(f"[WARN] grade_routing load failed ({e}); regex/keyword predicate only",
+              file=sys.stderr)
+        routing = None
+    try:
+        pack = build_mill_cert_pack(case_id=args.case, cache_root=CACHE_DIR,
+                                    routing=routing)
+    except FileNotFoundError as e:
+        print(f"[ERROR] mill-cert: {e}", file=sys.stderr)
+        return 1
+
+    runs = pack["mill_cert_runs"]
+    n_docs = sum(len(r["mill_docs"]) for r in runs)
+    print(f"[OK] mill-cert --case {args.case}: {len(runs)} run(s), {n_docs} doc(s), "
+          f"applicable={str(pack['applicable']).lower()}")
+    for run in runs:
+        for doc in run["mill_docs"]:
+            heat = doc.get("heat_no") or "(heat 미상)"
+            matches = doc.get("matches") or []
+            states = sorted({m["tensile"]["state"] for m in matches}) or ["-"]
+            print(
+                f"     {run['stem']} {doc['page_range']}: heat={heat}, "
+                f"{len(matches)} match(es), tensile={','.join(states)}"
+            )
+    for issue in pack["issues"]:
+        print(f"     issue: {issue}")
+    print(f"     report: {pack['output_path']}")
+    return 0
+
+
 def cmd_merge_parts(args: argparse.Namespace) -> int:
     """Merge chunked Vision OCR fragments into <stem>_extracted.json."""
     from scripts.merge_parts import merge_case  # noqa: PLC0415
@@ -873,6 +910,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("attachments", help="기준 20: enclosed-document attachment index (requirement-vs-attachment input)")
     p.add_argument("--case", required=True)
     p.set_defaults(func=cmd_attachments)
+
+    p = sub.add_parser("mill-cert", help="기준 21/22: MTC-MILL CERT cross-comparison pack (mill-cert-reviewer input)")
+    p.add_argument("--case", required=True)
+    p.set_defaults(func=cmd_mill_cert)
 
     p = sub.add_parser("merge-parts", help="Merge chunked Vision fragments into <stem>_extracted.json")
     p.add_argument("--case", required=True)
