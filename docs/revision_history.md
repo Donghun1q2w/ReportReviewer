@@ -1,5 +1,13 @@
 # Revision History
 
+## 2026-07-23 — cert-review-annotate Phase C: 이미지 burn-in → 네이티브 PDF 주석 오브젝트 전환
+
+**Detail**: [revisions/2026-07-23_164333_cert-review-annotate-native-pdf-annotations](revisions/2026-07-23_164333_cert-review-annotate-native-pdf-annotations.md) · **Plan**: [2026-07-23_160912_cert-review-annotate-native-pdf-annotations-v2](plans/2026-07-23_160912_cert-review-annotate-native-pdf-annotations-v2.md)
+
+- 수정: `annotate_pdf.py`(전면 재작성 — Square+Acrobat 네이티브 빈 Popup 동반(양방향 링크, 참조 PU2601564.pdf 패턴)+FreeText 한글 라벨 **자체 /AP**(벡터 칩+4x 글리프 — pdfium 계열 "한글 미표시" 정면 해결)) · `cli.py`(`--dpi` 제거) · `test_annotate_pdf.py`(재작성 39개) · `cert-review-annotate/SKILL.md` · `requirements.txt`(코멘트)
+- 전 페이지 완전 copy-through(`clone_from` — /Contents 바이트 원본 동일 자동검증), 주석 개별 삭제/이동/수정 가능. 좌표 T=(R+A)%360 4케이스+CropBox 오프셋(케이스 46/62 실측 리터럴)+상속 /Rotate. 신규 의존성 0.
+- dh-dev 1-e 적대검증 HIGH 4건 반영 + /simplify 4렌즈 10건 반영. pytest **238 passed**(오케스트레이터 독립 재검증), 실물 E2E 3케이스(PU2601233·46·PU2601565-01) 무결성·왕복·한글 read-back 확인. 잔여: 실사용 뷰어(Acrobat) 육안 확인 위임.
+
 ## 2026-07-23 — chemistry_limits.csv SA-105 provenance 잠정 예외처리
 
 **Detail**: [revisions/2026-07-23_135622_sa105-provenance-waiver](revisions/2026-07-23_135622_sa105-provenance-waiver.md)

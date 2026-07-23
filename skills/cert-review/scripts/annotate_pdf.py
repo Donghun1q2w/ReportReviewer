@@ -1,64 +1,109 @@
-"""annotate_pdf.py — burn review verdicts onto cert PDFs as boxed annotations.
+"""annotate_pdf.py — attach review verdicts to cert PDFs as native PDF annotations.
 
 Consumes a standalone ``<case>_annotations.json`` (produced by the
 ``annotation-locator`` agent) plus the original cert PDF(s), and writes
-``<stem>_annotated.pdf`` with a border-only rectangle + <=50 char Korean label
-around each 주의 / N/A / FAIL region. **PASS is never annotated.**
+``<stem>_annotated.pdf`` in which every 주의 / N/A / FAIL region carries native,
+individually editable PDF annotation objects:
 
-This is a deterministic *renderer* — it does not locate cells; it draws the
+  * a border-only ``/Square`` (no fill, verdict-coloured border) — the *main*
+    annotation. It carries the Korean label as its ``/Contents`` comment thread
+    plus an Acrobat-native empty ``/Popup`` companion (bidirectional
+    ``/Popup``–``/Parent`` link), so a viewer can open a comment thread on the
+    box exactly the way the in-house reviewer's Adobe Acrobat "사각형" tool does
+    (ref: the real in-house sample ``docs/PU2601564.pdf``).
+  * a ``/FreeText`` label with a self-generated appearance stream (a vector chip
+    + a 4x-oversampled Hangul-glyph image XObject) so the ≤50-char Korean label
+    is *always visible* in every major viewer — including pdfium-family viewers
+    that never synthesise a FreeText appearance. The FreeText is an always-shown
+    label overlay, not a comment carrier, so — matching the reference pattern of
+    one main annotation per popup — it has **no** ``/Popup``.
+
+**PASS is never annotated.**
+
+This is a deterministic *renderer* — it does not locate cells; it attaches the
 coordinates handed to it. Locating (page + fractional bbox) is the
 ``annotation-locator`` agent's job, so the cert-review review logic (the 5
 reviewers, review-criteria, review.json schema) is untouched.
 
-Constraint C1: no OCR libraries. Only ``pypdfium2`` (rasterise), ``Pillow``
-(draw) and ``pypdf`` (page splice) are used — none perform OCR. Verdict
-canonicalisation and the four verdict colours are reused from
-``compliance_report`` so the burn-in matches the 6-sheet Excel report exactly.
+Constraint C1: no OCR libraries. Only ``pypdf`` (native annotation objects +
+copy-through re-assembly) and ``Pillow`` (label appearance-stream glyph raster
+only — the page itself is never rasterised) are used; neither performs OCR.
+Verdict canonicalisation and the four verdict colours are reused from
+``compliance_report`` so the annotations match the 6-sheet Excel report exactly.
 
-Coordinate convention: fractional bbox ``[x0, y0, x1, y1]`` in ``[0, 1]`` with a
-top-left origin — identical to ``crop.py`` — applied to the *same*
-``pypdfium2`` ``page.render(scale=dpi/72)`` raster. pdfium applies the page
-``/Rotate`` when rendering; scan CONTENT rotation (metadata 0, image sideways)
-is instead corrected by align-inputs on the cached PNGs, so annotated pages are
-re-rotated here by the same applied map (``align_inputs.applied_rotations``) to
-keep bboxes in the aligned image space the annotation-locator saw. A burned
-page of a rotated original is therefore emitted upright (it is a raster page
-either way — legibility wins); untouched pages stay verbatim.
+Reassembly is *copy-through*: ``PdfWriter(clone_from=...)`` preserves every page
+object verbatim (``/Contents`` bytes, MediaBox/CropBox/Rotate unchanged); the new
+annotations are only appended to each page's ``/Annots``, so every annotation can
+be individually deleted / moved / edited in a viewer and no page content is
+altered. Since a ``/Popup`` draws nothing (empty, no ``/Contents`` — the same
+state as the reference document), it too leaves page content byte-identical.
 
-Reassembly is *copy-through*: only pages that carry annotations are rasterised
-and re-embedded; every other page is preserved verbatim from the original PDF
-(pypdf splice). This keeps file size and peak memory ~1 page and preserves the
-original page objects.
+Coordinate convention: the annotation-locator's fractional bbox ``[x0, y0, x1,
+y1]`` in ``[0, 1]`` is in the *aligned* image space (the upright pixels the
+reviewers saw). It is mapped back to the original user space ``/Rect`` (points,
+bottom-left origin) using ``T = (R + A) % 360`` — where ``R`` is the page
+``/Rotate`` (inherited page attributes are already flattened onto the leaf by
+``PdfReader``) and ``A`` is the align-inputs applied clockwise rotation — plus
+the page ``/CropBox`` origin offset. A rotated page's label appearance carries an
+``/AP`` ``/Matrix`` so its glyphs stay content-horizontal (never aspect-distorted).
+
+Annotation metadata: ``/T = "cert-review"`` (the tool name — the author column in
+Acrobat's comment panel; identical on both the Square and the FreeText so both
+read as one tool's output), ``/Subj = verdict``, a deterministic in-document
+``/NM``, and ``/M`` + ``/CreationDate`` stamped with the run's wall-clock time
+(``D:YYYYMMDDHHMMSS``). Reading wall-clock time in ``_pdf_now`` is this module's
+only such call, mirroring the cli.py timestamp convention.
+
+Note: if a viewer user *edits* a FreeText label's text, that viewer regenerates
+its ``/AP`` from ``/DA`` (viewer fonts; pdfium-family viewers then stop showing
+it) — moving/deleting is unaffected.
 """
 
 from __future__ import annotations
 
-import io
 import json
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import pypdfium2 as pdfium
 from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader, PdfWriter
+from pypdf.annotations import FreeText, Popup, Rectangle
+from pypdf.generic import (
+    ArrayObject,
+    DictionaryObject,
+    FloatObject,
+    NameObject,
+    NumberObject,
+    StreamObject,
+    TextStringObject,
+)
 
-from scripts.align_inputs import applied_rotations, rotate_upright
+from scripts.align_inputs import VALID_ROTATIONS, applied_rotations
 from scripts.compliance_report import (
     _FAIL_FILL,
     _NA_FILL,
     _WARN_FILL,
     _canon_verdict,
 )
-from scripts.crop import bbox_to_pixels, parse_bbox, resolve_stem
+from scripts.crop import parse_bbox, resolve_stem
 
 # Hangul-capable label font; override via CERT_REVIEW_FONT for non-Windows hosts.
 DEFAULT_FONT = os.environ.get("CERT_REVIEW_FONT", r"C:\Windows\Fonts\malgun.ttf")
 LABEL_MAX = 50
-LABEL_BOX_PAD = 2        # px padding of the label text chip around the glyphs
-_LINE_W_PER_DPI = 75     # box outline width = max(3, round(dpi / this))
-_FONT_PX_PER_DPI = 0.16  # label font px = clamp(round(dpi * this), 20, 64)
+
+# Point-space calibration (was px @200dpi in the burn-in era; equivalents noted).
+BORDER_W_PT = 2           # /Square border width (pt); old 3px@200dpi ≈ 1.08pt
+LABEL_FONT_PT = 10.0      # label font (pt); old 32px@200dpi ≈ 11.5pt
+LABEL_GAP_PT = 4.0        # box↔label gap (pt); old pad 6px@200dpi ≈ 2.16pt
+LABEL_BOX_PAD = 2.0       # chip inner padding (pt); old 2px ≈ 0.72pt
+AP_OVERSAMPLE = 4.0       # glyph raster scale (10pt*4=40px ≈ 300dpi)
+_CHIP_BORDER_W = 0.75     # chip border width (pt), grey
+_LABEL_GRAY = 0.313725    # chip border grey level (old (80, 80, 80))
+ANNOT_AUTHOR = "cert-review"          # /T — tool constant (not a person's name)
+POPUP_W_PT, POPUP_H_PT = 180.0, 120.0  # Acrobat-conventional UI-hint size
 
 # verdict -> openpyxl PatternFill (single source = compliance_report).
 # PASS is intentionally absent: it is never annotated.
@@ -118,18 +163,19 @@ def _rects_overlap(a: tuple, b: tuple) -> bool:
 
 
 def _place_label(
-    box_px: tuple[int, int, int, int],
-    tw: int,
-    th: int,
-    page_w: int,
-    page_h: int,
-    placed: list[tuple[int, int, int, int]],
-    pad: int = 6,
-) -> tuple[int, int]:
+    box_px: tuple[float, float, float, float],
+    tw: float,
+    th: float,
+    page_w: float,
+    page_h: float,
+    placed: list[tuple[float, float, float, float]],
+    pad: float = LABEL_GAP_PT,
+) -> tuple[float, float]:
     """Pick a label top-left that avoids already-placed labels and the page edge.
 
     Tries above / below / right of the box, then stacks downward; always clamps
-    inside the page. The box itself is never moved (only the label).
+    inside the page. The box itself is never moved (only the label). Works in the
+    aligned space (points now, pixels in the burn-in era) — pure geometry.
     """
     left, top, right, bottom = box_px
     candidates = [
@@ -201,53 +247,261 @@ def load_annotations(path: Path | str) -> tuple[list[Annotation], dict[str, int]
 
 
 # --------------------------------------------------------------------------- #
-# Rendering (impure)
+# Coordinate transform (aligned fractional bbox -> original user-space /Rect)
 # --------------------------------------------------------------------------- #
-def _render_page_pil(pdf_page, dpi: int) -> Image.Image:
-    bitmap = pdf_page.render(scale=dpi / 72.0)
-    return bitmap.to_pil().convert("RGB")
+def _aligned_to_user_frac(u: float, v: float, t: int) -> tuple[float, float]:
+    """Aligned fractional ``(u, v)`` (top-left) -> user fractional ``(a, b)``.
+
+    Inverts the align-inputs upright rotation ``T = (R + A) % 360`` so a point in
+    the pixels the reviewers saw maps back to the original page's fractional
+    position. Raises on any T ∉ {0, 90, 180, 270}.
+    """
+    if t == 0:
+        return (u, v)
+    if t == 90:
+        return (v, 1.0 - u)
+    if t == 180:
+        return (1.0 - u, 1.0 - v)
+    if t == 270:
+        return (1.0 - v, u)
+    raise ValueError(f"rotation must be one of 0/90/180/270, got {t!r}")
 
 
-def _draw_annotations(
-    img: Image.Image, anns: list[Annotation], font: ImageFont.FreeTypeFont, dpi: int
-) -> int:
-    """Draw border-only boxes + labels onto ``img``; return the count drawn."""
-    draw = ImageDraw.Draw(img)
-    page_w, page_h = img.size
-    line_w = max(3, round(dpi / _LINE_W_PER_DPI))
-    placed: list[tuple[int, int, int, int]] = []
-    seen_boxes: set[tuple[int, int, int, int]] = set()
-    drawn = 0
+def aligned_bbox_to_user_rect(
+    bbox: tuple[float, float, float, float],
+    mx0: float,
+    my0: float,
+    wp: float,
+    hp: float,
+    t: int,
+) -> tuple[float, float, float, float]:
+    """Aligned fractional bbox -> user-space /Rect (pt, bottom-left origin).
 
-    for ann in anns:
-        rgb = _verdict_rgb(ann.verdict)
-        if rgb is None:  # PASS/other slipped through — never annotate
-            continue
-        box = bbox_to_pixels(ann.bbox, page_w, page_h)
-        if box in seen_boxes:  # identical box already drawn -> dedupe
-            continue
-        seen_boxes.add(box)
-
-        # border-only rectangle (no fill)
-        draw.rectangle(box, outline=rgb, fill=None, width=line_w)
-
-        # label: verdict-coloured chip + black text, placed clear of the box
-        l, t, r, b = draw.textbbox((0, 0), ann.label, font=font)
-        tw, th = r - l, b - t
-        x, y = _place_label(box, tw, th, page_w, page_h, placed)
-        chip = (x - LABEL_BOX_PAD, y - LABEL_BOX_PAD, x + tw + LABEL_BOX_PAD, y + th + LABEL_BOX_PAD)
-        draw.rectangle(chip, fill=rgb, outline=(80, 80, 80), width=1)
-        draw.text((x - l, y - t), ann.label, font=font, fill=(0, 0, 0))
-        placed.append(chip)
-        drawn += 1
-
-    return drawn
+    Both corners are transformed and then min/max-normalised, because a 90/270
+    rotation swaps which corner is the geometric minimum.
+    """
+    x0, y0, x1, y1 = bbox
+    my1 = my0 + hp
+    pts = []
+    for u, v in ((x0, y0), (x1, y1)):
+        a, b = _aligned_to_user_frac(u, v, t)
+        pts.append((mx0 + a * wp, my1 - b * hp))
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    return (min(xs), min(ys), max(xs), max(ys))
 
 
-def _load_font(font_path: str, dpi: int) -> ImageFont.FreeTypeFont:
-    font_px = max(20, min(64, round(dpi * _FONT_PX_PER_DPI)))
+def _aligned_page_size_pt(wp: float, hp: float, t: int) -> tuple[float, float]:
+    """Aligned (upright) page size in pt — width/height swap on 90/270."""
+    if t in (90, 270):
+        return (hp, wp)
+    return (wp, hp)
+
+
+# --------------------------------------------------------------------------- #
+# Label appearance stream (Pillow glyph raster only — the page is never touched)
+# --------------------------------------------------------------------------- #
+def _rgb01(rgb255: tuple[int, int, int]) -> ArrayObject:
+    """RGB 0..255 tuple -> PDF colour array of FloatObject in 0..1."""
+    return ArrayObject([FloatObject(c / 255.0) for c in rgb255])
+
+
+def _render_label_image(label: str, font: ImageFont.FreeTypeFont, bg_rgb255: tuple[int, int, int]) -> Image.Image:
+    """Render the Korean label as black glyphs on the verdict-coloured chip.
+
+    Rendered once per annotation; ``img.size`` is the single source of the chip
+    geometry for BOTH the FreeText /Rect placement and the /AP /BBox, so the
+    raster and its placement cannot diverge (real font metrics, WYSIWYG).
+    """
+    draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    l, t, r, b = draw.textbbox((0, 0), label, font=font)
+    img = Image.new("RGB", (max(1, r - l), max(1, b - t)), tuple(bg_rgb255))
+    ImageDraw.Draw(img).text((-l, -t), label, font=font, fill=(0, 0, 0))
+    return img
+
+
+def _chip_size_pt(img: Image.Image) -> tuple[float, float]:
+    """Glyph image -> chip (text-extent) size in pt, undoing the oversampling."""
+    return (img.size[0] / AP_OVERSAMPLE, img.size[1] / AP_OVERSAMPLE)
+
+
+def _image_xobject(writer: PdfWriter, img: Image.Image):
+    """Register ``img`` as a flate-encoded /DeviceRGB image XObject; return its ref."""
+    w, h = img.size
+    st = StreamObject()
+    st[NameObject("/Type")] = NameObject("/XObject")
+    st[NameObject("/Subtype")] = NameObject("/Image")
+    st[NameObject("/Width")] = NumberObject(w)
+    st[NameObject("/Height")] = NumberObject(h)
+    st[NameObject("/ColorSpace")] = NameObject("/DeviceRGB")
+    st[NameObject("/BitsPerComponent")] = NumberObject(8)
+    st.set_data(img.tobytes())
+    return writer._add_object(st.flate_encode())  # flate_encode returns a new object
+
+
+# Counter-clockwise T rotation that returns aligned-space text to user space.
+# (T=0 omits /Matrix.) The viewer maps the transformed /BBox onto /Rect, so no
+# translation term is needed — without this, 90/270 aspect-distorts the glyphs.
+_AP_MATRIX = {
+    90: [0, 1, -1, 0, 0, 0],
+    180: [-1, 0, 0, -1, 0, 0],
+    270: [0, -1, 1, 0, 0, 0],
+}
+
+
+def _label_ap(
+    writer: PdfWriter,
+    img: Image.Image,
+    verdict_rgb255: tuple[int, int, int],
+    t: int,
+):
+    """Build the FreeText /AP /N Form XObject (vector chip + glyph image); return ref.
+
+    ``img`` is the pre-rendered label raster from ``_render_label_image`` — the
+    same object whose size drove the /Rect placement, so /BBox ≡ chip geometry.
+    """
+    im_ref = _image_xobject(writer, img)
+    tw_pt, th_pt = _chip_size_pt(img)
+    w = tw_pt + 2 * LABEL_BOX_PAD
+    h = th_pt + 2 * LABEL_BOX_PAD
+    r01, g01, b01 = (c / 255.0 for c in verdict_rgb255)
+    gr = _LABEL_GRAY
+    content = (
+        f"q {r01:g} {g01:g} {b01:g} rg 0 0 {w:g} {h:g} re f "
+        f"{gr:g} {gr:g} {gr:g} RG {_CHIP_BORDER_W:g} w "
+        f"{LABEL_BOX_PAD:g} {LABEL_BOX_PAD:g} {tw_pt:g} {th_pt:g} re S Q "
+        f"q {tw_pt:g} 0 0 {th_pt:g} {LABEL_BOX_PAD:g} {LABEL_BOX_PAD:g} cm /Im0 Do Q"
+    ).encode("latin-1")
+
+    form = StreamObject()
+    form[NameObject("/Type")] = NameObject("/XObject")
+    form[NameObject("/Subtype")] = NameObject("/Form")
+    form[NameObject("/FormType")] = NumberObject(1)
+    form[NameObject("/BBox")] = ArrayObject(
+        [FloatObject(0), FloatObject(0), FloatObject(w), FloatObject(h)]
+    )
+    if t in _AP_MATRIX:
+        form[NameObject("/Matrix")] = ArrayObject([FloatObject(v) for v in _AP_MATRIX[t]])
+    res = DictionaryObject()
+    xobj = DictionaryObject()
+    xobj[NameObject("/Im0")] = im_ref
+    res[NameObject("/XObject")] = xobj
+    form[NameObject("/Resources")] = res
+    form.set_data(content)
+    return writer._add_object(form)
+
+
+# --------------------------------------------------------------------------- #
+# Annotation builders (Square main + Popup companion + FreeText label overlay)
+# --------------------------------------------------------------------------- #
+def _pdf_now() -> str:
+    """Run wall-clock time as a PDF date string (offset omitted — spec-allowed)."""
+    return time.strftime("D:%Y%m%d%H%M%S")
+
+
+def _build_square(
+    rect_pt: tuple[float, float, float, float],
+    verdict: str,
+    label: str,
+    nm: str,
+    stamp: str,
+) -> Rectangle:
+    """Border-only /Square (no fill) — the main annotation carrying the comment."""
+    sq = Rectangle(rect=rect_pt, interior_color=None)  # interior_color=None -> no /IC
+    sq[NameObject("/C")] = _rgb01(_verdict_rgb(verdict))
+    bs = DictionaryObject()
+    bs[NameObject("/W")] = NumberObject(BORDER_W_PT)
+    bs[NameObject("/S")] = NameObject("/S")
+    sq[NameObject("/BS")] = bs
+    sq[NameObject("/F")] = NumberObject(4)
+    sq[NameObject("/Contents")] = TextStringObject(label)
+    sq[NameObject("/T")] = TextStringObject(ANNOT_AUTHOR)
+    sq[NameObject("/Subj")] = TextStringObject(str(verdict))
+    sq[NameObject("/NM")] = TextStringObject(nm)
+    sq[NameObject("/M")] = TextStringObject(stamp)
+    sq[NameObject("/CreationDate")] = TextStringObject(stamp)
+    return sq
+
+
+def _popup_rect(
+    sq_rect: tuple[float, float, float, float],
+    mx0: float,
+    my0: float,
+    wp: float,
+    hp: float,
+) -> tuple[float, float, float, float]:
+    """UI-hint popup rect right of the Square, clamped inside the CropBox.
+
+    The coordinates are a viewer hint only (a collapsed popup shows nothing), so
+    they are not literal-tested — only the CropBox clamp is guaranteed.
+    """
+    x0 = sq_rect[2] + LABEL_GAP_PT
+    x0 = min(x0, mx0 + wp - POPUP_W_PT)
+    x0 = max(x0, mx0)
+    y1 = sq_rect[3]
+    y1 = min(y1, my0 + hp)
+    y1 = max(y1, my0 + POPUP_H_PT)
+    return (x0, y1 - POPUP_H_PT, x0 + POPUP_W_PT, y1)
+
+
+def _build_popup(
+    square: Rectangle,
+    rect_pt: tuple[float, float, float, float],
+    nm: str,
+    stamp: str,
+) -> Popup:
+    """Empty Acrobat-native /Popup companion (bidirectional link to its Square).
+
+    No /Contents — the same collapsed, empty state as the reference document's
+    Acrobat square annotation. /Open=False is set by the constructor.
+    """
+    pop = Popup(rect=rect_pt, parent=square, open=False)  # kwarg is 'parent' (F16)
+    pop[NameObject("/NM")] = TextStringObject(f"{nm}-popup")
+    pop[NameObject("/M")] = TextStringObject(stamp)
+    return pop
+
+
+def _build_label_annot(
+    writer: PdfWriter,
+    rect_pt: tuple[float, float, float, float],
+    verdict: str,
+    label: str,
+    img: Image.Image,
+    t: int,
+    nm: str,
+    stamp: str,
+) -> FreeText:
+    """Always-visible /FreeText label with a self-generated appearance stream.
+
+    /DA is overwritten manually: the FreeText constructor's colour kwargs pollute
+    /DA in pypdf 6.6.2 (F5). border_color is deliberately *omitted* (its truthy
+    default only feeds the /DA we overwrite; passing None would add /BS W=0).
+    No /Popup — this is a label overlay, not a comment carrier.
+    """
+    rgb = _verdict_rgb(verdict)  # non-None: write_annotated_pdf filters PASS first
+    ft = FreeText(
+        text=label,
+        rect=rect_pt,
+        font_size=f"{LABEL_FONT_PT:g}pt",
+        background_color="{:02x}{:02x}{:02x}".format(*rgb),
+    )
+    ft[NameObject("/DA")] = TextStringObject(f"/Helv {LABEL_FONT_PT:g} Tf 0 g")
+    ft[NameObject("/F")] = NumberObject(4)
+    ft[NameObject("/T")] = TextStringObject(ANNOT_AUTHOR)
+    ft[NameObject("/Subj")] = TextStringObject(str(verdict))
+    ft[NameObject("/NM")] = TextStringObject(f"{nm}-label")
+    ft[NameObject("/M")] = TextStringObject(stamp)
+    ap = DictionaryObject()
+    ap[NameObject("/N")] = _label_ap(writer, img, rgb, t)
+    ft[NameObject("/AP")] = ap
+    return ft
+
+
+def _load_font(font_path: str) -> ImageFont.FreeTypeFont:
+    """Load the Hangul label font at the oversampled glyph size (hard-fail if absent)."""
+    size = int(round(LABEL_FONT_PT * AP_OVERSAMPLE))
     try:
-        return ImageFont.truetype(font_path, font_px)
+        return ImageFont.truetype(font_path, size)
     except OSError as e:  # missing font -> hard failure (Korean integrity rule)
         raise OSError(
             f"Korean label font not loadable: {font_path!r} ({e}). "
@@ -255,50 +509,94 @@ def _load_font(font_path: str, dpi: int) -> ImageFont.FreeTypeFont:
         ) from e
 
 
-def render_annotated_pdf(
+# --------------------------------------------------------------------------- #
+# Writer (copy-through: clone every page verbatim, append annotations only)
+# --------------------------------------------------------------------------- #
+def write_annotated_pdf(
     pdf_path: Path | str,
     anns_by_page: dict[int, list[Annotation]],
     out_pdf: Path | str,
-    dpi: int = 200,
-    font_path: str = DEFAULT_FONT,
     rotations: dict[int, int] | None = None,
+    font_path: str = DEFAULT_FONT,
 ) -> tuple[Path, int, int, int]:
-    """Copy-through burn-in: rasterise only annotated pages, keep the rest.
+    """Attach native annotations to a PDF, preserving every page verbatim.
 
-    Owns the page-range guard: annotations whose page is outside ``1..n_pages``
-    are counted into the returned ``oob_count`` and not drawn. ``rotations``
-    (``{page: deg_cw}``, the align-inputs applied map) re-rotates each rendered
-    page into the aligned image space before drawing, so bboxes derived from
-    the aligned cache match. Returns
-    ``(out_path, boxes_drawn, page_count, oob_count)``. Opens the source PDF once.
+    ``PdfWriter(clone_from=...)`` copies all pages byte-for-byte; annotations are
+    only appended to ``/Annots``. Owns the page-range guard: annotations whose
+    page is outside ``1..n_pages`` are counted into the returned ``oob_count`` and
+    not attached. ``rotations`` (``{page: deg_cw}``, the align-inputs applied map)
+    plus each page's ``/Rotate`` and ``/CropBox`` map the aligned fractional bbox
+    back to the original user-space ``/Rect``. Each item becomes a
+    Square+Popup+FreeText bundle counted as one. Returns
+    ``(out_path, boxes_drawn, page_count, oob_count)``.
     """
     pdf_path, out_pdf = Path(pdf_path), Path(out_pdf)
     reader = PdfReader(str(pdf_path))
     n_pages = len(reader.pages)
     oob_count = sum(len(a) for p, a in anns_by_page.items() if not 1 <= p <= n_pages)
-    font = _load_font(font_path, dpi) if any(1 <= p <= n_pages for p in anns_by_page) else None
+    has_valid = any(1 <= p <= n_pages for p in anns_by_page)
+    font = _load_font(font_path) if has_valid else None
 
-    doc = pdfium.PdfDocument(str(pdf_path))
-    writer = PdfWriter()
+    writer = PdfWriter(clone_from=reader)  # clone the already-parsed reader (single parse)
+    stamp = _pdf_now()  # one wall-clock read per call (deterministic across items)
     drawn_total = 0
-    try:
-        for i in range(n_pages):
-            anns = anns_by_page.get(i + 1)
-            if not anns:
-                writer.add_page(reader.pages[i])  # copy-through (verbatim)
+
+    for p in sorted(anns_by_page):
+        if not 1 <= p <= n_pages:
+            continue  # out of range — already counted into oob_count
+        anns = anns_by_page[p]
+        page = reader.pages[p - 1]
+        box = page.cropbox  # pypdf returns MediaBox when CropBox is absent
+        mx0 = float(box.left)
+        my0 = float(box.bottom)
+        wp = float(box.width)
+        hp = float(box.height)
+        r = int(page.get("/Rotate") or 0) % 360
+        if r not in VALID_ROTATIONS:
+            r = 0
+        a = rotations.get(p, 0) if rotations else 0
+        t = (r + a) % 360
+        wa, ha = _aligned_page_size_pt(wp, hp, t)
+
+        placed: list[tuple[float, float, float, float]] = []
+        seen: set = set()
+        seq = 0
+        for ann in anns:
+            rgb = _verdict_rgb(ann.verdict)
+            if rgb is None:  # PASS/other slipped through
                 continue
-            img = _render_page_pil(doc[i], dpi)
-            deg = rotations.get(i + 1, 0) if rotations else 0
-            if deg:
-                img = rotate_upright(img, deg)
-            drawn_total += _draw_annotations(img, anns, font, dpi)
-            buf = io.BytesIO()
-            # quality high to keep burned Korean labels crisp (legibility QA'd)
-            img.save(buf, format="PDF", resolution=float(dpi), quality=95)
-            buf.seek(0)
-            writer.add_page(PdfReader(buf).pages[0])
-    finally:
-        doc.close()
+            rect = aligned_bbox_to_user_rect(ann.bbox, mx0, my0, wp, hp, t)
+            key = (tuple(round(v, 2) for v in rect), ann.verdict, ann.label)
+            if key in seen:  # same rect + verdict + label already attached -> dedupe
+                continue
+            seen.add(key)
+            seq += 1
+            nm = f"cert-review-p{p:02d}-{seq:02d}"
+
+            # Square (main) -> Popup (companion) -> FreeText (label overlay).
+            sq = _build_square(rect, ann.verdict, ann.label, nm, stamp)
+            writer.add_annotation(p - 1, sq)  # returns sq itself, sets .indirect_reference (F16)
+            pop = _build_popup(sq, _popup_rect(rect, mx0, my0, wp, hp), nm, stamp)
+            writer.add_annotation(p - 1, pop)  # pypdf auto-sets sq[/Popup] back-link (F17)
+            sq[NameObject("/Popup")] = pop.indirect_reference  # defensive explicit (idempotent)
+
+            # Label: render once; img.size drives placement AND the /AP /BBox.
+            img = _render_label_image(ann.label, font, rgb)
+            tw_pt, th_pt = _chip_size_pt(img)
+            box_al = (ann.bbox[0] * wa, ann.bbox[1] * ha, ann.bbox[2] * wa, ann.bbox[3] * ha)
+            lx, ly = _place_label(box_al, tw_pt, th_pt, wa, ha, placed, pad=LABEL_GAP_PT)
+            chip = (
+                lx - LABEL_BOX_PAD,
+                ly - LABEL_BOX_PAD,
+                lx + tw_pt + LABEL_BOX_PAD,
+                ly + th_pt + LABEL_BOX_PAD,
+            )
+            placed.append(chip)
+            chip_frac = (chip[0] / wa, chip[1] / ha, chip[2] / wa, chip[3] / ha)
+            label_rect = aligned_bbox_to_user_rect(chip_frac, mx0, my0, wp, hp, t)
+            ft = _build_label_annot(writer, label_rect, ann.verdict, ann.label, img, t, nm, stamp)
+            writer.add_annotation(p - 1, ft)
+            drawn_total += 1  # one Square+Popup+FreeText bundle = one count
 
     out_pdf.parent.mkdir(parents=True, exist_ok=True)
     with open(out_pdf, "wb") as fh:
@@ -315,11 +613,10 @@ def annotate_case(
     cache_root: Path | str,
     cert_dir: Path | str,
     out_dir: Path | str | None = None,
-    dpi: int = 200,
     annotations_path: Path | str | None = None,
     font_path: str = DEFAULT_FONT,
 ) -> dict:
-    """Render every cert PDF of a case from its ``<case>_annotations.json``.
+    """Annotate every cert PDF of a case from its ``<case>_annotations.json``.
 
     ``cert_dir`` is the cert-cleanup *root* (env-aware ``CERT_DIR`` from the
     CLI); the case folder is ``cert_dir/<case_id>``. Output defaults to
@@ -374,9 +671,9 @@ def annotate_case(
     for pdf_path, by_page in groups.items():
         out_pdf = out_dir / f"{pdf_path.stem}_annotated.pdf"
         rotations = applied_rotations(cache_root / str(case_id), pdf_path.stem)
-        # render_annotated_pdf owns the page-range guard and opens the PDF once.
-        _, drawn, pages, oob = render_annotated_pdf(
-            pdf_path, by_page, out_pdf, dpi, font_path, rotations=rotations
+        # write_annotated_pdf owns the page-range guard and opens the PDF once.
+        _, drawn, pages, oob = write_annotated_pdf(
+            pdf_path, by_page, out_pdf, rotations=rotations, font_path=font_path
         )
         boxes_drawn += drawn
         if oob:
@@ -400,6 +697,6 @@ def annotate_case(
 __all__ = [
     "Annotation",
     "annotate_case",
-    "render_annotated_pdf",
+    "write_annotated_pdf",
     "load_annotations",
 ]

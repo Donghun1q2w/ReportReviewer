@@ -373,12 +373,15 @@ def cmd_crop(args: argparse.Namespace) -> int:
 
 
 def cmd_annotate(args: argparse.Namespace) -> int:
-    """Burn 주의/N/A/FAIL review verdicts onto cert PDFs (PASS excluded).
+    """Attach 주의/N/A/FAIL review verdicts to cert PDFs as native PDF annotations.
 
-    Consumes ``.cache/<case>/<case>_annotations.json`` (produced by the
-    annotation-locator agent) and writes ``<stem>_annotated.pdf`` under
-    ``output/reports/<case>/``. Backward-compatible: a missing annotations file
-    is a per-case SKIP under --all, an error for a single --case.
+    Each item becomes a border-only /Square box (with an Acrobat-native /Popup
+    companion) plus an always-visible /FreeText Korean label with a
+    self-generated appearance stream (PASS excluded). Consumes
+    ``.cache/<case>/<case>_annotations.json`` (produced by the annotation-locator
+    agent) and writes ``<stem>_annotated.pdf`` under ``output/reports/<case>/``,
+    preserving every page verbatim. Backward-compatible: a missing annotations
+    file is a per-case SKIP under --all, an error for a single --case.
     """
     from scripts.annotate_pdf import annotate_case  # noqa: PLC0415
 
@@ -404,7 +407,6 @@ def cmd_annotate(args: argparse.Namespace) -> int:
                 cache_root=CACHE_DIR,
                 cert_dir=CERT_DIR,
                 out_dir=Path(args.out) if args.out else None,
-                dpi=args.dpi,
             )
         except FileNotFoundError as e:
             if args.all:
@@ -885,12 +887,11 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser(
         "annotate",
-        help="Burn 주의/N/A/FAIL verdicts onto cert PDFs as boxed image annotations (PASS excluded)",
+        help="Attach 주의/N/A/FAIL verdicts to cert PDFs as native, individually editable PDF annotations (PASS excluded)",
     )
     group = p.add_mutually_exclusive_group(required=True)
     group.add_argument("--case")
     group.add_argument("--all", action="store_true", help="Every manifest case with a <case>_annotations.json")
-    p.add_argument("--dpi", type=int, default=200, help="Render DPI for burn-in (default 200; bbox is fractional so DPI affects only sharpness/size)")
     p.add_argument("--out", help="Output directory (single --case only; default <WORK>/output/reports/<case>)")
     p.set_defaults(func=cmd_annotate)
 
