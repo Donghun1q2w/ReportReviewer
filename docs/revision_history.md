@@ -1,5 +1,15 @@
 # Revision History
 
+## 2026-07-23 — MPS 요구사항 대비 동봉 문서 첨부 자동판정(기준 20) — v1.5.0
+
+**Detail**: [revisions/2026-07-23_111145_mps-required-attachment-judgement](revisions/2026-07-23_111145_mps-required-attachment-judgement.md) · **Plan**: [2026-07-23_091508_mps-required-attachment-judgement](plans/2026-07-23_091508_mps-required-attachment-judgement.md)
+
+- 신설: `scripts/attachments.py`(heat 단위 결정적 대조 CLI) · 테스트 신규 1종
+- 수정: `doctype.py`(related 식별자 join) · `doc-classifier.md`(heat/PO verbatim 판독) · `nde/format-reviewer.md`(기준 20 A/B/C/D ladder, 단일소유) · `review-criteria.md`(17.1·19.3 개정, 기준 20 신설) · `compliance_report.py`(관련 Heat 컬럼) · SKILL/README/marketplace(v1.5.0)
+- page-aligner·align_inputs·orient_sheets·extraction_check·eval_harness **무수정 보존**. pytest **209 passed**(오케스트레이터 독립 재검증). 실물 E2E PU2601565-01(LS룽산, Tallgrass 프로젝트)로 heat 판독 정확성·PMI 과잉판정 방지(finding 0건)·MT/PT 본문우선(상태 A) 검증. ladder A/B/C/D 시뮬레이션 4종 통과.
+- **독립 code-reviewer 하드닝**: `sidecar_present`를 stem 전체 커버리지 기준으로 강화 + nde/format-reviewer에 "B/D 판정은 attachments[] 존재로, heat_coverage만으로 판단 금지" 명확화 — 오케스트레이터가 직접 반영.
+- 선재 이슈 재확인(무관): `chemistry_limits.csv` SA-105 provenance 오류, 이번 커밋에 우회 코드 없음(data/*.csv 무변경).
+
 ## 2026-07-22 — 혼입 문서 페이지 분류(Phase 1.6 doc-classify) 및 비교 제외 — v1.4.0
 
 **Detail**: [revisions/2026-07-22_221912_mtc-doc-classification-phase16](revisions/2026-07-22_221912_mtc-doc-classification-phase16.md) · **Plan**: [2026-07-22_170520_mtc-doc-classification-phase16](plans/2026-07-22_170520_mtc-doc-classification-phase16.md)

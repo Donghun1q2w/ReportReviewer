@@ -37,6 +37,15 @@ def _write_extracted(case_cache: Path, stem: str, pages: list[dict]) -> None:
     )
 
 
+def _write_png(case_cache: Path, stem: str, page_numbers: list[int]) -> None:
+    """Create empty placeholder renders so ``_all_stems_covered`` sees this stem
+    as rendered (same ``<stem>_pNN.png`` naming ``_stems_in_png_dir`` expects)."""
+    png_dir = case_cache / "png"
+    png_dir.mkdir(parents=True, exist_ok=True)
+    for n in page_numbers:
+        (png_dir / f"{stem}_p{n}.png").write_bytes(b"")
+
+
 def _write_doctype(case_cache: Path, stem: str, pages: dict[int, str],
                    documents: list[dict] | None = None) -> None:
     case_cache.mkdir(parents=True, exist_ok=True)
@@ -106,6 +115,7 @@ def test_pack_coverage_exact_match_only(tmp_path):
         documents=[{"doc_type": "NDE_REPORT", "pages": [22],
                     "related_heat_nos": ["14328912", "OTHER999"],
                     "related_po_items": [], "related_confidence": "high"}])
+    _write_png(case_cache, "certA", [1, 22])
     pack = build_attachments_pack("C", tmp_path)
     att = pack["attachments"][0]
     assert att["matched_heat_nos"] == ["14328912"]
@@ -196,6 +206,33 @@ def test_pack_sidecar_absent_is_not_error(tmp_path):
     assert pack["finished_heats"] == ["H1"]
 
 
+def test_pack_sidecar_present_false_on_partial_stem_coverage(tmp_path):
+    """Two rendered stems, only one classified -> sidecar_present is False.
+
+    Guards against a partially-classified case reporting sidecar_present:true
+    from stem A's sidecar while stem B (also rendered, no sidecar) has enclosed
+    reports invisible to attachments[] — a caller trusting sidecar_present would
+    otherwise treat stem B's silence as a confirmed zero-attachment state
+    (기준 20 state B 미첨부 risk). Stem A's own attachment is still surfaced;
+    only the case-level flag is downgraded.
+    """
+    case_cache = tmp_path / "C"
+    _write_extracted(case_cache, "certA", [{"page": 1, "heat_no": "H1"}])
+    _write_extracted(case_cache, "certB", [{"page": 1, "heat_no": "H2"}])
+    _write_doctype(case_cache, "certA",
+        {1: "MTC_FINISHED", 2: "NDE_REPORT"},
+        documents=[{"doc_type": "NDE_REPORT", "pages": [2],
+                    "related_heat_nos": ["H1"], "related_po_items": [],
+                    "related_confidence": "high"}])
+    # certB has no _doctype.json sidecar at all.
+    _write_png(case_cache, "certA", [1, 2])
+    _write_png(case_cache, "certB", [1])
+    pack = build_attachments_pack("C", tmp_path)
+    assert pack["sidecar_present"] is False
+    assert [a["stem"] for a in pack["attachments"]] == ["certA"]
+    assert pack["heat_coverage"] == {"NDE_REPORT": {"H1": ["p.2"]}}
+
+
 def test_pack_norm_matches_whitespace_variant(tmp_path):
     """E9: header heat_no with trailing space still matches the related heat."""
     case_cache = tmp_path / "C"
@@ -242,6 +279,7 @@ def test_cli_attachments_ok_exit0(tmp_path, monkeypatch, capsys):
         documents=[{"doc_type": "NDE_REPORT", "pages": [22],
                     "related_heat_nos": ["H1"], "related_po_items": [],
                     "related_confidence": "high"}])
+    _write_png(case_cache, "certA", [1, 22])
     rc = _run_cli(monkeypatch, tmp_path, "C")
     out = capsys.readouterr().out
     assert rc == 0

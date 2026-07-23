@@ -23,7 +23,12 @@ import json
 import re
 from pathlib import Path
 
-from scripts.doctype import DOCTYPE_SUFFIX, excluded_documents_for_case, excluded_pages_map
+from scripts.doctype import (
+    _png_pages_by_stem,
+    excluded_documents_for_case,
+    excluded_pages_map,
+    load_doctype,
+)
 
 ATTACHMENTS_SUFFIX = "_attachments.json"
 
@@ -80,6 +85,25 @@ def collect_finished_heats(case_cache: Path) -> list[str]:
     return heats
 
 
+def _all_stems_covered(case_cache: Path) -> bool:
+    """True only when every rendered stem (``png/`` inventory) has a doctype sidecar.
+
+    ``bool(any *_doctype.json)`` would report ``sidecar_present: true`` for a
+    partially-classified case (stem A covered, stem B not) — stem B's enclosed
+    reports would then be invisible to ``attachments[]`` while the reviewer still
+    believes coverage is complete, which could misfire a state-B "미첨부" for
+    stem B's requirements. Coverage source mirrors ``check_doctype_case`` (same
+    ``png/`` inventory) so the two gates agree; no rendered stems → not covered.
+    """
+    png_dir = case_cache / "png"
+    if not png_dir.is_dir():
+        return False
+    stems = _png_pages_by_stem(png_dir)
+    if not stems:
+        return False
+    return all(load_doctype(case_cache, stem) is not None for stem in stems)
+
+
 def build_attachments_pack(case_id: str, cache_root: Path) -> dict:
     """Build and write the per-case 기준 20 attachment index.
 
@@ -106,6 +130,11 @@ def build_attachments_pack(case_id: str, cache_root: Path) -> dict:
     prep-inputs + Phase-2 first) — same idiom as ``refpack.build_limits_pack``.
     A missing doctype sidecar is NOT an error: ``sidecar_present`` is false and
     ``attachments``/``heat_coverage`` are empty (legacy-cache behaviour).
+    ``sidecar_present`` requires *every* rendered stem to carry a sidecar
+    (``_all_stems_covered``) — a partially-classified case (one stem covered,
+    another not) also reports ``false``, since an uncovered stem's enclosed
+    reports would otherwise be invisible to ``attachments[]`` while callers
+    believe 기준 20 judgement is safe to run.
     """
     cache_root = Path(cache_root)
     case_cache = cache_root / str(case_id)
@@ -121,7 +150,7 @@ def build_attachments_pack(case_id: str, cache_root: Path) -> dict:
     for h in finished_heats:
         inv_by_norm.setdefault(_norm_heat(h), h)
 
-    sidecar_present = bool(list(case_cache.glob(f"*{DOCTYPE_SUFFIX}")))
+    sidecar_present = _all_stems_covered(case_cache)
 
     attachments: list[dict] = []
     heat_coverage: dict[str, dict[str, list[str]]] = {}
