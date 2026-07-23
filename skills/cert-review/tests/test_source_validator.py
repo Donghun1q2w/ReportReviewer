@@ -10,6 +10,7 @@ import pytest
 from scripts.source_validator import (
     MissingProvenanceError,
     REQUIRED_FIELDS,
+    KNOWN_PROVENANCE_GAPS,
     validate_csv_row,
     validate_finding,
     filter_valid_findings,
@@ -84,6 +85,56 @@ def test_whitespace_normalized_for_snippet(tmp_path: Path):
     }
     res = validate_csv_row(row, tmp_path, "ws-test")
     assert res.ok
+
+
+# --- KNOWN_PROVENANCE_GAPS waiver (SA-105 chemistry_limits.csv provisional
+# exception — see source_validator.py module docstring) ------------------
+
+def test_gap_listed_row_waived_when_snippet_missing(tmp_path: Path):
+    src, _ = _make_source(tmp_path, "unrelated garbled OCR text", "SA-105_SA-105M.md")
+    row = {
+        "grade": "SA-105", "element": "C", "analysis": "Heat",
+        "source_file": src.name, "anchor": "Table1#C", "snippet": "0.35 max.",
+    }
+    res = validate_csv_row(row, tmp_path, "gap-test", csv_name="chemistry_limits.csv")
+    assert res.ok, res.reason
+    assert res.waived
+    assert res.waiver_reason
+
+
+def test_gap_lookup_requires_exact_csv_element_match(tmp_path: Path):
+    src, _ = _make_source(tmp_path, "unrelated garbled OCR text", "SA-105_SA-105M.md")
+    # Same grade, but an element not in the 7-element gap set (only
+    # C/Mn/Si/P/S/Cr/Mo are listed — Ni is not) must still fail normally.
+    row = {
+        "grade": "SA-105", "element": "Ni", "analysis": "Heat",
+        "source_file": src.name, "anchor": "Table1#Ni", "snippet": "0.40 max.",
+    }
+    res = validate_csv_row(row, tmp_path, "gap-miss-element", csv_name="chemistry_limits.csv")
+    assert not res.ok
+    assert not res.waived
+
+
+def test_gap_lookup_scoped_to_csv_name(tmp_path: Path):
+    src, _ = _make_source(tmp_path, "unrelated garbled OCR text", "SA-105_SA-105M.md")
+    row = {
+        "grade": "SA-105", "element": "C", "analysis": "Heat",
+        "source_file": src.name, "anchor": "Table1#C", "snippet": "0.35 max.",
+    }
+    # A gap-listed (grade, element, analysis) under a DIFFERENT csv filename
+    # (or no csv_name at all) must not be waived — the allowlist key includes
+    # the csv filename precisely to avoid a content-only coincidental match.
+    res_wrong_csv = validate_csv_row(row, tmp_path, "gap-wrong-csv", csv_name="mechanical_limits.csv")
+    assert not res_wrong_csv.ok
+    res_no_csv_name = validate_csv_row(row, tmp_path, "gap-no-csv-name")
+    assert not res_no_csv_name.ok
+
+
+def test_known_provenance_gaps_covers_exactly_the_reported_sa105_elements():
+    keys = {k for k in KNOWN_PROVENANCE_GAPS if k[0] == "chemistry_limits.csv" and k[1] == "SA-105"}
+    assert {k[2] for k in keys} == {"C", "Mn", "Si", "P", "S", "Cr", "Mo"}
+    assert all(k[3] == "Heat" for k in keys)
+    assert all(reason for reason in KNOWN_PROVENANCE_GAPS.values())
 
 
 def test_finding_without_evidence_rejected(tmp_path: Path):

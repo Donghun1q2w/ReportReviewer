@@ -1,5 +1,14 @@
 # Revision History
 
+## 2026-07-23 — chemistry_limits.csv SA-105 provenance 잠정 예외처리
+
+**Detail**: [revisions/2026-07-23_135622_sa105-provenance-waiver](revisions/2026-07-23_135622_sa105-provenance-waiver.md)
+
+- 조사 결과: `ref_code` SA-105 원문 OCR(221~224p)이 환각 상태(SA-106/SA-102 오표기 러닝헤더, 손상된 Table 1) — 5개 독립 위치에서 동일, 이 프로젝트 작업과 무관한 선재 이슈. CSV 값은 실제 ASTM A105/A105M 기준과 일치해 정확할 가능성 높음.
+- 수정: `source_validator.py`(`KNOWN_PROVENANCE_GAPS` allowlist, `ValidationResult.waived`) · `refdata_loader.py`(waived 행 로드+`[WARN]` 필수 출력) · `cli.py`(`validate-refs` 요약에 waived 표기). CSV 데이터 무변경.
+- pytest **217 passed**(+8). `limits --case 10`·`--case 4` 크래시 해소, `validate-refs` 583행 중 실패 0(7 waived로 표기).
+- 향후 과제: 원본 PDF 확보 후 재OCR로 이 예외 제거.
+
 ## 2026-07-23 — MPS 요구사항 대비 동봉 문서 첨부 자동판정(기준 20) — v1.5.0
 
 **Detail**: [revisions/2026-07-23_111145_mps-required-attachment-judgement](revisions/2026-07-23_111145_mps-required-attachment-judgement.md) · **Plan**: [2026-07-23_091508_mps-required-attachment-judgement](plans/2026-07-23_091508_mps-required-attachment-judgement.md)

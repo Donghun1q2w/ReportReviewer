@@ -200,41 +200,50 @@ def cmd_validate_refs(args: argparse.Namespace) -> int:
     total_rows = 0
     total_failures = 0
 
+    total_waived = 0
     for csv_path in csv_files:
         file_rows = 0
         file_valid = 0
         file_failures: list[str] = []
+        file_waived: list[str] = []
 
         with open(csv_path, "r", encoding="utf-8", newline="") as fh:
             reader = _csv.DictReader(fh)
             for i, row in enumerate(reader, start=2):
                 row_id = f"{csv_path.name}:L{i}"
-                result = validate_csv_row(row, WORK_DIR, row_id)
+                result = validate_csv_row(row, WORK_DIR, row_id, csv_name=csv_path.name)
                 file_rows += 1
                 if result.ok:
                     file_valid += 1
+                    if result.waived:
+                        file_waived.append(f"  L{i} ({row.get('grade', '')}/{row.get('element', '')}): {result.waiver_reason}")
                 else:
                     if len(file_failures) < 3:
                         file_failures.append(f"  L{i}: {result.reason}")
 
         file_failed = file_rows - file_valid
         status = "OK" if file_failed == 0 else "FAIL"
+        suffix = f" ({len(file_waived)} waived)" if file_waived else ""
         print(
             f"[{status}] {csv_path.name}: "
-            f"{file_rows} rows, {file_valid} valid, {file_failed} failed"
+            f"{file_rows} rows, {file_valid} valid, {file_failed} failed{suffix}"
         )
         for reason in file_failures:
             print(reason)
+        for note in file_waived:
+            print(f"  [WARN]{note}")
 
         total_rows += file_rows
         total_failures += file_failed
+        total_waived += len(file_waived)
 
     n = len(csv_files)
+    waived_suffix = f", {total_waived} waived" if total_waived else ""
     if total_failures == 0:
-        print(f"[OK] {n} CSVs validated, {total_rows} total rows, {total_failures} failures")
+        print(f"[OK] {n} CSVs validated, {total_rows} total rows, {total_failures} failures{waived_suffix}")
         return 0
     else:
-        print(f"[FAIL] {n} CSVs validated, {total_rows} total rows, {total_failures} failures")
+        print(f"[FAIL] {n} CSVs validated, {total_rows} total rows, {total_failures} failures{waived_suffix}")
         return 1
 
 

@@ -19,6 +19,14 @@ This module exposes:
 Raises MissingProvenanceError when a row is loaded but lacks any of the 3 fields.
 Snippet check tolerates whitespace collapsing because the source may be a markdown
 OCR output where leading whitespace varies; numeric tokens must match exactly.
+
+A snippet that fails the presence check is not automatically rejected: it is
+first looked up in KNOWN_PROVENANCE_GAPS, a small, explicit, tracked allowlist
+for rows whose source OCR is independently known to be corrupted (not a CSV
+data error). A gap-listed row passes with ``waived=True`` and a ``waiver_reason``
+— every waived load is logged by the caller (refdata_loader.load_csv), never
+silent. This is a provisional, narrowly-scoped exception, not a relaxation of
+the check for any other row.
 """
 
 from __future__ import annotations
@@ -33,6 +41,29 @@ from typing import Any, Iterable
 
 REQUIRED_FIELDS = ("source_file", "anchor", "snippet")
 
+# Known, tracked provenance gaps (C2/C8 provisional exception — NOT a blanket
+# relaxation). Keyed by (csv filename, grade, element, analysis) — stable
+# regardless of row order/position, unlike a line number. Each entry means: the
+# cited ref_code source text is independently known to be corrupted at the
+# OCR/extraction stage (not a CSV data error), so the snippet-presence check
+# cannot currently confirm the row even though the row's own numeric value is
+# believed correct. Every waived load is logged (see refdata_loader.load_csv) —
+# this must never be silent. Remove an entry once the source corpus is
+# re-OCR'd and its snippet is confirmed present again.
+_SA105_TABLE1_GAP_REASON = (
+    "ref_code SA-105_SA-105M.md p.221-224 OCR hallucinated (garbled prose; "
+    "mislabeled 'SA-106/SA-106M'/'SA-102/SA-106M' running headers bleeding in "
+    "from the next spec in the compiled ASME SEC II PTA 1of2 2023 corpus — "
+    "genuine SA-106 text starts at p.225). Confirmed identical across 5 "
+    "independent copies of the corpus, predating this project's own history. "
+    "The cited value matches the published ASTM A105/A105M Table 1 chemical "
+    "requirements. Needs the source PDF re-OCR'd to restore provenance."
+)
+KNOWN_PROVENANCE_GAPS: dict[tuple[str, str, str, str], str] = {
+    ("chemistry_limits.csv", "SA-105", el, "Heat"): _SA105_TABLE1_GAP_REASON
+    for el in ("C", "Mn", "Si", "P", "S", "Cr", "Mo")
+}
+
 
 class MissingProvenanceError(ValueError):
     """Raised when a CSV row is missing any of the 3 provenance fields."""
@@ -44,6 +75,8 @@ class ValidationResult:
     row_id: str
     reason: str = ""
     source_file: str = ""
+    waived: bool = False
+    waiver_reason: str = ""
 
 
 _SHA_CACHE: dict[Path, str] = {}
@@ -150,7 +183,7 @@ def _resolve_path(source_file: str, work_dir: Path) -> Path:
     return p
 
 
-def _check(row: dict[str, Any], work_dir: Path, row_id: str) -> ValidationResult:
+def _check(row: dict[str, Any], work_dir: Path, row_id: str, csv_name: str = "") -> ValidationResult:
     missing = [f for f in REQUIRED_FIELDS if not row.get(f)]
     if missing:
         return ValidationResult(
@@ -172,6 +205,18 @@ def _check(row: dict[str, Any], work_dir: Path, row_id: str) -> ValidationResult
 
     text = _read_text(path)
     if text and not _snippet_present(snippet, text):
+        gap_key = (
+            csv_name,
+            str(row.get("grade", "")),
+            str(row.get("element", "")),
+            str(row.get("analysis", "")),
+        )
+        gap_reason = KNOWN_PROVENANCE_GAPS.get(gap_key)
+        if gap_reason is not None:
+            return ValidationResult(
+                ok=True, row_id=row_id, source_file=source_file,
+                waived=True, waiver_reason=gap_reason,
+            )
         return ValidationResult(
             ok=False, row_id=row_id,
             reason=f"snippet not found in source text: {snippet!r}",
@@ -181,8 +226,10 @@ def _check(row: dict[str, Any], work_dir: Path, row_id: str) -> ValidationResult
     return ValidationResult(ok=True, row_id=row_id, source_file=source_file)
 
 
-def validate_csv_row(row: dict[str, Any], work_dir: Path, row_id: str = "") -> ValidationResult:
-    return _check(row, work_dir, row_id or row.get("id", "<row>"))
+def validate_csv_row(
+    row: dict[str, Any], work_dir: Path, row_id: str = "", csv_name: str = "",
+) -> ValidationResult:
+    return _check(row, work_dir, row_id or row.get("id", "<row>"), csv_name=csv_name)
 
 
 def validate_csv_file(csv_path: Path, work_dir: Path) -> list[ValidationResult]:
@@ -191,7 +238,7 @@ def validate_csv_file(csv_path: Path, work_dir: Path) -> list[ValidationResult]:
         reader = csv.DictReader(f)
         for i, row in enumerate(reader, start=2):  # header is line 1
             rid = f"{csv_path.name}:L{i}"
-            results.append(_check(row, work_dir, rid))
+            results.append(_check(row, work_dir, rid, csv_name=csv_path.name))
     return results
 
 
@@ -240,6 +287,7 @@ def compute_sha256_fresh(path: Path) -> str:
 
 __all__ = [
     "REQUIRED_FIELDS",
+    "KNOWN_PROVENANCE_GAPS",
     "MissingProvenanceError",
     "ValidationResult",
     "validate_csv_row",
