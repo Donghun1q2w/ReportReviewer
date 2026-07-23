@@ -6,6 +6,8 @@
 
 > 사내 전용(Proprietary). [LICENSE](LICENSE) 참조.
 
+> **최신 버전 v1.7.0** — 동봉 원자재 성적서(MILL CERT) 검증·교차비교(기준 21/22, 단조품 인장 전사복제 FAIL) 추가. 전체 변경 이력은 [`docs/revision_history.md`](docs/revision_history.md) 참조.
+
 ## 핵심 특징
 
 - **2차원 병렬 아키텍처**: 오케스트레이터(SKILL.md)가 케이스 × 도메인 에이전트를 직접 스케줄링 (동시 6~10). 케이스 래퍼 에이전트 없음 — 서브에이전트는 중첩 스폰 불가이므로 모든 fan-out을 오케스트레이터가 직접 수행한다.
