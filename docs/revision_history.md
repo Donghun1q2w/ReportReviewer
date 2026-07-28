@@ -1,5 +1,13 @@
 # Revision History
 
+## 2026-07-28 — annotate_pdf.py FreeText 라벨 NoRotate 전환 (회전 페이지 라벨 세로 뒤집힘 근본 수정)
+
+**Detail**: [revisions/2026-07-28_140306_annotate-freetext-norotate-rotation-fix](revisions/2026-07-28_140306_annotate-freetext-norotate-rotation-fix.md) · **Plan**: [2026-07-28_113240_annotate-freetext-norotate-rotation-fix](plans/2026-07-28_113240_annotate-freetext-norotate-rotation-fix.md)
+
+- 회전 페이지(`/Rotate=90/180/270`)의 FreeText 검토 라벨이 Adobe Acrobat 리사이즈 시 세로로 뒤집히던 버그를 `/AP /Matrix` 트릭 → `/F` NoRotate 비트(`=20`) + 회전-독립적 좌표 앵커(`label_rect_for_norotate`, `_aligned_bbox_to_display_box` 신규)로 근본 수정. Square/Popup은 byte-identical 무변경.
+- `skills/cert-review/scripts/annotate_pdf.py` · `skills/cert-review/tests/test_annotate_pdf.py`(39→67 passed) · `skills/cert-review-annotate/SKILL.md`
+- 적대 검증 2레인(계획) + simplify 4레인 + code-reviewer 정확성 검토(뮤테이션 테스트 10종 확인, APPROVE) 완료. pytest 전체 280→308(신규 실패 0). pypdfium2 렌더 스모크 4종 육안 확인(한글 가로·무결). Acrobat 실제 리사이즈 확인은 사용자 수동 몫(스모크 PDF 3개 경로 제시).
+
 ## 2026-07-23 — 동봉 원자재 성적서(MILL CERT) 검증 도메인·에이전트 추가(기준 21/22) — v1.7.0
 
 **Detail**: [revisions/2026-07-23_200813_mill-cert-review-domain](revisions/2026-07-23_200813_mill-cert-review-domain.md) · **Plan**: [2026-07-23_183734_mill-cert-review-domain](plans/2026-07-23_183734_mill-cert-review-domain.md)

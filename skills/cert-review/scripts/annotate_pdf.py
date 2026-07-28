@@ -44,8 +44,13 @@ reviewers saw). It is mapped back to the original user space ``/Rect`` (points,
 bottom-left origin) using ``T = (R + A) % 360`` — where ``R`` is the page
 ``/Rotate`` (inherited page attributes are already flattened onto the leaf by
 ``PdfReader``) and ``A`` is the align-inputs applied clockwise rotation — plus
-the page ``/CropBox`` origin offset. A rotated page's label appearance carries an
-``/AP`` ``/Matrix`` so its glyphs stay content-horizontal (never aspect-distorted).
+the page ``/CropBox`` origin offset. The FreeText label is the one exception: it
+is *anchored*, not mapped. It carries the NoRotate flag (``/F`` bit 5), which pins
+the UPPER-LEFT corner of its ``/Rect`` to a fixed page location and then draws the
+chip unrotated from there, so the label is placed by transforming that single
+corner out of the *display* space (the page turned by its own ``/Rotate``) — the
+space the reader actually sees. Its ``/Rect`` is therefore always the chip's
+natural, never-swapped width x height.
 
 Annotation metadata: ``/T = "cert-review"`` (the tool name — the author column in
 Acrobat's comment panel; identical on both the Square and the FreeText so both
@@ -54,9 +59,12 @@ read as one tool's output), ``/Subj = verdict``, a deterministic in-document
 (``D:YYYYMMDDHHMMSS``). Reading wall-clock time in ``_pdf_now`` is this module's
 only such call, mirroring the cli.py timestamp convention.
 
-Note: if a viewer user *edits* a FreeText label's text, that viewer regenerates
-its ``/AP`` from ``/DA`` (viewer fonts; pdfium-family viewers then stop showing
-it) — moving/deleting is unaffected.
+Note: Adobe Acrobat throws a ``/FreeText``'s supplied ``/AP`` away and re-lays the
+label out with its own fonts not only when the text is *edited* but also when the
+annotation is merely **resized** (measured on a real ``/Rotate=90`` cert). The
+label therefore never relies on an ``/AP`` ``/Matrix``: whatever a viewer
+regenerates is laid out inside a naturally wide ``/Rect`` (one line, no vertical
+stacking) and NoRotate keeps it viewer-horizontal. Moving/deleting is unaffected.
 """
 
 from __future__ import annotations
@@ -71,6 +79,7 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader, PdfWriter
 from pypdf.annotations import FreeText, Popup, Rectangle
+from pypdf.constants import AnnotationFlag
 from pypdf.generic import (
     ArrayObject,
     DictionaryObject,
@@ -104,6 +113,12 @@ _CHIP_BORDER_W = 0.75     # chip border width (pt), grey
 _LABEL_GRAY = 0.313725    # chip border grey level (old (80, 80, 80))
 ANNOT_AUTHOR = "cert-review"          # /T — tool constant (not a person's name)
 POPUP_W_PT, POPUP_H_PT = 180.0, 120.0  # Acrobat-conventional UI-hint size
+# FreeText /F flags: Print + NoRotate. NoRotate pins the label's upper-left
+# /Rect corner to the page but leaves its appearance unrotated, so the chip
+# stays viewer-horizontal on a /Rotate-ed page even after Acrobat discards our
+# /AP and regenerates its own. Square/Popup keep plain Print (they have no
+# directional content, so page rotation is exactly what they want).
+FREETEXT_FLAGS = AnnotationFlag.PRINT | AnnotationFlag.NO_ROTATE
 
 # verdict -> openpyxl PatternFill (single source = compliance_report).
 # PASS is intentionally absent: it is never annotated.
@@ -174,8 +189,10 @@ def _place_label(
     """Pick a label top-left that avoids already-placed labels and the page edge.
 
     Tries above / below / right of the box, then stacks downward; always clamps
-    inside the page. The box itself is never moved (only the label). Works in the
-    aligned space (points now, pixels in the burn-in era) — pure geometry.
+    inside the page. The box itself is never moved (only the label). Pure geometry
+    in whatever single space the caller passes (display space for the NoRotate
+    label; points now, pixels in the burn-in era) — box, chip and page extent must
+    simply all be in that same space.
     """
     left, top, right, bottom = box_px
     candidates = [
@@ -292,10 +309,71 @@ def aligned_bbox_to_user_rect(
 
 
 def _aligned_page_size_pt(wp: float, hp: float, t: int) -> tuple[float, float]:
-    """Aligned (upright) page size in pt — width/height swap on 90/270."""
+    """Page size in pt after a ``t``-degree turn — width/height swap on 90/270.
+
+    The one caller passes the page's own ``/Rotate`` (display space), but the
+    turn is generic: any of the module's rotation angles works here.
+    """
     if t in (90, 270):
         return (hp, wp)
     return (wp, hp)
+
+
+def _aligned_bbox_to_display_box(
+    bbox: tuple[float, float, float, float], ws: float, hs: float, a: int
+) -> tuple[float, float, float, float]:
+    """Aligned fractional bbox -> display-space box in pt (top-left origin, y-down).
+
+    ``a`` is the align-inputs applied rotation, i.e. the turn that takes the
+    *display* (what a viewer actually shows) to the *aligned* space the reviewers
+    annotated in; undoing it puts the cell back where the reader sees it. The
+    label is placed here, not in aligned space, because a NoRotate annotation is
+    always drawn display-horizontal — "above / below / right of the box" has to
+    mean what the reader sees. When ``a == 0`` the two spaces coincide and this is
+    a plain scale, so the unrotated and page-rotation-only cases are unchanged.
+
+    Both corners are transformed and min/max-normalised — legitimate for a *box*,
+    unlike the NoRotate anchor below, which must keep one specific corner.
+    """
+    pts = [
+        _aligned_to_user_frac(bbox[0], bbox[1], a),
+        _aligned_to_user_frac(bbox[2], bbox[3], a),
+    ]
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    return (min(xs) * ws, min(ys) * hs, max(xs) * ws, max(ys) * hs)
+
+
+def label_rect_for_norotate(
+    chip_topleft_frac: tuple[float, float],
+    chip_size_pt: tuple[float, float],
+    mx0: float,
+    my0: float,
+    wp: float,
+    hp: float,
+    r: int,
+) -> tuple[float, float, float, float]:
+    """Display-space chip top-left -> user-space /Rect for a NoRotate label.
+
+    A NoRotate annotation keeps the UPPER-LEFT corner of its /Rect glued to a
+    fixed page location and then draws its never-rotated width x height down and
+    to the right of it, so exactly one corner is transformed and the /Rect keeps
+    the chip's natural shape (which is also what makes an Acrobat-regenerated
+    appearance lay the label out on one line).
+
+    Deliberately NOT ``aligned_bbox_to_user_rect``: normalising two corners with
+    min/max picks a *different* corner as the geometric minimum on 90/270, so the
+    label would unfold from the wrong end of the box.
+
+    ``r`` is the page's own ``/Rotate`` — the turn the viewer applies — not the
+    review-space ``T``; NoRotate resists page rotation, nothing else. Raises via
+    ``_aligned_to_user_frac`` on any r outside {0, 90, 180, 270}.
+    """
+    ax, ay = _aligned_to_user_frac(chip_topleft_frac[0], chip_topleft_frac[1], r)
+    chip_w, chip_h = chip_size_pt
+    llx = mx0 + ax * wp
+    ury = my0 + hp - ay * hp          # PDF is y-up; ay is a top-down fraction
+    return (llx, ury - chip_h, llx + chip_w, ury)
 
 
 # --------------------------------------------------------------------------- #
@@ -339,26 +417,21 @@ def _image_xobject(writer: PdfWriter, img: Image.Image):
     return writer._add_object(st.flate_encode())  # flate_encode returns a new object
 
 
-# Counter-clockwise T rotation that returns aligned-space text to user space.
-# (T=0 omits /Matrix.) The viewer maps the transformed /BBox onto /Rect, so no
-# translation term is needed — without this, 90/270 aspect-distorts the glyphs.
-_AP_MATRIX = {
-    90: [0, 1, -1, 0, 0, 0],
-    180: [-1, 0, 0, -1, 0, 0],
-    270: [0, -1, 1, 0, 0, 0],
-}
-
-
 def _label_ap(
     writer: PdfWriter,
     img: Image.Image,
     verdict_rgb255: tuple[int, int, int],
-    t: int,
 ):
     """Build the FreeText /AP /N Form XObject (vector chip + glyph image); return ref.
 
     ``img`` is the pre-rendered label raster from ``_render_label_image`` — the
     same object whose size drove the /Rect placement, so /BBox ≡ chip geometry.
+
+    No ``/Matrix``, ever: the label's /Rect is already the chip's natural,
+    unrotated shape and the annotation carries NoRotate, so the identity mapping
+    of /BBox onto /Rect is exactly right on every page rotation. A rotation
+    /Matrix here would also be silently dropped the moment Acrobat regenerates
+    the appearance (see the module docstring).
     """
     im_ref = _image_xobject(writer, img)
     tw_pt, th_pt = _chip_size_pt(img)
@@ -380,8 +453,6 @@ def _label_ap(
     form[NameObject("/BBox")] = ArrayObject(
         [FloatObject(0), FloatObject(0), FloatObject(w), FloatObject(h)]
     )
-    if t in _AP_MATRIX:
-        form[NameObject("/Matrix")] = ArrayObject([FloatObject(v) for v in _AP_MATRIX[t]])
     res = DictionaryObject()
     xobj = DictionaryObject()
     xobj[NameObject("/Im0")] = im_ref
@@ -467,7 +538,6 @@ def _build_label_annot(
     verdict: str,
     label: str,
     img: Image.Image,
-    t: int,
     nm: str,
     stamp: str,
 ) -> FreeText:
@@ -477,6 +547,10 @@ def _build_label_annot(
     /DA in pypdf 6.6.2 (F5). border_color is deliberately *omitted* (its truthy
     default only feeds the /DA we overwrite; passing None would add /BS W=0).
     No /Popup — this is a label overlay, not a comment carrier.
+
+    /F carries NoRotate on top of Print (FREETEXT_FLAGS) so the chip stays
+    viewer-horizontal on a rotated page; ``rect_pt`` is therefore the chip's
+    natural width x height anchored at its upper-left corner, never a rotated box.
     """
     rgb = _verdict_rgb(verdict)  # non-None: write_annotated_pdf filters PASS first
     ft = FreeText(
@@ -486,13 +560,13 @@ def _build_label_annot(
         background_color="{:02x}{:02x}{:02x}".format(*rgb),
     )
     ft[NameObject("/DA")] = TextStringObject(f"/Helv {LABEL_FONT_PT:g} Tf 0 g")
-    ft[NameObject("/F")] = NumberObject(4)
+    ft[NameObject("/F")] = NumberObject(FREETEXT_FLAGS)
     ft[NameObject("/T")] = TextStringObject(ANNOT_AUTHOR)
     ft[NameObject("/Subj")] = TextStringObject(str(verdict))
     ft[NameObject("/NM")] = TextStringObject(f"{nm}-label")
     ft[NameObject("/M")] = TextStringObject(stamp)
     ap = DictionaryObject()
-    ap[NameObject("/N")] = _label_ap(writer, img, rgb, t)
+    ap[NameObject("/N")] = _label_ap(writer, img, rgb)
     ft[NameObject("/AP")] = ap
     return ft
 
@@ -527,8 +601,14 @@ def write_annotated_pdf(
     not attached. ``rotations`` (``{page: deg_cw}``, the align-inputs applied map)
     plus each page's ``/Rotate`` and ``/CropBox`` map the aligned fractional bbox
     back to the original user-space ``/Rect``. Each item becomes a
-    Square+Popup+FreeText bundle counted as one. Returns
-    ``(out_path, boxes_drawn, page_count, oob_count)``.
+    Square+Popup+FreeText bundle counted as one.
+
+    The Square's /Rect is mapped from the aligned (review) space via ``T``; the
+    FreeText label is instead anchored in the *display* space (the page turned by
+    its own ``/Rotate``) because it carries NoRotate and is therefore always drawn
+    viewer-horizontal. The two coincide whenever the applied rotation is 0.
+
+    Returns ``(out_path, boxes_drawn, page_count, oob_count)``.
     """
     pdf_path, out_pdf = Path(pdf_path), Path(out_pdf)
     reader = PdfReader(str(pdf_path))
@@ -554,9 +634,9 @@ def write_annotated_pdf(
         r = int(page.get("/Rotate") or 0) % 360
         if r not in VALID_ROTATIONS:
             r = 0
-        a = rotations.get(p, 0) if rotations else 0
+        a = (rotations.get(p, 0) if rotations else 0) % 360
         t = (r + a) % 360
-        wa, ha = _aligned_page_size_pt(wp, hp, t)
+        ws, hs = _aligned_page_size_pt(wp, hp, r)  # display space (what a viewer shows)
 
         placed: list[tuple[float, float, float, float]] = []
         seen: set = set()
@@ -583,8 +663,11 @@ def write_annotated_pdf(
             # Label: render once; img.size drives placement AND the /AP /BBox.
             img = _render_label_image(ann.label, font, rgb)
             tw_pt, th_pt = _chip_size_pt(img)
-            box_al = (ann.bbox[0] * wa, ann.bbox[1] * ha, ann.bbox[2] * wa, ann.bbox[3] * ha)
-            lx, ly = _place_label(box_al, tw_pt, th_pt, wa, ha, placed, pad=LABEL_GAP_PT)
+            # Placed in DISPLAY space: a NoRotate label is drawn viewer-horizontal,
+            # so above/below/right must mean what the reader sees. Identical to the
+            # aligned space (and to the pre-NoRotate placement) whenever a == 0.
+            box_disp = _aligned_bbox_to_display_box(ann.bbox, ws, hs, a)
+            lx, ly = _place_label(box_disp, tw_pt, th_pt, ws, hs, placed, pad=LABEL_GAP_PT)
             chip = (
                 lx - LABEL_BOX_PAD,
                 ly - LABEL_BOX_PAD,
@@ -592,9 +675,14 @@ def write_annotated_pdf(
                 ly + th_pt + LABEL_BOX_PAD,
             )
             placed.append(chip)
-            chip_frac = (chip[0] / wa, chip[1] / ha, chip[2] / wa, chip[3] / ha)
-            label_rect = aligned_bbox_to_user_rect(chip_frac, mx0, my0, wp, hp, t)
-            ft = _build_label_annot(writer, label_rect, ann.verdict, ann.label, img, t, nm, stamp)
+            # Only the chip's top-left is transformed (the NoRotate anchor); its
+            # size is the /AP /BBox size, so /Rect and /BBox can never diverge.
+            label_rect = label_rect_for_norotate(
+                (chip[0] / ws, chip[1] / hs),
+                (chip[2] - chip[0], chip[3] - chip[1]),
+                mx0, my0, wp, hp, r,
+            )
+            ft = _build_label_annot(writer, label_rect, ann.verdict, ann.label, img, nm, stamp)
             writer.add_annotation(p - 1, ft)
             drawn_total += 1  # one Square+Popup+FreeText bundle = one count
 

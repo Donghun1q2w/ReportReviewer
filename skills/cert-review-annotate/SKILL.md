@@ -41,7 +41,7 @@ Phase C  annotate CLI (deterministic)   → <stem>_annotated.pdf
 | Shape | **border-only rectangle (no fill)** enclosing the cited cell + a text label. |
 | Text | ≤ **50 characters**, concise Korean. |
 | Colour | same as the report verdict fills — 주의 `#FFEB9C` (yellow), N/A `#D9D9D9` (grey), FAIL `#FFC7CE` (red). (`#C6EFCE` green PASS is unused.) Colours are reused from `compliance_report` so the annotations match the Excel report exactly. |
-| Method | **native PDF annotation objects** — every page is preserved verbatim (`clone_from` copy-through; content bytes, MediaBox/CropBox/Rotate unchanged). Each item attaches a border-only `/Square` (verdict-coloured border) plus an always-visible `/FreeText` Korean label with a self-generated appearance stream (vector chip + Hangul-glyph image), so the label shows in every major viewer. Each Square carries an Acrobat-native empty `/Popup` companion (bidirectional `/Popup`–`/Parent` link), matching the in-house reviewer's Acrobat annotation pattern (ref: `docs/PU2601564.pdf`). Every annotation is individually deletable / movable / editable in a viewer. |
+| Method | **native PDF annotation objects** — every page is preserved verbatim (`clone_from` copy-through; content bytes, MediaBox/CropBox/Rotate unchanged). Each item attaches a border-only `/Square` (verdict-coloured border) plus an always-visible `/FreeText` Korean label with a self-generated appearance stream (vector chip + Hangul-glyph image), so the label shows in every major viewer. The label carries the `NoRotate` flag and a naturally shaped `/Rect`, so it stays horizontal for the reader on `/Rotate`-ed pages even after a viewer regenerates its appearance. Each Square carries an Acrobat-native empty `/Popup` companion (bidirectional `/Popup`–`/Parent` link), matching the in-house reviewer's Acrobat annotation pattern (ref: `docs/PU2601564.pdf`). Every annotation is individually deletable / movable / editable in a viewer. |
 
 ---
 
@@ -126,9 +126,16 @@ python -m scripts.cli annotate --all                     # batch (cases that hav
   image space; the renderer maps it back to the original user-space `/Rect` via
   `T = (R + A) % 360` (page `/Rotate` + align-inputs applied rotation), anchored to the
   page `/CropBox` origin.
+  The Square is mapped from that aligned space; the `NoRotate` label is instead anchored
+  in the display space (the page turned by its own `/Rotate`), which is the same space
+  whenever the align-inputs applied rotation is 0.
 - The Korean label is always visible in every major viewer (self-generated appearance
-  stream). If a user *edits* the label text in a viewer, that viewer regenerates the
-  appearance with its own fonts — moving/deleting is unaffected.
+  stream). Adobe Acrobat regenerates that appearance with its own fonts not only when
+  the label text is *edited* but also when the annotation is merely **resized** (리사이즈). The
+  label is built to survive that: its `/Rect` is always the chip's natural (never
+  width/height-swapped) shape, so a regenerated appearance still lays out on one line,
+  and the `/FreeText` carries the **NoRotate** flag (`/F` bit 5) so it stays horizontal
+  for the reader even on a `/Rotate`-ed page. Moving/deleting is unaffected.
 - Backward-compatible: a case without `<case>_annotations.json` is a SKIP under `--all`
   (and an error for a single `--case`); a case with zero locatable items yields the
   original pages with `0 annotation(s)` logged.

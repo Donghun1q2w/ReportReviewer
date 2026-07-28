@@ -125,6 +125,47 @@ def _freetext(annots: list):
     return _by_subtype(annots, "/FreeText")[0]
 
 
+# raw fractional -> display fractional; the exact inverse of
+# A._aligned_to_user_frac (pinned by test_aligned_to_user_frac_all_rotations).
+_FWD_FRAC = {
+    0: lambda a, b: (a, b),
+    90: lambda a, b: (1 - b, a),
+    180: lambda a, b: (1 - a, 1 - b),
+    270: lambda a, b: (b, 1 - a),
+}
+
+
+def _chip_geometry(ft) -> tuple[list[float], float, float]:
+    """FreeText annot -> (/Rect as floats, chip width, chip height from /AP /BBox)."""
+    rc = [float(v) for v in ft["/Rect"]]
+    bx = [float(v) for v in ft["/AP"]["/N"].get_object()["/BBox"]]
+    return rc, bx[2] - bx[0], bx[3] - bx[1]
+
+
+def _assert_rect_matches_bbox(ft) -> tuple[list[float], float, float]:
+    """_chip_geometry(ft), plus the /Rect-size == /AP /BBox-size invariant every
+    NoRotate label must hold (a diverging pair means a viewer would scale the
+    glyphs to fit /Rect, distorting them)."""
+    rc, chip_w, chip_h = _chip_geometry(ft)
+    assert rc[2] - rc[0] == pytest.approx(chip_w, abs=1e-6)
+    assert rc[3] - rc[1] == pytest.approx(chip_h, abs=1e-6)
+    return rc, chip_w, chip_h
+
+
+def _display_chip(ft, rotate: int, wp: float = 400.0, hp: float = 300.0):
+    """FreeText -> (chip box as the reader sees it, display page w, display page h).
+
+    Forward-maps the NoRotate anchor (llx, ury) out of user space with _FWD_FRAC
+    and unfolds the /AP /BBox size down-and-right from it — i.e. exactly what a
+    NoRotate-implementing viewer does, so every assertion built on it is about
+    what is actually seen rather than about raw coordinates.
+    """
+    rc, chip_w, chip_h = _chip_geometry(ft)
+    ws, hs = A._aligned_page_size_pt(wp, hp, rotate)
+    u, v = _FWD_FRAC[rotate](rc[0] / wp, (hp - rc[3]) / hp)
+    return (u * ws, v * hs, u * ws + chip_w, v * hs + chip_h), ws, hs
+
+
 def _imported_top_level(src: str) -> set[str]:
     """Top-level module names imported by ``src`` (import + from-import)."""
     names: set[str] = set()
@@ -239,13 +280,7 @@ def test_aligned_to_user_frac_all_rotations():
     with pytest.raises(ValueError):
         A._aligned_to_user_frac(0.5, 0.5, 45)
     # forward (user->aligned) composed with the inverse returns the point
-    fwd = {
-        0: lambda a, b: (a, b),
-        90: lambda a, b: (1 - b, a),
-        180: lambda a, b: (1 - a, 1 - b),
-        270: lambda a, b: (b, 1 - a),
-    }
-    for t, f in fwd.items():
+    for t, f in _FWD_FRAC.items():
         u, v = f(0.3, 0.7)
         assert A._aligned_to_user_frac(u, v, t) == pytest.approx((0.3, 0.7))
 
@@ -269,6 +304,35 @@ def test_aligned_bbox_to_user_rect_literals():
         bbox, 3.96001, 2.88, 599.76 - 3.96001, 845.28 - 2.88, 0
     )
     assert list(got) == pytest.approx([152.91, 424.08, 301.86, 634.68], abs=0.01)
+
+
+def test_label_rect_for_norotate_literals():
+    """The NoRotate anchor: one corner transformed, natural size unfolded from it."""
+    chip, size = (0.25, 0.25), (60.0, 14.0)
+    f = A.label_rect_for_norotate
+    assert list(f(chip, size, 0, 0, 400, 300, 0)) == pytest.approx([100, 211, 160, 225], abs=0.01)
+    assert list(f(chip, size, 0, 0, 400, 300, 90)) == pytest.approx([100, 61, 160, 75], abs=0.01)
+    assert list(f(chip, size, 0, 0, 400, 300, 180)) == pytest.approx([300, 61, 360, 75], abs=0.01)
+    assert list(f(chip, size, 0, 0, 400, 300, 270)) == pytest.approx([300, 211, 360, 225], abs=0.01)
+    # case 46 p1 CropBox offset (F13), r=0
+    got = f(chip, size, 3.96001, 2.88, 599.76 - 3.96001, 845.28 - 2.88, 0)
+    assert list(got) == pytest.approx([152.91, 620.68, 212.91, 634.68], abs=0.01)
+    # the /Rect is always a valid, natural-shaped rectangle on every rotation
+    for r in (0, 90, 180, 270):
+        x0, y0, x1, y1 = f(chip, size, 0, 0, 400, 300, r)
+        assert x1 - x0 == pytest.approx(60.0) and y1 - y0 == pytest.approx(14.0)
+    with pytest.raises(ValueError):        # reuses _aligned_to_user_frac's guard
+        f(chip, size, 0, 0, 400, 300, 45)
+
+
+def test_aligned_bbox_to_display_box_undoes_applied_rotation():
+    """All four applied rotations, including the 180 that misplaces a chip by 300px."""
+    bbox = (0.25, 0.25, 0.5, 0.5)
+    g = A._aligned_bbox_to_display_box
+    assert list(g(bbox, 400, 300, 0)) == pytest.approx([100, 75, 200, 150], abs=0.01)
+    assert list(g(bbox, 400, 300, 90)) == pytest.approx([100, 150, 200, 225], abs=0.01)
+    assert list(g(bbox, 400, 300, 180)) == pytest.approx([200, 150, 300, 225], abs=0.01)
+    assert list(g(bbox, 300, 400, 270)) == pytest.approx([150, 100, 225, 200], abs=0.01)
 
 
 @requires_font
@@ -371,7 +435,7 @@ def test_square_and_freetext_fields(tmp_path: Path):
     for ft in _by_subtype(annots, "/FreeText"):
         assert str(ft.get("/Contents")).split(":")[0] in {"주의", "N/A", "FAIL"}
         assert str(ft.get("/DA")) == "/Helv 10 Tf 0 g"
-        assert int(ft["/F"]) == 4
+        assert int(ft["/F"]) == 4 | 16   # Print + NoRotate (label stays viewer-horizontal)
         assert str(ft.get("/T")) == "cert-review"
         assert str(ft.get("/Subj")) in {"주의", "N/A", "FAIL"}
         assert str(ft.get("/NM")).endswith("-label")
@@ -389,21 +453,61 @@ def test_pass_injected_directly_yields_no_annotations(tmp_path: Path):
 
 
 @requires_font
-@pytest.mark.parametrize(
-    ("rotate", "expected_matrix"),
-    [
-        pytest.param(90, [0, 1, -1, 0, 0, 0], id="T90-has-matrix"),
-        pytest.param(0, None, id="T0-no-matrix"),
-    ],
-)
-def test_label_ap_matrix_on_rotated_page(tmp_path: Path, rotate, expected_matrix):
+@pytest.mark.parametrize("rotate", [0, 90, 180, 270])
+def test_label_ap_never_carries_matrix_and_sets_norotate(tmp_path: Path, rotate):
+    """The /AP /Matrix trick is gone; NoRotate + a naturally shaped /Rect replace it.
+
+    Acrobat throws a FreeText's /AP away on a mere resize, so the label must not
+    depend on one: /F bit 5 (NoRotate) keeps it viewer-horizontal and /Rect keeps
+    the chip's unrotated width x height on every page rotation.
+    """
     ann = A.Annotation("c", 1, (0.25, 0.25, 0.5, 0.5), "FAIL", "FAIL: 회전")
     _, out = _attach(tmp_path, {1: [ann]}, rotate=rotate)
-    n = _freetext(_annots(PdfReader(str(out)).pages[0]))["/AP"]["/N"].get_object()
-    if expected_matrix is None:
-        assert "/Matrix" not in n
-    else:
-        assert [float(v) for v in n["/Matrix"]] == expected_matrix
+    annots = _annots(PdfReader(str(out)).pages[0])
+    ft = _freetext(annots)
+
+    assert "/Matrix" not in ft["/AP"]["/N"].get_object()
+    assert int(ft["/F"]) == 20                       # 4 Print | 16 NoRotate
+    assert int(_square(annots)["/F"]) == 4           # Square untouched
+    assert "/F" not in _by_subtype(annots, "/Popup")[0]   # pypdf's Popup carries no flags
+
+    rc, _, _ = _assert_rect_matches_bbox(ft)
+    assert rc[2] > rc[0] and rc[3] > rc[1]           # RectangleObject does not normalise
+
+
+@requires_font
+@pytest.mark.parametrize(
+    ("rotate", "rotations"),
+    [
+        pytest.param(0, None, id="R0-A0-T0"),
+        pytest.param(90, None, id="R90-A0-T90"),
+        pytest.param(180, None, id="R180-A0-T180"),
+        pytest.param(270, None, id="R270-A0-T270"),
+        pytest.param(0, {1: 90}, id="R0-A90-T90-PU2601233"),
+        pytest.param(90, {1: 270}, id="R90-A270-T0-PU2601565"),
+        pytest.param(0, {1: 180}, id="R0-A180-T180"),   # worst measured drift: 300px
+    ],
+)
+def test_label_anchor_lands_beside_the_square_in_display_space(tmp_path, rotate, rotations):
+    """The label must sit next to its box *as the viewer sees it*, for every (R, A).
+
+    Anchoring with T instead of the page's own /Rotate silently misplaces the chip
+    by up to a third of the page whenever the applied rotation is non-zero; the
+    (0, 180) case is the measured worst one and must never leave this list.
+    """
+    bbox = (0.25, 0.25, 0.5, 0.5)
+    ann = A.Annotation("c", 1, bbox, "FAIL", "FAIL: 배치")
+    _, out = _attach(tmp_path, {1: [ann]}, rotate=rotate, rotations=rotations)
+    ft = _freetext(_annots(PdfReader(str(out)).pages[0]))
+    chip, ws, hs = _display_chip(ft, rotate)
+    # (chip is always wider than tall by construction of _display_chip/_chip_geometry
+    # — that isn't rotation evidence; test_label_renders_horizontal_on_every_page_rotation
+    # is what actually observes the rendered pixels. This test's job is position.)
+    box = A._aligned_bbox_to_display_box(bbox, ws, hs, (rotations or {}).get(1, 0))
+    assert not A._rects_overlap(chip, box), f"label overlaps its box: {chip} vs {box}"
+    gap_x = max(box[0] - chip[2], chip[0] - box[2], 0.0)
+    gap_y = max(box[1] - chip[3], chip[1] - box[3], 0.0)
+    assert max(gap_x, gap_y) <= A.LABEL_GAP_PT + 2 * A.LABEL_BOX_PAD + 0.01
 
 
 # --------------------------------------------------------------------------- #
@@ -485,6 +589,120 @@ def test_oob_page_counted_not_attached(tmp_path: Path):
     }
     (_, drawn, pages, oob), _ = _attach(tmp_path, anns_by_page, pages=2)
     assert drawn == 1 and pages == 2 and oob == 1
+
+
+@requires_font
+@pytest.mark.parametrize("rotate", [0, 90, 180, 270])
+def test_zero_chip_padding_keeps_rect_and_bbox_in_sync(tmp_path: Path, monkeypatch, rotate):
+    """Boundary: no chip padding at all — /Rect must still equal the /AP /BBox.
+
+    Parametrised over every rotation so DoD D6's "all rotations x both paddings"
+    claim is literally what runs, not an extrapolation from a single rotate=90.
+    """
+    monkeypatch.setattr(A, "LABEL_BOX_PAD", 0.0)
+    ann = A.Annotation("c", 1, (0.25, 0.25, 0.5, 0.5), "FAIL", "FAIL: 패딩0")
+    _, out = _attach(tmp_path, {1: [ann]}, rotate=rotate)
+    ft = _freetext(_annots(PdfReader(str(out)).pages[0]))
+    _assert_rect_matches_bbox(ft)
+    assert int(ft["/F"]) == 20
+
+
+@requires_font
+def test_applied_rotation_normalised_modulo_360(tmp_path: Path):
+    """450 deg must behave exactly like 90 deg (it did before NoRotate too)."""
+    ann = A.Annotation("c", 1, (0.25, 0.25, 0.5, 0.5), "FAIL", "F")
+    _, o1 = _attach(tmp_path, {1: [ann]}, rotate=0, rotations={1: 90})
+    d2 = tmp_path / "d2"
+    d2.mkdir()
+    _, o2 = _attach(d2, {1: [ann]}, rotate=0, rotations={1: 450})
+    r1, _, _ = _chip_geometry(_freetext(_annots(PdfReader(str(o1)).pages[0])))
+    r2, _, _ = _chip_geometry(_freetext(_annots(PdfReader(str(o2)).pages[0])))
+    assert r1 == pytest.approx(r2, abs=0.01)
+
+
+@requires_font
+def test_invalid_applied_rotation_still_raises(tmp_path: Path):
+    """Bad input keeps the pre-existing failure mode — no new defensive code."""
+    ann = A.Annotation("c", 1, (0.25, 0.25, 0.5, 0.5), "FAIL", "F")
+    with pytest.raises(ValueError):
+        _attach(tmp_path, {1: [ann]}, rotate=0, rotations={1: 45})
+
+
+@requires_font
+@pytest.mark.parametrize(
+    ("rotate", "rotations"),
+    [
+        pytest.param(90, None, id="R90-A0"),
+        pytest.param(0, {1: 90}, id="R0-A90-display-space"),
+    ],
+)
+def test_max_length_label_on_rotated_page_stays_clamped(tmp_path: Path, rotate, rotations):
+    """A 50-char label is wider than the display page: _place_label's clamp must
+    still bite in display space, and /Rect must stay in sync with the /AP /BBox.
+
+    Parametrised with a=90 (not just r=90) so this actually exercises the
+    display-space clamp path, not just the case where display == aligned space.
+    """
+    ann = A.Annotation("c", 1, (0.85, 0.85, 0.98, 0.95), "FAIL", "가" * 49 + "…")
+    _, out = _attach(tmp_path, {1: [ann]}, rotate=rotate, rotations=rotations)
+    ft = _freetext(_annots(PdfReader(str(out)).pages[0]))
+    _assert_rect_matches_bbox(ft)
+    chip, ws, hs = _display_chip(ft, rotate)
+    assert chip[0] >= -A.LABEL_BOX_PAD - 0.01                     # clamped to the left edge
+    assert -A.LABEL_BOX_PAD - 0.01 <= chip[1] <= hs + A.LABEL_BOX_PAD + 0.01
+    # No right/bottom bound: the clamp is left/top-only (max(0, min(cx, page_w-tw)))
+    # and this label's chip (497.5pt) is deliberately wider than the display page
+    # (ws=300 or 400), so the chip legitimately overflows past the right edge —
+    # that overflow is the pre-existing, unchanged behavior this test documents.
+
+
+@requires_font
+@pytest.mark.parametrize(
+    ("rotate", "rotations"),
+    [
+        pytest.param(90, None, id="R90-A0-three-labels"),
+        pytest.param(0, {1: 90}, id="R0-A90-three-labels"),
+    ],
+)
+def test_multiple_labels_on_rotated_page_do_not_overlap(tmp_path: Path, rotate, rotations):
+    """Three labels on one *rotated* page: the shared display space must hold.
+
+    write_annotated_pdf computes ws/hs/a once per page and every label on that page
+    reuses them through the same `placed` list. The pre-NoRotate multi-annotation
+    test runs at rotate=0, where display space == aligned space, so it never
+    exercises this. The boxes are deliberately close enough that the first chip's
+    preferred slot is taken, forcing _place_label's above -> below -> right fallback.
+
+    Only each chip's own Square is asserted clear: _place_label avoids other
+    *labels* and the page edge, never other annotations' boxes — a pre-existing
+    property of the untouched function, not something this change may claim.
+    """
+    anns = [
+        A.Annotation("c", 1, (0.10, 0.50, 0.30, 0.65), "FAIL", "FAIL: 가"),
+        A.Annotation("c", 1, (0.14, 0.50, 0.34, 0.65), "주의", "주의: 나"),
+        A.Annotation("c", 1, (0.18, 0.50, 0.38, 0.65), "N/A", "N/A: 다"),
+    ]
+    (_, drawn, _, _), out = _attach(tmp_path, {1: anns}, rotate=rotate, rotations=rotations)
+    assert drawn == 3
+    annots = _annots(PdfReader(str(out)).pages[0])
+    squares = _by_subtype(annots, "/Square")
+    freetexts = _by_subtype(annots, "/FreeText")
+    assert len(squares) == 3 and len(freetexts) == 3
+
+    a = (rotations or {}).get(1, 0)
+    chips = []
+    for ann, sq, ft in zip(anns, squares, freetexts):
+        assert str(ft["/NM"]) == f"{sq['/NM']}-label"   # pairing is explicit, not positional
+        chip, ws, hs = _display_chip(ft, rotate)
+        own_box = A._aligned_bbox_to_display_box(ann.bbox, ws, hs, a)
+        assert not A._rects_overlap(chip, own_box), f"label sits on its own box: {chip}"
+        chips.append(chip)
+
+    for i in range(len(chips)):
+        for j in range(i + 1, len(chips)):
+            assert not A._rects_overlap(chips[i], chips[j]), (
+                f"labels {i} and {j} overlap in display space: {chips[i]} vs {chips[j]}"
+            )
 
 
 @requires_font
@@ -575,6 +793,12 @@ def test_annotate_case_consumes_alignment_record(tmp_path: Path):
     assert [float(v) for v in page.mediabox] == [0, 0, 400, 300]  # MediaBox unchanged (no raster)
     sq = _square(_annots(page))
     assert [float(v) for v in sq["/Rect"]] == pytest.approx([100, 75, 200, 150], abs=0.01)  # T=90
+    # The real entry point must produce NoRotate labels too — this case runs with
+    # applied={"1": 90} on an unrotated page, i.e. exactly the a != 0 path.
+    ft = _freetext(_annots(page))
+    assert int(ft["/F"]) == 20                      # 4 Print | 16 NoRotate
+    assert "/Matrix" not in ft["/AP"]["/N"].get_object()
+    _assert_rect_matches_bbox(ft)
 
 
 # --------------------------------------------------------------------------- #
@@ -637,6 +861,21 @@ def _dark_pixel_count(img, step=2) -> int:
     )
 
 
+def _dark_pixel_bbox(img, step=2):
+    """Bounding box of the label chip: its grey border (80,80,80) and black glyphs
+    are the only sub-250 sum pixels — the verdict fills (sum >= 646) and the test
+    page's pure-blue stroke (sum 255) never qualify."""
+    px = img.load()
+    w, h = img.size
+    xs, ys = [], []
+    for y in range(0, h, step):
+        for x in range(0, w, step):
+            if sum(px[x, y][:3]) < 250:
+                xs.append(x)
+                ys.append(y)
+    return (min(xs), min(ys), max(xs), max(ys)) if xs else None
+
+
 @requires_font
 def test_square_renders_in_pdfium(tmp_path: Path):
     ann = A.Annotation("c", 1, (0.2, 0.2, 0.8, 0.6), "FAIL", "FAIL: 렌더")
@@ -652,11 +891,42 @@ def test_freetext_label_renders_in_pdfium(tmp_path: Path):
     img = _render_first_page(out)
     assert _has_color(img, _WARN_RGB), "label chip background not rendered"
     assert _dark_pixel_count(img) > 50, "no dark glyph pixels — Korean label not rendered"
-    # rotated page: the /AP /Matrix path still renders glyphs (Popup is invisible)
+    # rotated page: NoRotate + the natural /Rect still render glyphs (Popup is invisible)
     rot_dir = tmp_path / "rot"
     rot_dir.mkdir()
     _, out2 = _attach(rot_dir, {1: [ann]}, rotate=90)
     assert _dark_pixel_count(_render_first_page(out2)) > 50, "rotated label not rendered"
+
+
+@requires_font
+@pytest.mark.parametrize(
+    ("rotate", "rotations"),
+    [
+        pytest.param(0, None, id="R0-A0"),
+        pytest.param(90, None, id="R90-A0"),
+        pytest.param(180, None, id="R180-A0"),
+        pytest.param(270, None, id="R270-A0"),
+        pytest.param(0, {1: 90}, id="R0-A90-T90-PU2601233"),
+        pytest.param(90, {1: 270}, id="R90-A270-T0-PU2601565"),
+    ],
+)
+def test_label_renders_horizontal_on_every_page_rotation(tmp_path: Path, rotate, rotations):
+    """pdfium (which implements NoRotate) must draw the chip wider than tall.
+
+    This is the only *pixel* evidence in the suite, so the two real applied-rotation
+    cases belong here too — reading /AP /BBox instead would prove nothing about how
+    the annotation is actually composited onto a rotated page.
+    """
+    ann = A.Annotation("c", 1, (0.2, 0.2, 0.8, 0.5), "주의", "주의: 한글 라벨 렌더 확인")
+    _, out = _attach(tmp_path, {1: [ann]}, rotate=rotate, rotations=rotations)
+    img = _render_first_page(out)
+    assert _has_color(img, _WARN_RGB), "label chip background not rendered"
+    bb = _dark_pixel_bbox(img)
+    assert bb is not None, "no dark chip/glyph pixels — Korean label not rendered"
+    assert (bb[2] - bb[0]) > (bb[3] - bb[1]), (
+        f"chip is taller than wide at /Rotate={rotate}, applied={rotations}"
+        " — it rotated with the page"
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -677,6 +947,12 @@ def test_no_burnin_symbols():
         assert sym not in src, f"burn-in symbol still present: {sym}"
 
 
+def test_no_ap_matrix_symbol():
+    """The /AP rotation-matrix trick must be gone (Acrobat drops it on resize)."""
+    src = Path(A.__file__).read_text(encoding="utf-8")
+    assert "_AP_MATRIX" not in src
+
+
 def test_cli_annotate_rejects_dpi(capsys):
     """`annotate --dpi` must be an explicit argparse error (exit code 2)."""
     from scripts.cli import main as cli_main
@@ -694,3 +970,11 @@ def test_skillmd_no_stale_wording():
     assert "burn-in" not in text
     assert "burn in" not in text
     assert "--dpi" not in text
+    assert "norotate" in text, "SKILL.md must document the NoRotate label flag"
+    # the *reason* the caveat was rewritten: resizing (not just editing) triggers
+    # Acrobat's AP regeneration. Pin the fact, not merely the flag name. SKILL.md's
+    # stated language is English (module docstring), so "resize" is the required
+    # term; a Korean gloss may or may not additionally be present.
+    assert "resize" in text, (
+        "SKILL.md must state that a mere resize also regenerates the appearance"
+    )
