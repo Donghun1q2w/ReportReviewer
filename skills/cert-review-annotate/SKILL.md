@@ -136,6 +136,17 @@ python -m scripts.cli annotate --all                     # batch (cases that hav
   width/height-swapped) shape, so a regenerated appearance still lays out on one line,
   and the `/FreeText` carries the **NoRotate** flag (`/F` bit 5) so it stays horizontal
   for the reader even on a `/Rotate`-ed page. Moving/deleting is unaffected.
+- **Known Acrobat limitation (real-viewer confirmed, 2026-07-28)**: on a `/Rotate`-ed page
+  (verified at `/Rotate=180`), the label's *content* always renders correctly (NoRotate
+  keeps it horizontal), but Adobe Acrobat's own selection/resize-handle overlay for the
+  `/FreeText` is drawn using ordinary rotation-following coordinates, ignoring `NoRotate` —
+  so the handle box appears point-mirrored (both axes) from where the label actually sits.
+  Dragging that handle box to resize still leaves the text horizontal (worst case: it wraps
+  to two lines), but the handle position itself is visually confusing. This is outside PDF
+  authoring's control (NoRotate governs appearance rendering only; the PDF spec does not
+  constrain a viewer's own editing-UI chrome) — do not attempt a further coordinate fix for
+  it. Advise users not to drag-resize a label's handles in Acrobat; moving the whole
+  annotation and deleting are unaffected.
 - Backward-compatible: a case without `<case>_annotations.json` is a SKIP under `--all`
   (and an error for a single `--case`); a case with zero locatable items yields the
   original pages with `0 annotation(s)` logged.
