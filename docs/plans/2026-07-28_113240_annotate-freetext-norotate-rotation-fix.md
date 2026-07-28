@@ -1,7 +1,7 @@
 # annotate_pdf.py FreeText 라벨 NoRotate 전환 (회전 페이지 라벨 세로 뒤집힘 근본 수정) — 구현 계획
 
 - **작성**: 2026-07-28 11:32 (전담 플래닝 에이전트, Opus, dh-dev Step 1-d — 적대 검증 1회 반영판)
-- **상태**: In Progress (사용자 승인 완료, Step 3 실행 중)
+- **상태**: Completed (커밋 `9e3cd1f`, pytest 39→67(annotate)/280→308(전체), D1~D18 중 D16만 사용자 수동 확인 대기 — Adobe Acrobat에서 스모크 PDF 3개(`/Rotate=90/180/270`) 리사이즈 확인 필요)
 - **대상**: `plugin/ReportReviewer` (단일 소스, `git@github.com:Donghun1q2w/ReportReviewer.git`, main, HEAD `3eb08dc`). 대상 파일 3개: `skills/cert-review/scripts/annotate_pdf.py`, `skills/cert-review/tests/test_annotate_pdf.py`, `skills/cert-review-annotate/SKILL.md`.
 - **동인**: `testbed/1. Standard Inspection/ref/2026-246#-7.21_annotated(1).pdf` 실측 — `/Rotate=90` 성적서 1페이지의 FreeText 검토 라벨을 사용자가 Adobe Acrobat에서 리사이즈하면 Acrobat이 커스텀 `/AP`(회전 보정 `/Matrix`)를 버리고 자체 리치텍스트로 재생성하며, 그 결과 라벨이 세로로 뒤집혀 보이고 이후 리사이즈해도 되돌아가지 않음(두 참고 PDF를 pypdf 파싱 + pypdfium2 렌더로 직접 대조해 확정). 해결: FreeText에 `/F` NoRotate 비트(16)를 세우고, 라벨 `/Rect`를 회전-독립적 앵커(칩 좌상단 1개 코너만 변환) 방식으로 재계산해 Acrobat 재생성 후에도 항상 가로 한 줄 레이아웃이 나오도록 함. Square/Popup은 이 버그가 없어 무변경.
 - **적대 검증**: contrarian/gap_hunter 2레인 완료(계획 핵심 좌표 수학·스코프 경계는 두 레인 모두 독립 재계산으로 정확함을 확인) — 발견 10건(HIGH 4·MEDIUM 3·LOW 3) 전건 반영판. 미해소 HIGH 0건. 처분표는 아래.
