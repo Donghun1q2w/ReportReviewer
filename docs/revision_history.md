@@ -1,5 +1,14 @@
 # Revision History
 
+## 2026-07-29 — annotate 직전 페이지별 업라이트 정규화 전처리 추가 (Acrobat 핸들 UI 불일치 구조적 제거) — v1.8.0
+
+**Detail**: [revisions/2026-07-29_090028_annotate-upright-normalization](revisions/2026-07-29_090028_annotate-upright-normalization.md) · **Plan**: [2026-07-28_162707_annotate-upright-normalization](plans/2026-07-28_162707_annotate-upright-normalization.md)
+
+- 회전 페이지(`/Rotate≠0` 또는 align-inputs 회전≠0)만 annotate 직전에 무손실 matrix bake-in으로 `/Rotate=0` 정규화(`scripts/upright_pdf.py` 신설) — 정규화 후에는 NoRotate 앵커 계산이 항등변환이 되어 Acrobat 핸들 UI 점대칭 불일치가 구조적으로 재현 불가능해짐. 기존 NoRotate 로직(`9e3cd1f`)은 방어적 fallback으로 그대로 유지, `write_annotated_pdf` 이하 좌표변환/빌더 함수는 diff 0줄.
+- `annotate_case`에 2단 폴백 추가(전처리 실패→legacy 경로, legacy도 판독 불가한 stem만 스킵·형제 stem은 정상) — 종전 "케이스 전체 크래시"보다 개선.
+- dh-dev 1-e 적대 검증(contrarian+gap_hunter) HIGH 3건(예외 타입 불일치로 fail-open 계약 파손, 원 버그 재현 실파일 미검증, 멀티-stem 격리 미검증) 단일 재수정 사이클로 전건 반영.
+- pytest **308→338 passed**(0 failed). 실PDF E2E 3종(r-only/a-only/결합 r+a) + 사용자 실물 Acrobat 확인("정상 생성" 확인). 결합 회전 재현 파일은 재구성 출처(알려진 제약, 상세 참조).
+
 ## 2026-07-28 — annotate_pdf.py FreeText 라벨 NoRotate 전환 (회전 페이지 라벨 세로 뒤집힘 근본 수정)
 
 **Detail**: [revisions/2026-07-28_140306_annotate-freetext-norotate-rotation-fix](revisions/2026-07-28_140306_annotate-freetext-norotate-rotation-fix.md) · **Plan**: [2026-07-28_113240_annotate-freetext-norotate-rotation-fix](plans/2026-07-28_113240_annotate-freetext-norotate-rotation-fix.md)

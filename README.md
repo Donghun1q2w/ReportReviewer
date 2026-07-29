@@ -6,7 +6,7 @@
 
 > 사내 전용(Proprietary). [LICENSE](LICENSE) 참조.
 
-> **최신 버전 v1.7.0** — 동봉 원자재 성적서(MILL CERT) 검증·교차비교(기준 21/22, 단조품 인장 전사복제 FAIL) 추가. 전체 변경 이력은 [`docs/revision_history.md`](docs/revision_history.md) 참조.
+> **최신 버전 v1.8.0** — 주석 직전 페이지 업라이트 정규화 전처리 추가(회전 페이지를 무손실 회전 matrix 전사로 `/Rotate=0` 정규화 후 주석 부착 — Acrobat 핸들 UI 불일치의 전제 제거). 전체 변경 이력은 [`docs/revision_history.md`](docs/revision_history.md) 참조.
 
 ## 핵심 특징
 
@@ -255,7 +255,7 @@ Phase C  annotate CLI ──→ output/reports/<case>/<stem>_annotated.pdf
 
 - **대상/형태**: verdict **주의 / N/A / FAIL**(PASS 제외) 항목당 네이티브 주석 3오브젝트 — `/Square`(verdict색 테두리, 채우기 없음) + Acrobat 네이티브 빈 `/Popup` 동반(양방향 링크 — 박스 클릭 시 코멘트 스레드) + `/FreeText` ≤50자 한글 라벨. **색**: `compliance_report` 상수 재사용 → 주의 노랑·N/A 회색·FAIL 빨강(엑셀 리포트와 100% 일치).
 - **좌표**: 전용 `annotation-locator`(Vision, claude-opus-4-8)가 review.json 대상 항목을 캐시된 페이지에서 셀 bbox(Tier A — 확정 좌표만)로 산출. 추정 좌표 박스 금지. 렌더러가 페이지 `/Rotate`+정렬 회전을 합성(T=(R+A)%360)해 사용자 공간 `/Rect`로 역변환(CropBox 오프셋·상속 /Rotate 처리).
-- **생성**: `annotate_pdf.py`가 **전 페이지 완전 copy-through**(`pypdf` clone) — 페이지 콘텐츠는 바이트 단위로 원본 그대로 보존되고 `/Annots`에만 추가되므로 주석을 뷰어에서 개별 삭제·이동·수정 가능. 라벨은 자체 `/AP`(벡터 칩+4x 한글 글리프, `Pillow`)를 내장해 pdfium 계열(Chrome 등) 포함 전 주요 뷰어에서 클릭 없이 상시 표시. 신규 의존성 0, C1 준수(OCR 라이브러리 미사용).
+- **생성**: `annotate_pdf.py`가 **전 페이지 copy-through**(`pypdf` clone) — `/Annots`에만 추가되므로 주석을 뷰어에서 개별 삭제·이동·수정 가능. 업라이트 페이지는 콘텐츠가 바이트 단위로 보존되고, 회전 페이지(`/Rotate`≠0 또는 정렬 회전≠0)는 주석 직전에 **무손실 업라이트 정규화**(회전 matrix 1개를 콘텐츠 스트림에 전사 → `/Rotate=0`, 임베딩 이미지 스트림 바이트 불변, 래스터화 0회)를 거친 파생본에 부착된다. 라벨은 자체 `/AP`(벡터 칩+4x 한글 글리프, `Pillow`)를 내장해 pdfium 계열(Chrome 등) 포함 전 주요 뷰어에서 클릭 없이 상시 표시. 신규 의존성 0, C1 준수(OCR 라이브러리 미사용).
 
 ```powershell
 cd skills/cert-review; $env:PYTHONIOENCODING="utf-8"

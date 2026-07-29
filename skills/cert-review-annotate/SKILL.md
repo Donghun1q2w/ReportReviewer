@@ -41,7 +41,7 @@ Phase C  annotate CLI (deterministic)   → <stem>_annotated.pdf
 | Shape | **border-only rectangle (no fill)** enclosing the cited cell + a text label. |
 | Text | ≤ **50 characters**, concise Korean. |
 | Colour | same as the report verdict fills — 주의 `#FFEB9C` (yellow), N/A `#D9D9D9` (grey), FAIL `#FFC7CE` (red). (`#C6EFCE` green PASS is unused.) Colours are reused from `compliance_report` so the annotations match the Excel report exactly. |
-| Method | **native PDF annotation objects** — every page is preserved verbatim (`clone_from` copy-through; content bytes, MediaBox/CropBox/Rotate unchanged). Each item attaches a border-only `/Square` (verdict-coloured border) plus an always-visible `/FreeText` Korean label with a self-generated appearance stream (vector chip + Hangul-glyph image), so the label shows in every major viewer. The label carries the `NoRotate` flag and a naturally shaped `/Rect`, so it stays horizontal for the reader on `/Rotate`-ed pages even after a viewer regenerates its appearance. Each Square carries an Acrobat-native empty `/Popup` companion (bidirectional `/Popup`–`/Parent` link), matching the in-house reviewer's Acrobat annotation pattern (ref: `docs/PU2601564.pdf`). Every annotation is individually deletable / movable / editable in a viewer. |
+| Method | **native PDF annotation objects** — already-upright pages are preserved verbatim (`clone_from` copy-through; content bytes, MediaBox/CropBox/Rotate unchanged); pages with a nonzero page `/Rotate` or align rotation are first upright-normalized (lossless rotation matrix transfer into the content stream — never rasterised) so annotations attach at `/Rotate=0`. Each item attaches a border-only `/Square` (verdict-coloured border) plus an always-visible `/FreeText` Korean label with a self-generated appearance stream (vector chip + Hangul-glyph image), so the label shows in every major viewer. The label carries the `NoRotate` flag and a naturally shaped `/Rect`, so it stays horizontal for the reader on `/Rotate`-ed pages even after a viewer regenerates its appearance. Each Square carries an Acrobat-native empty `/Popup` companion (bidirectional `/Popup`–`/Parent` link), matching the in-house reviewer's Acrobat annotation pattern (ref: `docs/PU2601564.pdf`). Every annotation is individually deletable / movable / editable in a viewer. |
 
 ---
 
@@ -119,9 +119,12 @@ python -m scripts.cli annotate --all                     # batch (cases that hav
 
 - Output: `<WORK>/output/reports/<case>/<stem>_annotated.pdf` (co-located with the Excel
   report; one annotated PDF per cert PDF).
-- Every page is preserved verbatim (content bytes identical; no rasterisation); the
-  Square/Popup/FreeText objects are only appended to `/Annots`, so each annotation can
-  be individually selected, moved or deleted in a PDF viewer.
+- Already-upright pages are preserved verbatim (content bytes identical); pages carrying a
+  `/Rotate` or an align rotation are annotated on their upright-normalized derivative
+  (cached at `.cache/<case>/upright/<stem>_upright.pdf`; one rotation matrix is transferred
+  into the content stream, so embedded image streams stay byte-identical and nothing is
+  rasterised). Either way the Square/Popup/FreeText objects are only appended to `/Annots`,
+  so each annotation can be individually selected, moved or deleted in a PDF viewer.
 - Coordinate convention: the locator's fractional bbox is in the *aligned* (upright)
   image space; the renderer maps it back to the original user-space `/Rect` via
   `T = (R + A) % 360` (page `/Rotate` + align-inputs applied rotation), anchored to the
@@ -129,6 +132,10 @@ python -m scripts.cli annotate --all                     # batch (cases that hav
   The Square is mapped from that aligned space; the `NoRotate` label is instead anchored
   in the display space (the page turned by its own `/Rotate`), which is the same space
   whenever the align-inputs applied rotation is 0.
+  After the upright preprocessing the renderer sees `R = 0` and is handed `A = {}`, so `T`
+  collapses to 0 and both mappings reduce to a plain scale on the already-upright page
+  (width/height are swapped for a 90/270 turn). The `T`-based formula above is what the
+  fallback path — and any page that needed no normalization — still uses.
 - The Korean label is always visible in every major viewer (self-generated appearance
   stream). Adobe Acrobat regenerates that appearance with its own fonts not only when
   the label text is *edited* but also when the annotation is merely **resized** (리사이즈). The
@@ -136,7 +143,8 @@ python -m scripts.cli annotate --all                     # batch (cases that hav
   width/height-swapped) shape, so a regenerated appearance still lays out on one line,
   and the `/FreeText` carries the **NoRotate** flag (`/F` bit 5) so it stays horizontal
   for the reader even on a `/Rotate`-ed page. Moving/deleting is unaffected.
-- **Known Acrobat limitation (real-viewer confirmed, 2026-07-28)**: on a `/Rotate`-ed page
+- **Known Acrobat limitation (real-viewer confirmed, 2026-07-28) — scoped to outputs produced
+  before the upright normalization, or via its fallback path**: on a `/Rotate`-ed page
   (verified at `/Rotate=180`), the label's *content* always renders correctly (NoRotate
   keeps it horizontal), but Adobe Acrobat's own selection/resize-handle overlay for the
   `/FreeText` is drawn using ordinary rotation-following coordinates, ignoring `NoRotate` —
@@ -145,8 +153,11 @@ python -m scripts.cli annotate --all                     # batch (cases that hav
   to two lines), but the handle position itself is visually confusing. This is outside PDF
   authoring's control (NoRotate governs appearance rendering only; the PDF spec does not
   constrain a viewer's own editing-UI chrome) — do not attempt a further coordinate fix for
-  it. Advise users not to drag-resize a label's handles in Acrobat; moving the whole
-  annotation and deleting are unaffected.
+  it. Newly produced outputs attach their annotations at `/Rotate=0`, so the handle-overlay
+  mismatch cannot arise on them — **unless the run notes record an upright-normalization
+  fallback for that file, in which case the legacy NoRotate path (and this limitation) still
+  applies**. Wherever it does apply, advise users not to drag-resize a label's handles in
+  Acrobat; moving the whole annotation and deleting are unaffected.
 - Backward-compatible: a case without `<case>_annotations.json` is a SKIP under `--all`
   (and an error for a single `--case`); a case with zero locatable items yields the
   original pages with `0 annotation(s)` logged.

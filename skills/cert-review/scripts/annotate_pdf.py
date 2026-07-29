@@ -37,6 +37,9 @@ annotations are only appended to each page's ``/Annots``, so every annotation ca
 be individually deleted / moved / edited in a viewer and no page content is
 altered. Since a ``/Popup`` draws nothing (empty, no ``/Contents`` — the same
 state as the reference document), it too leaves page content byte-identical.
+Pages that needed rotation are annotated on their upright-normalized derivative
+(``scripts.upright_pdf``, lossless matrix transfer, ``/Rotate=0``); already-upright
+pages and the legacy fallback path remain verbatim as before.
 
 Coordinate convention: the annotation-locator's fractional bbox ``[x0, y0, x1,
 y1]`` in ``[0, 1]`` is in the *aligned* image space (the upright pixels the
@@ -80,6 +83,7 @@ from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader, PdfWriter
 from pypdf.annotations import FreeText, Popup, Rectangle
 from pypdf.constants import AnnotationFlag
+from pypdf.errors import PyPdfError
 from pypdf.generic import (
     ArrayObject,
     DictionaryObject,
@@ -98,6 +102,7 @@ from scripts.compliance_report import (
     _canon_verdict,
 )
 from scripts.crop import parse_bbox, resolve_stem
+from scripts.upright_pdf import ensure_upright_pdf
 
 # Hangul-capable label font; override via CERT_REVIEW_FONT for non-Windows hosts.
 DEFAULT_FONT = os.environ.get("CERT_REVIEW_FONT", r"C:\Windows\Fonts\malgun.ttf")
@@ -710,6 +715,18 @@ def annotate_case(
     CLI); the case folder is ``cert_dir/<case_id>``. Output defaults to
     ``work_dir/output/reports/<case_id>/<stem>_annotated.pdf`` (co-located with
     the Excel report).
+
+    Each cert PDF is first run through ``upright_pdf.ensure_upright_pdf``, which
+    returns an upright-normalized derivative (cached at
+    ``<cache_root>/<case_id>/upright/<stem>_upright.pdf`` plus a sidecar json)
+    whenever a page carries a nonzero ``/Rotate`` or applied align rotation. The
+    derivative already embodies both turns, so it is annotated with
+    ``rotations={}`` — re-applying the align map there would rotate twice. The
+    handling is two-tier and strictly per stem: a preprocessing failure falls
+    back to the original PDF on the legacy NoRotate path (tier 1), and a PDF the
+    legacy path cannot read either is skipped with a note and
+    ``skipped=True`` (tier 2) so sibling PDFs and the case summary survive.
+    Output file names and the summary ``stem`` always use the *original* stem.
     """
     work_dir, cache_root, cert_dir = Path(work_dir), Path(cache_root), Path(cert_dir)
     ann_path = (
@@ -756,20 +773,62 @@ def annotate_case(
 
     outputs: list[dict] = []
     boxes_drawn = 0
+    # Preprocessing/annotation failures must never take sibling PDFs down with
+    # them. pypdf raises its own PyPdfError family (FileNotDecryptedError,
+    # PdfStreamError, ...) which is NOT a subclass of OSError/ValueError.
+    _FALLBACK_EXC = (OSError, ValueError, PyPdfError)
+
     for pdf_path, by_page in groups.items():
         out_pdf = out_dir / f"{pdf_path.stem}_annotated.pdf"
         rotations = applied_rotations(cache_root / str(case_id), pdf_path.stem)
-        # write_annotated_pdf owns the page-range guard and opens the PDF once.
-        _, drawn, pages, oob = write_annotated_pdf(
-            pdf_path, by_page, out_pdf, rotations=rotations, font_path=font_path
-        )
+        # Tier 1 — upright preprocessing: pages with /Rotate != 0 or an applied
+        # align rotation != 0 are baked upright so the NoRotate anchor math
+        # becomes the identity (r == 0). On failure fall back to the original
+        # PDF + the legacy NoRotate path (the defensive-fallback decision).
+        src_pdf: Path = pdf_path
+        eff_rotations: dict[int, int] = rotations
+        upright_used = False
+        try:
+            up_path, upright_used, up_notes = ensure_upright_pdf(
+                pdf_path, cache_root / str(case_id), rotations
+            )
+            notes.extend(f"{pdf_path.stem}: {n}" for n in up_notes)
+            if upright_used:
+                src_pdf = up_path
+                eff_rotations = {}   # 정규화본은 r=0·정렬 이미 반영 — 이중 적용 금지
+        except _FALLBACK_EXC as e:
+            notes.append(
+                f"{pdf_path.stem}: upright normalization failed ({e}); "
+                f"falling back to NoRotate anchoring on the original PDF"
+            )
+        # Tier 2 — per-stem isolation: a PDF the legacy path cannot read either
+        # (really encrypted / truncated) is skipped with a note; siblings and
+        # the case summary survive. write_annotated_pdf itself is unchanged.
+        try:
+            # write_annotated_pdf owns the page-range guard and opens the PDF once.
+            _, drawn, pages, oob = write_annotated_pdf(
+                src_pdf, by_page, out_pdf, rotations=eff_rotations, font_path=font_path
+            )
+        except _FALLBACK_EXC as e:
+            n_rows = sum(len(v) for v in by_page.values())
+            rows_skipped += n_rows
+            notes.append(
+                f"{pdf_path.stem}: annotation failed ({e}); "
+                f"{n_rows} annotation(s) skipped for this PDF"
+            )
+            outputs.append({
+                "stem": pdf_path.stem, "pages": 0, "boxes": 0,
+                "upright": upright_used, "out_path": str(out_pdf), "skipped": True,
+            })
+            continue
         boxes_drawn += drawn
         if oob:
             rows_skipped += oob
             notes.append(f"{pdf_path.stem}: {oob} annotation(s) out of page range 1..{pages}")
-        outputs.append(
-            {"stem": pdf_path.stem, "pages": pages, "boxes": drawn, "out_path": str(out_pdf)}
-        )
+        outputs.append({
+            "stem": pdf_path.stem, "pages": pages, "boxes": drawn,
+            "upright": upright_used, "out_path": str(out_pdf), "skipped": False,
+        })
 
     return {
         "case_id": str(case_id),

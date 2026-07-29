@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 from pypdf import PdfReader, PdfWriter
 from pypdf.annotations import Text
+from pypdf.errors import PdfStreamError
 from pypdf.generic import (
     ArrayObject,
     DecodedStreamObject,
@@ -29,6 +30,7 @@ from pypdf.generic import (
 )
 
 from scripts import annotate_pdf as A
+from scripts import upright_pdf as UP
 from scripts.annotate_pdf import (
     _hex_to_rgb,
     _label_for,
@@ -38,6 +40,13 @@ from scripts.annotate_pdf import (
     annotate_case,
     load_annotations,
     write_annotated_pdf,
+)
+from tests.test_upright_pdf import (  # shared synthetic-PDF fixtures (6.1)
+    _color_bbox,
+    _make_corrupt_pdf,
+    _make_encrypted_pdf,
+    _render,
+    _rotate_cw,
 )
 
 CERT_CLEANUP_DIRNAME = "standard inspection Cert cleanup data"
@@ -769,7 +778,15 @@ def test_annotate_case_missing_annotations_raises(tmp_path: Path):
 
 
 @requires_font
-def test_annotate_case_consumes_alignment_record(tmp_path: Path):
+def test_annotate_case_normalizes_alignment_rotation(tmp_path: Path):
+    """The a != 0 path now goes through the upright preprocessing (deliberate change).
+
+    Replaces ``test_annotate_case_consumes_alignment_record``. The old expectations
+    (Square /Rect (100, 75, 200, 150) on a 400x300 MediaBox, T=90) belong to the
+    *fallback* path from here on; the direct ``write_annotated_pdf`` tests
+    (``test_rect_matches_metadata_rotation``, ``test_label_anchor_lands_beside_the_``
+    ``square_in_display_space``, A5, A8) keep pinning them, so no coverage is lost.
+    """
     work = tmp_path / "work"
     cert_root = work / CERT_CLEANUP_DIRNAME
     _make_pdf(cert_root / "9" / "certA.pdf", 1)  # 400x300
@@ -789,12 +806,17 @@ def test_annotate_case_consumes_alignment_record(tmp_path: Path):
         out_dir=tmp_path / "out", annotations_path=ann_path, font_path=_FONT,
     )
     assert summary["boxes_drawn"] == 1
-    page = PdfReader(str(tmp_path / "out" / "certA_annotated.pdf")).pages[0]
-    assert [float(v) for v in page.mediabox] == [0, 0, 400, 300]  # MediaBox unchanged (no raster)
+    assert summary["outputs"][0]["upright"] is True
+    assert summary["outputs"][0]["skipped"] is False
+    assert (case_cache / "upright" / "certA_upright.pdf").exists()
+    reader = PdfReader(str(tmp_path / "out" / "certA_annotated.pdf"))
+    page = reader.pages[0]
+    # upright 정규화로 90도 bake — w/h 스왑, 래스터 아님
+    assert [float(v) for v in page.mediabox] == [0, 0, 300, 400]
+    assert all(p.get("/Rotate") in (None, 0) for p in reader.pages)
     sq = _square(_annots(page))
-    assert [float(v) for v in sq["/Rect"]] == pytest.approx([100, 75, 200, 150], abs=0.01)  # T=90
-    # The real entry point must produce NoRotate labels too — this case runs with
-    # applied={"1": 90} on an unrotated page, i.e. exactly the a != 0 path.
+    assert [float(v) for v in sq["/Rect"]] == pytest.approx([75, 200, 150, 300], abs=0.01)  # t=0
+    # The real entry point must produce NoRotate labels too.
     ft = _freetext(_annots(page))
     assert int(ft["/F"]) == 20                      # 4 Print | 16 NoRotate
     assert "/Matrix" not in ft["/AP"]["/N"].get_object()
@@ -962,6 +984,336 @@ def test_cli_annotate_rejects_dpi(capsys):
     assert exc_info.value.code == 2
     err = capsys.readouterr().err
     assert "unrecognized arguments" in err and "--dpi" in err
+
+
+# --------------------------------------------------------------------------- #
+# T8. Upright preprocessing integration (A2-A9)
+# --------------------------------------------------------------------------- #
+_BBOX = [0.25, 0.25, 0.5, 0.5]
+_LEGACY_RECT = [100, 75, 200, 150]     # T=90 on the un-normalized 400x300 page
+_UPRIGHT_RECT = [75, 200, 150, 300]    # t=0 on the normalized 300x400 page
+
+
+def _case_layout(tmp_path: Path, case_id: str = "9"):
+    """(work, cert_root, cache_root, case_cache, out_dir) for an annotate_case run."""
+    work = tmp_path / "work"
+    cert_root = work / CERT_CLEANUP_DIRNAME
+    cache_root = tmp_path / "cache"
+    case_cache = cache_root / case_id
+    case_cache.mkdir(parents=True, exist_ok=True)
+    return work, cert_root, cache_root, case_cache, tmp_path / "out"
+
+
+def _run_case(work, cert_root, cache_root, out_dir, ann_path, case_id="9"):
+    return annotate_case(
+        case_id=case_id, work_dir=work, cache_root=cache_root, cert_dir=cert_root,
+        out_dir=out_dir, annotations_path=ann_path, font_path=_FONT,
+    )
+
+
+def _by_stem(summary: dict, stem: str) -> dict:
+    return next(o for o in summary["outputs"] if o["stem"] == stem)
+
+
+def _without_freetext(src: Path, dst: Path) -> Path:
+    """Copy a PDF with every /FreeText annotation dropped (Square + Popup kept)."""
+    w = PdfWriter(clone_from=str(src))
+    for pg in w.pages:
+        arr = pg.get("/Annots")
+        if arr is None:
+            continue
+        pg[NameObject("/Annots")] = ArrayObject(
+            [a for a in arr if a.get_object().get("/Subtype") != "/FreeText"]
+        )
+    with open(dst, "wb") as fh:
+        w.write(fh)
+    return dst
+
+
+def _assert_label_beside_box(ft, *, rotate: int, wp: float, hp: float, a: int = 0):
+    """The chip must sit clear of, and adjacent to, its box in display space."""
+    chip, ws, hs = _display_chip(ft, rotate, wp=wp, hp=hp)
+    box = A._aligned_bbox_to_display_box(tuple(_BBOX), ws, hs, a)
+    assert not A._rects_overlap(chip, box), f"label overlaps its box: {chip} vs {box}"
+    gap_x = max(box[0] - chip[2], chip[0] - box[2], 0.0)
+    gap_y = max(box[1] - chip[3], chip[1] - box[3], 0.0)
+    assert max(gap_x, gap_y) <= A.LABEL_GAP_PT + 2 * A.LABEL_BOX_PAD + 0.01
+
+
+@requires_font
+def test_annotate_case_normalizes_metadata_rotation(tmp_path: Path):
+    """r != 0 with no alignment record: the output must be fully upright (/Rotate=0).
+
+    That every output page reports /Rotate == 0 is the premise of the whole
+    change — it is what makes a viewer's rotation-following edit chrome and the
+    NoRotate anchor mathematically the same transform.
+    """
+    work, cert_root, cache_root, _, out_dir = _case_layout(tmp_path)
+    _make_pdf(cert_root / "9" / "certA.pdf", 2, rotate=90)
+    ann_path = tmp_path / "9_annotations.json"
+    _write_annotations(
+        ann_path,
+        [{"stem": "certA", "page": 1, "bbox": _BBOX, "verdict": "FAIL", "label": "FAIL: 회전"}],
+    )
+    summary = _run_case(work, cert_root, cache_root, out_dir, ann_path)
+
+    assert summary["boxes_drawn"] == 1
+    assert _by_stem(summary, "certA")["upright"] is True
+    reader = PdfReader(str(out_dir / "certA_annotated.pdf"))
+    assert all(p.get("/Rotate") in (None, 0) for p in reader.pages)
+    page = reader.pages[0]
+    assert [float(v) for v in page.mediabox] == pytest.approx([0, 0, 300, 400], abs=0.01)
+    assert [float(v) for v in _square(_annots(page))["/Rect"]] == pytest.approx(
+        _UPRIGHT_RECT, abs=0.01
+    )
+    _assert_label_beside_box(_freetext(_annots(page)), rotate=0, wp=300, hp=400)
+
+
+@requires_font
+@pytest.mark.parametrize(
+    ("rotate", "rotations"),
+    [
+        pytest.param(90, None, id="R90-A0"),
+        pytest.param(0, {1: 90}, id="R0-A90"),
+    ],
+)
+def test_annotate_case_visual_equivalence_with_legacy_path(tmp_path: Path, rotate, rotations):
+    """The verdict box must land on exactly the same pixels as before the change.
+
+    Scope note (measured, not assumed): the *Square* is pixel-identical on both
+    parameters, but the whole-annotation colour bbox is not, and must not be, on
+    the a != 0 parameter. The legacy output keeps the page sideways and therefore
+    anchors the NoRotate chip beside the box *as the reader of that sideways page*
+    sees it; the new output is upright, so the chip is anchored beside the box as
+    the reader of the upright page sees it. Both are correct for their own file
+    and they are ~15px apart once the legacy render is turned upright, so the
+    comparison is made with the label stripped from both sides and each output's
+    label is then checked against its own box (which is the property that has to
+    hold). Deviation from the plan's A3 wording, recorded deliberately.
+    """
+    work, cert_root, cache_root, case_cache, out_dir = _case_layout(tmp_path)
+    src = cert_root / "9" / "certA.pdf"
+    _make_pdf(src, 1, rotate=rotate)
+    a = (rotations or {}).get(1, 0)
+    if rotations:
+        (case_cache / "certA_alignment.json").write_text(
+            json.dumps({"applied": {str(k): v for k, v in rotations.items()}}), encoding="utf-8"
+        )
+    ann_path = tmp_path / "9_annotations.json"
+    _write_annotations(
+        ann_path,
+        [{"stem": "certA", "page": 1, "bbox": _BBOX, "verdict": "FAIL", "label": "FAIL: 동등성"}],
+    )
+    summary = _run_case(work, cert_root, cache_root, out_dir, ann_path)
+    assert _by_stem(summary, "certA")["upright"] is True
+    new_out = out_dir / "certA_annotated.pdf"
+
+    # legacy = the untouched writer called directly on the original PDF
+    ann = A.Annotation("certA", 1, tuple(_BBOX), "FAIL", "FAIL: 동등성")
+    legacy_out = tmp_path / "legacy.pdf"
+    write_annotated_pdf(src, {1: [ann]}, legacy_out, rotations=rotations, font_path=_FONT)
+
+    new_img = _render(_without_freetext(new_out, tmp_path / "new_sq.pdf"))
+    legacy_img = _rotate_cw(_render(_without_freetext(legacy_out, tmp_path / "leg_sq.pdf")), a)
+    nb, lb = _color_bbox(new_img), _color_bbox(legacy_img)
+    assert nb is not None and lb is not None
+    assert all(abs(x - y) <= 2 for x, y in zip(nb, lb)), f"legacy {lb} vs new {nb}"
+
+    # each output's label sits beside its box in that output's own display space
+    _assert_label_beside_box(
+        _freetext(_annots(PdfReader(str(new_out)).pages[0])), rotate=0, wp=300, hp=400
+    )
+    _assert_label_beside_box(
+        _freetext(_annots(PdfReader(str(legacy_out)).pages[0])),
+        rotate=rotate, wp=400, hp=300, a=a,
+    )
+
+
+@requires_font
+def test_annotate_case_skips_upright_when_flat(tmp_path: Path):
+    """r=0 and no applied rotation: no derivative, no cache, bytes verbatim."""
+    work, cert_root, cache_root, case_cache, out_dir = _case_layout(tmp_path)
+    src = cert_root / "9" / "certA.pdf"
+    _make_pdf(src, 2)
+    orig = [_content_bytes(p) for p in PdfReader(str(src)).pages]
+    ann_path = tmp_path / "9_annotations.json"
+    _write_annotations(
+        ann_path,
+        [{"stem": "certA", "page": 1, "bbox": _BBOX, "verdict": "FAIL", "label": "FAIL: 평면"}],
+    )
+    summary = _run_case(work, cert_root, cache_root, out_dir, ann_path)
+
+    out = _by_stem(summary, "certA")
+    assert out["upright"] is False and out["skipped"] is False
+    assert not (case_cache / UP.UPRIGHT_DIRNAME).exists()
+    assert [_content_bytes(p) for p in PdfReader(str(out_dir / "certA_annotated.pdf")).pages] == orig
+
+
+@requires_font
+@pytest.mark.parametrize(
+    "exc",
+    [
+        pytest.param(OSError("cache dir unwritable"), id="OSError"),
+        pytest.param(PdfStreamError("truncated"), id="PyPdfError"),
+    ],
+)
+def test_annotate_case_falls_back_when_normalization_fails(tmp_path: Path, monkeypatch, exc):
+    """Tier 1: preprocessing may fail; the legacy NoRotate path still delivers.
+
+    Parametrised over both halves of the catch tuple — pypdf's PyPdfError family
+    is neither an OSError nor a ValueError, so dropping it would turn a cache
+    hiccup into a whole-case crash.
+    """
+    work, cert_root, cache_root, case_cache, out_dir = _case_layout(tmp_path)
+    _make_pdf(cert_root / "9" / "certA.pdf", 1, rotate=90)
+
+    def _boom(*args, **kwargs):
+        raise exc
+
+    monkeypatch.setattr("scripts.annotate_pdf.ensure_upright_pdf", _boom)
+    ann_path = tmp_path / "9_annotations.json"
+    _write_annotations(
+        ann_path,
+        [{"stem": "certA", "page": 1, "bbox": _BBOX, "verdict": "FAIL", "label": "FAIL: 폴백"}],
+    )
+    summary = _run_case(work, cert_root, cache_root, out_dir, ann_path)
+
+    assert summary["boxes_drawn"] == 1
+    out = _by_stem(summary, "certA")
+    assert out["upright"] is False and out["skipped"] is False
+    assert any("falling back" in n for n in summary["notes"])
+    assert not (case_cache / UP.UPRIGHT_DIRNAME).exists()
+    page = PdfReader(str(out_dir / "certA_annotated.pdf")).pages[0]
+    assert page.get("/Rotate") == 90                       # legacy: page left as-is
+    assert [float(v) for v in _square(_annots(page))["/Rect"]] == pytest.approx(
+        _LEGACY_RECT, abs=0.01
+    )
+
+
+@requires_font
+def test_summary_upright_field_backward_shape(tmp_path: Path):
+    """outputs[*] gains keys, never loses or renames them (additive only)."""
+    work, cert_root, cache_root, _, out_dir = _case_layout(tmp_path)
+    _make_pdf(cert_root / "9" / "certA.pdf", 1)
+    ann_path = tmp_path / "9_annotations.json"
+    _write_annotations(
+        ann_path,
+        [{"stem": "certA", "page": 1, "bbox": _BBOX, "verdict": "FAIL", "label": "FAIL: 형태"}],
+    )
+    summary = _run_case(work, cert_root, cache_root, out_dir, ann_path)
+    assert summary["outputs"]
+    for out in summary["outputs"]:
+        assert set(out) == {"stem", "pages", "boxes", "out_path", "upright", "skipped"}
+
+
+@requires_font
+@pytest.mark.parametrize(
+    ("kind", "maker", "note_fragment"),
+    [
+        pytest.param("encrypted", _make_encrypted_pdf, "encrypted", id="encrypted"),
+        pytest.param("corrupt", _make_corrupt_pdf, "annotation failed", id="corrupt"),
+    ],
+)
+def test_annotate_case_survives_unreadable_pdf_real(tmp_path: Path, kind, maker, note_fragment):
+    """Tier 2: a genuinely unreadable PDF (no mocking) may not kill the case.
+
+    pypdf raises FileNotDecryptedError / PdfStreamError here — neither an OSError
+    nor a ValueError — so before the catch tuple was widened this took the whole
+    case down. Only the offending stem is skipped now.
+    """
+    work, cert_root, cache_root, case_cache, out_dir = _case_layout(tmp_path)
+    _make_pdf(cert_root / "9" / "certA.pdf", 1, rotate=90)
+    maker(cert_root / "9" / "certB.pdf")
+    ann_path = tmp_path / "9_annotations.json"
+    _write_annotations(
+        ann_path,
+        [
+            {"stem": "certA", "page": 1, "bbox": _BBOX, "verdict": "FAIL", "label": "FAIL: 정상"},
+            {"stem": "certB", "page": 1, "bbox": _BBOX, "verdict": "FAIL", "label": "FAIL: 불능"},
+        ],
+    )
+    summary = _run_case(work, cert_root, cache_root, out_dir, ann_path)   # must not raise
+
+    bad = _by_stem(summary, "certB")
+    assert bad["skipped"] is True and bad["boxes"] == 0
+    assert not (out_dir / "certB_annotated.pdf").exists()
+    assert any(note_fragment in n for n in summary["notes"]), summary["notes"]
+
+    good = _by_stem(summary, "certA")
+    assert good["upright"] is True and good["skipped"] is False
+    reader = PdfReader(str(out_dir / "certA_annotated.pdf"))
+    assert all(p.get("/Rotate") in (None, 0) for p in reader.pages)
+    assert [float(v) for v in _square(_annots(reader.pages[0]))["/Rect"]] == pytest.approx(
+        _UPRIGHT_RECT, abs=0.01
+    )
+    assert not (case_cache / UP.UPRIGHT_DIRNAME / "certB_upright.pdf").exists()
+
+
+@requires_font
+def test_annotate_case_isolates_upright_failure_per_stem(tmp_path: Path, monkeypatch):
+    """A selective preprocessing failure must not leak into a sibling stem."""
+    work, cert_root, cache_root, case_cache, out_dir = _case_layout(tmp_path)
+    _make_pdf(cert_root / "9" / "certA.pdf", 1, rotate=90)
+    _make_pdf(cert_root / "9" / "certB.pdf", 1, rotate=90)
+
+    def _selective(pdf_path, case_cache_dir, rotations):
+        if Path(pdf_path).stem == "certA":
+            raise OSError("boom")
+        return UP.ensure_upright_pdf(pdf_path, case_cache_dir, rotations)
+
+    monkeypatch.setattr("scripts.annotate_pdf.ensure_upright_pdf", _selective)
+    ann_path = tmp_path / "9_annotations.json"
+    _write_annotations(
+        ann_path,
+        [
+            {"stem": "certA", "page": 1, "bbox": _BBOX, "verdict": "FAIL", "label": "FAIL: 실패"},
+            {"stem": "certB", "page": 1, "bbox": _BBOX, "verdict": "FAIL", "label": "FAIL: 성공"},
+        ],
+    )
+    summary = _run_case(work, cert_root, cache_root, out_dir, ann_path)
+
+    assert len(summary["outputs"]) == 2 and summary["boxes_drawn"] == 2
+    a_out, b_out = _by_stem(summary, "certA"), _by_stem(summary, "certB")
+    assert (a_out["upright"], a_out["skipped"]) == (False, False)
+    assert (b_out["upright"], b_out["skipped"]) == (True, False)
+    assert any("certA: upright normalization failed" in n and "falling back" in n
+               for n in summary["notes"])
+
+    page_a = PdfReader(str(out_dir / "certA_annotated.pdf")).pages[0]
+    assert page_a.get("/Rotate") == 90                      # legacy path, untouched
+    assert [float(v) for v in _square(_annots(page_a))["/Rect"]] == pytest.approx(
+        _LEGACY_RECT, abs=0.01
+    )
+    page_b = PdfReader(str(out_dir / "certB_annotated.pdf")).pages[0]
+    assert page_b.get("/Rotate") in (None, 0)
+    assert [float(v) for v in _square(_annots(page_b))["/Rect"]] == pytest.approx(
+        _UPRIGHT_RECT, abs=0.01
+    )
+
+    up_dir = case_cache / UP.UPRIGHT_DIRNAME
+    assert (up_dir / "certB_upright.pdf").exists()
+    assert not (up_dir / "certA_upright.pdf").exists()
+
+
+@requires_font
+def test_unresolved_stem_produces_no_upright_artifact(tmp_path: Path):
+    """An unresolved stem is dropped upstream, so it can never reach the cache."""
+    work, cert_root, cache_root, case_cache, out_dir = _case_layout(tmp_path)
+    _make_pdf(cert_root / "9" / "certA.pdf", 1)
+    ann_path = tmp_path / "9_annotations.json"
+    _write_annotations(
+        ann_path,
+        [
+            {"stem": "certA", "page": 1, "bbox": _BBOX, "verdict": "FAIL", "label": "FAIL: 실존"},
+            {"stem": "ghost", "page": 1, "bbox": _BBOX, "verdict": "FAIL", "label": "FAIL: 유령"},
+        ],
+    )
+    summary = _run_case(work, cert_root, cache_root, out_dir, ann_path)
+
+    assert summary["n_pdfs"] == 1 and summary["rows_skipped"] == 1
+    assert any("unresolved stem 'ghost'" in n for n in summary["notes"])
+    assert not (case_cache / UP.UPRIGHT_DIRNAME).exists()   # flat case -> no dir at all
+    assert list(case_cache.rglob("*ghost*")) == []
 
 
 def test_skillmd_no_stale_wording():

@@ -399,6 +399,7 @@ def cmd_annotate(args: argparse.Namespace) -> int:
         case_ids = [args.case]
 
     any_done = False
+    any_pdf_skipped = False
     for cid in case_ids:
         try:
             summary = annotate_case(
@@ -420,9 +421,18 @@ def cmd_annotate(args: argparse.Namespace) -> int:
                 return 1
             continue
         any_done = True
+        # A per-stem "skipped" (tier-2, e.g. an unreadable/locked PDF) is not a
+        # crash, but it does mean that stem produced zero annotations — surface
+        # it as a warning + nonzero exit rather than a silent [OK], so a batch
+        # run doesn't look clean when a cert PDF was actually never annotated.
+        skipped_stems = [d["stem"] for d in summary["outputs"] if d.get("skipped")]
+        if skipped_stems:
+            any_pdf_skipped = True
+        level = "WARN" if skipped_stems else "OK"
         print(
-            f"[OK] annotate --case {cid}: {summary['n_pdfs']} cert PDF(s), "
+            f"[{level}] annotate --case {cid}: {summary['n_pdfs']} cert PDF(s), "
             f"{summary['boxes_drawn']} annotation(s), {summary['rows_skipped']} skipped"
+            + (f", {len(skipped_stems)} PDF(s) unreadable: {skipped_stems}" if skipped_stems else "")
         )
         for d in summary["outputs"]:
             print(f"     {d['stem']}: {d['boxes']} box(es)/{d['pages']}p -> {d['out_path']}")
@@ -433,7 +443,7 @@ def cmd_annotate(args: argparse.Namespace) -> int:
     if not any_done:
         print("[INFO] annotate: no case had a <case>_annotations.json", file=sys.stderr)
         return 0 if args.all else 1
-    return 0
+    return 1 if any_pdf_skipped else 0
 
 
 def cmd_tile_inputs(args: argparse.Namespace) -> int:
