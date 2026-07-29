@@ -2,7 +2,7 @@
 
 | Date | Plan | Status |
 | --- | --- | --- |
-| 2026-07-28 | [annotate 직전 페이지별 업라이트 정규화 전처리 (Acrobat 핸들 UI 불일치 구조적 제거)](plans/2026-07-28_162707_annotate-upright-normalization.md) | In Progress — 사용자 승인 완료, Step 3 실행 중 (Opus/max effort) |
+| 2026-07-28 | [annotate 직전 페이지별 업라이트 정규화 전처리 (Acrobat 핸들 UI 불일치 구조적 제거)](plans/2026-07-28_162707_annotate-upright-normalization.md) | Completed (v1.8.0, 커밋 5d23ece+push 완료, pytest 308→338, DoD 25건 중 24건 자동 검증 통과·DoD-19는 사용자 실물 Acrobat 확인 완료("정상 생성"). 커밋 전 code-reviewer HIGH 1건(tier-2 폴백이 전량 실패도 OK로 보고) 발견·즉시 반영) |
 | 2026-07-28 | [annotate_pdf.py FreeText 라벨 NoRotate 전환 (회전 페이지 라벨 세로 뒤집힘 근본 수정)](plans/2026-07-28_113240_annotate-freetext-norotate-rotation-fix.md) | Completed (커밋 9e3cd1f, pytest 280→308, D1~D18 중 D16(Acrobat 실제 리사이즈)만 사용자 수동 확인 대기, 나머지 17개 자동 검증 통과) |
 | 2026-07-23 | [동봉 원자재 성적서(MILL CERT) 검증 도메인·에이전트 추가(기준 21/22)](plans/2026-07-23_183734_mill-cert-review-domain.md) | Completed (v1.7.0, 커밋 008b357, pytest 280/280, DoD-a 10/10 + E2E 5/5 — PU2601564 단조 인장 전사복제 FAIL 재현) |
 | 2026-07-23 | [MPS 요구사항 대비 동봉 문서 첨부 자동판정(기준 20)](plans/2026-07-23_091508_mps-required-attachment-judgement.md) | Completed (v1.5.0, DoD 10/10, pytest 208/208, 실물 E2E PU2601565-01 AC-5·6 통과·ladder A/B/C/D 검증) |

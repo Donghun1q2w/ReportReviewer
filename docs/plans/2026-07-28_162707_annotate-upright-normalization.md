@@ -1,7 +1,7 @@
 # annotate 직전 페이지별 업라이트 정규화 전처리 (Acrobat 핸들 UI 불일치 구조적 제거) — 구현 계획 Rev.1
 
 - **작성**: 2026-07-28 16:27 (전담 플래닝 에이전트, dh-dev Step 1-e — 단일 재수정 사이클 산출물)
-- **상태**: Draft — Step 2 사용자 승인 대기 (Step 1-e 적대 검증 완료: contrarian/gap_hunter findings 18건 전건 처리, HIGH 3건 코드·테스트·AC·DoD 반영. 구조 체크 통과, 단일 재수정 사이클 소진 — 이후 레인 재실행 없음)
+- **상태**: Completed (v1.8.0, 커밋 `5d23ece`, push 완료 — DoD 25건 중 24건 자동 검증 통과, DoD-19(V7)는 사용자가 실물 Acrobat에서 3개 산출물 확인 후 "annotation 목적에 맞게 정상생성" 확인. 커밋 전 code-reviewer 검토에서 HIGH 1건(tier-2 폴백이 전량 실패도 `[OK]`+exit 0으로 보고) 발견해 즉시 반영, MEDIUM 4건은 후속 커밋으로 분리)
 - **대상 저장소**: `C:\Users\donghun.lee\.claude\plugins\marketplaces\ReportReviewer` (main, HEAD `45bc2ee`, pypdf 6.6.2 — 오케스트레이터가 직접 재확인: 예외 계층·`transfer_rotation_to_content` 존재 모두 실측 일치)
 - **대상 파일**:
   - 신규: `skills/cert-review/scripts/upright_pdf.py`, `skills/cert-review/tests/test_upright_pdf.py`
