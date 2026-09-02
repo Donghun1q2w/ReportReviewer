@@ -19,6 +19,7 @@ _experiments/
 .omc/
 .idea/
 .vscode/
+.obsidian/
 .DS_Store
 Thumbs.db
 
