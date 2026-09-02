@@ -57,8 +57,8 @@ Ground-truth evaluation data (reviewer `comments.md`) is accessed **only during 
 
 ```
 build-manifest → prep-inputs (PNG body) → align-inputs (Phase 1.5)
- → classify-sheets → [doc-classifier/claude-opus-4-8] per-page doctype labels → check-doctype gate (Phase 1.6)
- → [ocr-extractor/claude-opus-4-8] Vision OCR
+ → classify-sheets → [doc-classifier/claude-opus-5] per-page doctype labels → check-doctype gate (Phase 1.6)
+ → [ocr-extractor/claude-opus-5] Vision OCR
  → check-extraction gate → limits lookup → attachments (기준 20 index)
  → [chemistry/mechanical/heat-treatment/nde/format-reviewer parallel delegation]
  → merge-reviews (deterministic merge of partial outputs → review.json)
@@ -73,14 +73,14 @@ The orchestrator dispatches all 5 domain review agents **in parallel in a single
 
 | Agent | model | Partial Output File |
 |---|---|---|
-| `doc-classifier` (Phase 1.6, pre-OCR) | claude-opus-4-8 | `<stem>_doctype.json` |
-| `chemistry-reviewer` | claude-opus-4-8 | `<case>_review_chemistry.json` |
-| `mechanical-reviewer` | claude-opus-4-8 | `<case>_review_mechanical.json` |
-| `heat-treatment-reviewer` | claude-opus-4-8 | `<case>_review_heat_treatment.json` |
-| `nde-reviewer` | claude-opus-4-8 | `<case>_review_nde.json` |
-| `format-reviewer` | claude-opus-4-8 | `<case>_review_format.json` (section key: `doc_checks`) |
+| `doc-classifier` (Phase 1.6, pre-OCR) | claude-opus-5 | `<stem>_doctype.json` |
+| `chemistry-reviewer` | claude-opus-5 | `<case>_review_chemistry.json` |
+| `mechanical-reviewer` | claude-opus-5 | `<case>_review_mechanical.json` |
+| `heat-treatment-reviewer` | claude-opus-5 | `<case>_review_heat_treatment.json` |
+| `nde-reviewer` | claude-opus-5 | `<case>_review_nde.json` |
+| `format-reviewer` | claude-opus-5 | `<case>_review_format.json` (section key: `doc_checks`) |
 
-After all agents complete, the `merge-reviews` CLI deterministically merges the 5 files into a single `<case>_review.json` (global finding renumbering, worst-case verdict). OCR is handled exclusively by `ocr-extractor` (claude-opus-4-8). All agents use claude-opus-4-8 (accuracy first); OCR (transcription) and review (judgment) are separated by role, not model — with tiered time budgets by complexity (simple ≤30 min / standard ≤60 min / complex 60–90 min, accuracy paramount).
+After all agents complete, the `merge-reviews` CLI deterministically merges the 5 files into a single `<case>_review.json` (global finding renumbering, worst-case verdict). OCR is handled exclusively by `ocr-extractor` (claude-opus-5). All agents use claude-opus-5 (accuracy first); OCR (transcription) and review (judgment) are separated by role, not model — with tiered time budgets by complexity (simple ≤30 min / standard ≤60 min / complex 60–90 min, accuracy paramount).
 
 > **Model routing note**: If the `CLAUDE_CODE_SUBAGENT_MODEL` environment variable is set, it overrides the model specified in agent frontmatter. To apply routing as intended, **run with this env var unset**.
 

@@ -1,7 +1,8 @@
 ---
 name: ocr-extractor
 description: Dedicated agent for cert-review Phase 2 that transcribes 성적서 PNGs via Claude Vision into extracted.json (or fragment) — explicitly invoked by the cert-review skill orchestrator; not subject to automatic delegation.
-model: claude-opus-4-8
+model: claude-opus-5
+effort: medium
 ---
 
 # ocr-extractor — Phase 2 Claude Vision OCR Transcription

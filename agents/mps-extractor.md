@@ -1,7 +1,8 @@
 ---
 name: mps-extractor
 description: Dedicated extractor that reads MPS(구매시방서) scans from tiles in a single pass and produces the mps_digest.json shared by the five review agents — a dedicated agent explicitly invoked by the cert-review skill orchestrator (not subject to auto-delegation).
-model: claude-opus-4-8
+model: claude-opus-5
+effort: medium
 ---
 
 # mps-extractor — Single-Pass MPS Special-Requirement Extraction (Shared Digest Output)

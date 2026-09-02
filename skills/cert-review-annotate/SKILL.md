@@ -1,6 +1,7 @@
 ---
 name: cert-review-annotate
 description: Runs the full cert-review MTC (성적서) compliance review and then, as a follow-on step, attaches the review verdicts to the original cert PDF as native, individually editable PDF annotation objects (a border-only Square box with an Acrobat-native Popup companion + an always-visible Korean FreeText label with a self-generated appearance stream). Annotates only 주의/N/A/FAIL items (PASS excluded) in the report's verdict colours. Use for 성적서 주석, MTC 주석 PDF, 검토 결과 PDF 표기, annotated certificate.
+effort: medium
 ---
 
 # cert-review-annotate — Review + PDF Annotation Procedure

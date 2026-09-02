@@ -1,6 +1,7 @@
 ---
 name: cert-review
 description: Inspection Certificate (MTC/성적서) review for piping materials. Compares scanned PDF certificates against MPS (구매시방서) and ASTM/ASME reference codes, emits a 6-sheet (+1 conditional mill-cert sheet) Korean Excel report, and evaluates against ground-truth. Use for MTC review, 성적서 검토, 자재 성적서, material test report verification.
+effort: medium
 ---
 
 # cert-review — Claude Orchestration Procedure
@@ -54,18 +55,18 @@ The review work is delegated to **10 plugin subagents**. Each writes only a part
 
 | Agent | model | Role | Partial output |
 |---|---|---|---|
-| `page-aligner` | claude-opus-4-8 | Phase 1.5 per-page **rotation detection** from contact sheets (detection only — rotation is applied by `align-inputs`) | `<stem>_orientation.json` |
-| `doc-classifier` | claude-opus-4-8 | Phase 1.6 per-page document-type classification (classification only — exclusion applied by deterministic CLI/merge) | `<stem>_doctype.json` |
-| `ocr-extractor` | claude-opus-4-8 | Phase 2 Vision **tile-reading** transcription only (full / fragment modes) | `<stem>_extracted.json` or `parts/<stem>__pSSS-EEE.json` |
-| `mps-extractor` | claude-opus-4-8 | **Single extraction** of the MPS scan just before Phase 4 → produces the shared digest consumed by the 5 review agents | `<case>_mps_digest.json` |
-| `chemistry-reviewer` | claude-opus-4-8 | Phase 4 chemical composition review | `<case>_review_chemistry.json` |
-| `mechanical-reviewer` | claude-opus-4-8 | Phase 4 mechanical properties review | `<case>_review_mechanical.json` |
-| `heat-treatment-reviewer` | claude-opus-4-8 | Phase 4 heat treatment review | `<case>_review_heat_treatment.json` |
-| `nde-reviewer` | claude-opus-4-8 | Phase 4 NDE/special-requirements review | `<case>_review_nde.json` |
-| `format-reviewer` | claude-opus-4-8 | Phase 4 document/identification/print-criteria review | `<case>_review_format.json` |
-| `mill-cert-reviewer` | claude-opus-4-8 | Phase 4 원자재 MILL CERT 검증·교차비교 (기준 21·22, mill cert 존재 케이스 한정 조건부) | `<case>_review_mill_cert.json` |
+| `page-aligner` | claude-opus-5 | Phase 1.5 per-page **rotation detection** from contact sheets (detection only — rotation is applied by `align-inputs`) | `<stem>_orientation.json` |
+| `doc-classifier` | claude-opus-5 | Phase 1.6 per-page document-type classification (classification only — exclusion applied by deterministic CLI/merge) | `<stem>_doctype.json` |
+| `ocr-extractor` | claude-opus-5 | Phase 2 Vision **tile-reading** transcription only (full / fragment modes) | `<stem>_extracted.json` or `parts/<stem>__pSSS-EEE.json` |
+| `mps-extractor` | claude-opus-5 | **Single extraction** of the MPS scan just before Phase 4 → produces the shared digest consumed by the 5 review agents | `<case>_mps_digest.json` |
+| `chemistry-reviewer` | claude-opus-5 | Phase 4 chemical composition review | `<case>_review_chemistry.json` |
+| `mechanical-reviewer` | claude-opus-5 | Phase 4 mechanical properties review | `<case>_review_mechanical.json` |
+| `heat-treatment-reviewer` | claude-opus-5 | Phase 4 heat treatment review | `<case>_review_heat_treatment.json` |
+| `nde-reviewer` | claude-opus-5 | Phase 4 NDE/special-requirements review | `<case>_review_nde.json` |
+| `format-reviewer` | claude-opus-5 | Phase 4 document/identification/print-criteria review | `<case>_review_format.json` |
+| `mill-cert-reviewer` | claude-opus-5 | Phase 4 원자재 MILL CERT 검증·교차비교 (기준 21·22, mill cert 존재 케이스 한정 조건부) | `<case>_review_mill_cert.json` |
 
-- **Model**: all agents use claude-opus-4-8 — prioritizing multi-item MTC identification and numeric-reading accuracy. OCR (transcription) and review (judgment) are separated by role, not by model (300 DPI required).
+- **Model**: all agents use claude-opus-5 — prioritizing multi-item MTC identification and numeric-reading accuracy. OCR (transcription) and review (judgment) are separated by role, not by model (300 DPI required).
 - **Tile reading**: `ocr-extractor` reads **2×2 overlapping tiles** per page (`.cache/<case>/tiles/`) instead of the full-page PNG. When the model reads a PNG, it downsamples to ~1568px on the long edge, so a full page (~3500px) smears small digits; but a 2×2 tile is ~1957px on the long edge, ~1.8× sharper even after downsampling, so it is read **without crop**.
 - **Note**: if the `CLAUDE_CODE_SUBAGENT_MODEL` environment variable is set, it overrides the model in the frontmatter — to apply the intended model, **run with this environment variable unset**.
 - **Chemistry-consistency responsibility boundary**: `ocr-extractor` performs only the first-pass physical-range screening (whether element values fit the grade's usual range); the Cev back-calculation and the confirming crop re-read are the responsibility of `chemistry-reviewer`.
@@ -86,14 +87,14 @@ The review work is delegated to **10 plugin subagents**. Each writes only a part
 ├── output/                                         ← report outputs and evaluation results
 └── ... plugin/ReportReviewer/                      ← plugin root
     ├── agents/                                     ← plugin subagents (includes frontmatter model)
-    │   ├── page-aligner.md                         ← Phase 1.5 rotation detection (claude-opus-4-8)
-    │   ├── doc-classifier.md                       ← Phase 1.6 per-page document-type classification (claude-opus-4-8)
-    │   ├── ocr-extractor.md                        ← Phase 2 Vision transcription (opus 4.8)
-    │   ├── chemistry-reviewer.md                   ← Phase 4 chemistry (claude-opus-4-8)
-    │   ├── mechanical-reviewer.md                  ← Phase 4 mechanical (claude-opus-4-8)
-    │   ├── heat-treatment-reviewer.md              ← Phase 4 heat treatment (claude-opus-4-8)
-    │   ├── nde-reviewer.md                         ← Phase 4 NDE (claude-opus-4-8)
-    │   └── format-reviewer.md                      ← Phase 4 document/identification (claude-opus-4-8)
+    │   ├── page-aligner.md                         ← Phase 1.5 rotation detection (claude-opus-5)
+    │   ├── doc-classifier.md                       ← Phase 1.6 per-page document-type classification (claude-opus-5)
+    │   ├── ocr-extractor.md                        ← Phase 2 Vision transcription (opus 5)
+    │   ├── chemistry-reviewer.md                   ← Phase 4 chemistry (claude-opus-5)
+    │   ├── mechanical-reviewer.md                  ← Phase 4 mechanical (claude-opus-5)
+    │   ├── heat-treatment-reviewer.md              ← Phase 4 heat treatment (claude-opus-5)
+    │   ├── nde-reviewer.md                         ← Phase 4 NDE (claude-opus-5)
+    │   └── format-reviewer.md                      ← Phase 4 document/identification (claude-opus-5)
     └── skills/cert-review/                         ← this skill directory (CLI execution base)
         ├── SKILL.md  ·  manifest.json (produced by build-manifest)
         ├── .cache/<case>/                          ← per-case intermediate outputs
@@ -449,7 +450,7 @@ Phase 2.5 check-extraction  → exit 0 required (always runs; on failure re-dele
 ──── starting from cases that completed OCR, passed 2.5, and produced mps_digest ────
 Phase 4   limits → <id>_limits.json  → attachments → <id>_attachments.json (기준 20, sidecar 부재도 exit 0)
             → mill-cert → <id>_mill_cert.json (기준 21/22, 런 0건도 exit 0)
-            → [delegate 5 reviewers (+ conditional mill-cert-reviewer)/claude-opus-4-8 in one message, parallel]
+            → [delegate 5 reviewers (+ conditional mill-cert-reviewer)/claude-opus-5 in one message, parallel]
             chemistry·mechanical·heat_treatment·nde·format (+mill_cert if applicable) → <id>_review_<domain>.json
             (MPS special requirements consumed from <id>_mps_digest.json's own domain block — original MPS not opened;
              nde/format apply the 기준 20 ladder for their own doc types from <id>_attachments.json)
@@ -459,7 +460,7 @@ Phase 5   compliance_report → output/reports/<id>/<id>_MTC_Review.xlsx (6 shee
 Phase 6   evaluate --case <id> | --all → output/eval/*  (recall/precision/case_pass)
 ```
 
-> **Model note**: all agents use claude-opus-4-8 (same for OCR and review), applied via each agent's frontmatter model.
+> **Model note**: all agents use claude-opus-5 (same for OCR and review), applied via each agent's frontmatter model.
 > If `CLAUDE_CODE_SUBAGENT_MODEL` is set it overrides this, so **run with it unset**.
 
 ---

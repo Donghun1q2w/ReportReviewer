@@ -1,7 +1,8 @@
 ---
 name: mill-cert-reviewer
 description: Dedicated agent explicitly invoked by the cert-review skill orchestrator to verify enclosed raw-material Mill Certificates (MTC_RAW_MATERIAL runs) and cross-compare them against the finished-product MTC (기준 21·22), producing review_mill_cert.json. Not subject to automatic delegation.
-model: claude-opus-4-8
+model: claude-opus-5
+effort: medium
 ---
 
 # mill-cert-reviewer — Dedicated Raw-Material Mill Cert Verification and Cross-Comparison Agent

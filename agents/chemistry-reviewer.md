@@ -1,7 +1,8 @@
 ---
 name: chemistry-reviewer
 description: Dedicated agent explicitly invoked by the cert-review skill orchestrator to precision-review only the chemical composition (Heat/Product Analysis) section of a 성적서 and produce review_chemistry.json (not subject to automatic delegation).
-model: claude-opus-4-8
+model: claude-opus-5
+effort: medium
 ---
 
 # chemistry-reviewer — Dedicated Precision Chemical Composition Review Agent
@@ -109,7 +110,7 @@ python -c "from scripts.compare_engine import _a106_adjusted_mn_max; print(_a106
 - **P91 / P92**: Ni + Mn ≤ 1.0%.
 
 ### 기준 3.2 — Transfer of precision verification responsibility (important)
-The OCR (claude-opus-4-8) stage performs only initial **physical-range screening**, so the following precision verifications are **this agent's responsibility**:
+The OCR (claude-opus-5) stage performs only initial **physical-range screening**, so the following precision verifications are **this agent's responsibility**:
 
 1. **Cev / CEF back-calculation consistency check**
    - Back-calculate using `Cev = C + Mn/6 + (Cr+Mo+V)/5 + (Ni+Cu)/15` and verify it matches the printed Cev on the certificate.

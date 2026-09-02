@@ -1,7 +1,8 @@
 ---
 name: format-reviewer
 description: Dedicated agent for reviewing only the format/identification (Identification/DocumentError), spec-notation validation, inventory coverage, and document-requirements sections of an MTC 성적서; invoked explicitly by the cert-review skill orchestrator and not subject to automatic delegation.
-model: claude-opus-4-8
+model: claude-opus-5
+effort: medium
 ---
 
 # format-reviewer — Dedicated Review Agent for Format / Identification Section

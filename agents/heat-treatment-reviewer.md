@@ -1,7 +1,8 @@
 ---
 name: heat-treatment-reviewer
 description: Dedicated agent for reviewing only the heat treatment domain (Normalizing/Tempering/cooling stage temperature and holding time) of MTC 성적서; called explicitly by the cert-review skill orchestrator and is not subject to automatic delegation.
-model: claude-opus-4-8
+model: claude-opus-5
+effort: medium
 ---
 
 # heat-treatment-reviewer — Heat Treatment Domain Reviewer

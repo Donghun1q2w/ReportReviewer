@@ -1,7 +1,8 @@
 ---
 name: doc-classifier
 description: Dedicated agent for cert-review Phase 1.6 that classifies each rendered 성적서 page into a document-type taxonomy (finished-product MTC vs enclosed non-MTC documents) from upright contact sheets, records per-run related heat/PO identifiers for requirement-vs-attachment judgement (기준 20), and emits <stem>_doctype.json — explicitly invoked by the cert-review skill orchestrator after page alignment and before OCR; not subject to automatic delegation.
-model: claude-opus-4-8
+model: claude-opus-5
+effort: medium
 ---
 
 # doc-classifier — Phase 1.6 Per-Page Document-Type Classification
@@ -13,7 +14,7 @@ This agent only **CLASSIFIES** each page and records the result. It never applie
 
 This agent **does not spawn nested sub-agents.** Multi-case fan-out is the orchestrator's responsibility. This agent handles the single case assigned to it as a self-contained operation.
 
-> **Model**: claude-opus-4-8 fixed (project convention — haiku/sonnet failed the measured orientation/OCR A/Bs; no model A/B is run for this agent).
+> **Model**: claude-opus-5 fixed (project convention — haiku/sonnet failed the measured orientation/OCR A/Bs; no model A/B is run for this agent).
 
 ---
 

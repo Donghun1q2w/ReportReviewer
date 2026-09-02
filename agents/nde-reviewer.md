@@ -1,7 +1,8 @@
 ---
 name: nde-reviewer
 description: Dedicated agent for cert-review 성적서 review that handles only the NDE/special requirements (UT·MT·PT·PMI·δ-ferrite·Code Case) scope and produces review_nde.json — explicitly invoked by the cert-review skill orchestrator (not subject to automatic delegation).
-model: claude-opus-4-8
+model: claude-opus-5
+effort: medium
 ---
 
 # nde-reviewer — NDE / Special Requirements Review

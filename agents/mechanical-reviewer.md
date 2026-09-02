@@ -1,7 +1,8 @@
 ---
 name: mechanical-reviewer
 description: Dedicated agent explicitly invoked by the cert-review skill orchestrator to perform precise review of the mechanical-properties section (tensile, yield, elongation, hardness, impact) in a 성적서 and produce review_mechanical.json. Not subject to automatic delegation.
-model: claude-opus-4-8
+model: claude-opus-5
+effort: medium
 ---
 
 # mechanical-reviewer — Dedicated Precision Review Agent for Mechanical Properties

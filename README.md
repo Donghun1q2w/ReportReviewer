@@ -11,7 +11,7 @@
 ## 핵심 특징
 
 - **2차원 병렬 아키텍처**: 오케스트레이터(SKILL.md)가 케이스 × 도메인 에이전트를 직접 스케줄링 (동시 6~10). 케이스 래퍼 에이전트 없음 — 서브에이전트는 중첩 스폰 불가이므로 모든 fan-out을 오케스트레이터가 직접 수행한다.
-- **역할 분리 서브에이전트**: 페이지 정렬 전용(`page-aligner`) + OCR 전용(`ocr-extractor`, claude-opus-4-8) + MPS 추출 전용(`mps-extractor`, claude-opus-4-8) + 도메인별 검토 5종 + 조건부 원자재 MILL CERT 검증 1종(`claude-opus-4-8`) — 방향 감지·전사(판독)·MPS 추출·판정을 역할로 분리.
+- **역할 분리 서브에이전트**: 페이지 정렬 전용(`page-aligner`) + OCR 전용(`ocr-extractor`, claude-opus-5) + MPS 추출 전용(`mps-extractor`, claude-opus-5) + 도메인별 검토 5종 + 조건부 원자재 MILL CERT 검증 1종(`claude-opus-5`) — 방향 감지·전사(판독)·MPS 추출·판정을 역할로 분리.
 - **OCR 이전 페이지 회전 자동 정렬(Phase 1.5)**: 스캔이 페이지별로 회전 혼재된 파일도 컨택트시트 기반 감지(`orient-sheets`→`page-aligner`)와 결정적 무손실 회전(`align-inputs`, 멱등)으로 타일링 전에 정방향 교정. crop/annotate도 동일 적용 맵을 참조해 좌표계 일관 유지.
 - **혼입 문서 페이지 분류·제외(Phase 1.6)**: 접수 PDF에 완제품 성적서 외 문서(원자재 Mill Cert, PMI/NDE/외관치수/이화학/조직시험 보고서, 열처리로 온도차트 등)가 섞여 들어와도 전담 에이전트 `doc-classifier`가 페이지 단위로 13종 taxonomy 분류, 결정적 게이트(`check-doctype`)를 통과해야 OCR로 진행한다. 판정 권위는 `<stem>_doctype.json` sidecar 하나이며 whitelist 방식(부재/미지 라벨은 안전하게 검토 포함)으로 하위호환을 보장한다.
 - **MPS 요구 대비 동봉 문서 첨부 자동판정(기준 20)**: doc-classifier가 제외 문서의 Heat No./P.O NO.를 verbatim 판독하고, 결정적 CLI `attachments`가 완제품 heat 인벤토리와 정규화 완전일치로 대조한다. 판정은 A(본문 인쇄값 우선)/B(요구+미첨부→ActionRequired 상한)/C(요구+첨부 확인→PASS)/D(첨부 있으나 heat 불확실→Question) 4단계 우선순위 사다리로, 미첨부 단독으로는 Reject하지 않고 요구 없는 첨부는 finding을 내지 않는다(과잉판정 방지).
@@ -123,10 +123,10 @@ python -m scripts.cli orient-sheets --case <id> # Phase 1.5: 방향 감지용 �
 python -m scripts.cli align-inputs --case <id>  # Phase 1.5: 감지 회전각 적용(무손실·멱등) + <stem>_alignment.json
 python -m scripts.cli tile-inputs --case <id>   # Phase 1: 페이지 PNG→2×2 중첩 타일 (ocr-extractor 판독 입력)
 python -m scripts.cli classify-sheets --case <id>  # Phase 1.6: 정립 시트 합성 (doc-classifier 입력)
-#  -> doc-classifier(claude-opus-4-8) 위임: 시트 판독→<stem>_doctype.json (13종 taxonomy + related heat/PO)
+#  -> doc-classifier(claude-opus-5) 위임: 시트 판독→<stem>_doctype.json (13종 taxonomy + related heat/PO)
 python -m scripts.cli check-doctype --case <id> # Phase 1.6: 분류 게이트 (exit 0 필수 — 통과 전 OCR 금지)
 python -m scripts.cli prep-mps   --case <id>    # Phase 1: MPS PDF→PNG+타일 (mps-extractor 입력)
-#  -> ocr-extractor + mps-extractor(claude-opus-4-8) 병렬 위임 (SKILL.md Phase 2)
+#  -> ocr-extractor + mps-extractor(claude-opus-5) 병렬 위임 (SKILL.md Phase 2)
 #     ocr-extractor: tiles 판독→<stem>_extracted.json (>6p는 fragment 위임 후 merge-parts)
 #     mps-extractor: mps_tiles 1회 추출→<case>_mps_digest.json (검토 5에이전트 공유)
 python -m scripts.cli check-extraction --case <id>  # Phase 2.5: 완전성 게이트 (통과 전 검토 금지)
@@ -160,17 +160,17 @@ python -m scripts.cli evaluate --all            # Phase 6: GT 평가(있을 시)
 ReportReviewer/
 ├── .claude-plugin/marketplace.json   # 플러그인 마켓플레이스 매니페스트
 ├── agents/                           # 플러그인 서브에이전트 (frontmatter model 포함)
-│   ├── page-aligner.md               # Phase 1.5 페이지 회전 감지 (claude-opus-4-8) → <stem>_orientation.json
-│   ├── doc-classifier.md             # Phase 1.6 혼입 문서 페이지 분류 (claude-opus-4-8) → <stem>_doctype.json
-│   ├── ocr-extractor.md              # Phase 2 Vision 전사 (claude-opus-4-8, full/fragment 모드)
-│   ├── mps-extractor.md              # Phase 4 직전 MPS 스캔 1회 추출 (claude-opus-4-8) → <case>_mps_digest.json
-│   ├── chemistry-reviewer.md         # Phase 4 화학성분 검토 (claude-opus-4-8)
-│   ├── mechanical-reviewer.md        # Phase 4 기계적 성질 검토 (claude-opus-4-8)
-│   ├── heat-treatment-reviewer.md    # Phase 4 열처리 검토 (claude-opus-4-8)
-│   ├── nde-reviewer.md               # Phase 4 NDE/특별요구 검토 + 기준 20 PMI/NDE/조직 첨부판정 (claude-opus-4-8)
-│   ├── format-reviewer.md            # Phase 4 문서·식별·인쇄기준 검토 + 기준 20 나머지 4종 첨부판정 (claude-opus-4-8)
-│   ├── mill-cert-reviewer.md         # Phase 4 원자재 MILL CERT 검증·교차비교 (기준 21·22, 조건부) (claude-opus-4-8)
-│   └── annotation-locator.md         # (cert-review-annotate) review.json→주석 좌표 산출 (claude-opus-4-8)
+│   ├── page-aligner.md               # Phase 1.5 페이지 회전 감지 (claude-opus-5) → <stem>_orientation.json
+│   ├── doc-classifier.md             # Phase 1.6 혼입 문서 페이지 분류 (claude-opus-5) → <stem>_doctype.json
+│   ├── ocr-extractor.md              # Phase 2 Vision 전사 (claude-opus-5, full/fragment 모드)
+│   ├── mps-extractor.md              # Phase 4 직전 MPS 스캔 1회 추출 (claude-opus-5) → <case>_mps_digest.json
+│   ├── chemistry-reviewer.md         # Phase 4 화학성분 검토 (claude-opus-5)
+│   ├── mechanical-reviewer.md        # Phase 4 기계적 성질 검토 (claude-opus-5)
+│   ├── heat-treatment-reviewer.md    # Phase 4 열처리 검토 (claude-opus-5)
+│   ├── nde-reviewer.md               # Phase 4 NDE/특별요구 검토 + 기준 20 PMI/NDE/조직 첨부판정 (claude-opus-5)
+│   ├── format-reviewer.md            # Phase 4 문서·식별·인쇄기준 검토 + 기준 20 나머지 4종 첨부판정 (claude-opus-5)
+│   ├── mill-cert-reviewer.md         # Phase 4 원자재 MILL CERT 검증·교차비교 (기준 21·22, 조건부) (claude-opus-5)
+│   └── annotation-locator.md         # (cert-review-annotate) review.json→주석 좌표 산출 (claude-opus-5)
 ├── skills/cert-review/
 │   ├── SKILL.md                      # Claude 오케스트레이션 절차서 (Phase 0~6)
 │   ├── scripts/                      # 결정적 Python 모듈 (CLI/엔진/평가)
@@ -198,20 +198,20 @@ ReportReviewer/
 
 | 에이전트 | model | 담당 | 부분 산출물 |
 |---|---|---|---|
-| `page-aligner` | claude-opus-4-8 | Phase 1.5 페이지 회전 감지 (적용은 `align-inputs` CLI) | `<stem>_orientation.json` |
-| `doc-classifier` | claude-opus-4-8 | Phase 1.6 혼입 문서 페이지 분류(13종 taxonomy) + 기준 20 heat/PO 식별자 판독 (제외 적용은 결정적 코드) | `<stem>_doctype.json` |
-| `ocr-extractor` | claude-opus-4-8 | Phase 2 Vision 전사 (full / fragment 두 모드) | `<stem>_extracted.json` |
-| `mps-extractor` | claude-opus-4-8 | Phase 4 직전 MPS 스캔 1회 추출 → 검토 5에이전트가 공유 소비하는 digest 산출 | `<case>_mps_digest.json` |
-| `chemistry-reviewer` | claude-opus-4-8 | 화학성분 검토 + Cev 역산·crop 확정 | `<case>_review_chemistry.json` |
-| `mechanical-reviewer` | claude-opus-4-8 | 기계적 성질 검토 | `<case>_review_mechanical.json` |
-| `heat-treatment-reviewer` | claude-opus-4-8 | 열처리 검토 (±10°C 룰) | `<case>_review_heat_treatment.json` |
-| `nde-reviewer` | claude-opus-4-8 | NDE/특별요구(δ-ferrite·PMI·Code Case) + 기준 20 PMI/NDE/조직 첨부판정(A/B/C/D ladder) | `<case>_review_nde.json` |
-| `format-reviewer` | claude-opus-4-8 | 표기형식·식별(기준 11/14/15/16, doc_checks) + 기준 20 나머지 4종 첨부판정 | `<case>_review_format.json` |
-| `mill-cert-reviewer` | claude-opus-4-8 | 원자재 MILL CERT 검증·교차비교(기준 21·22) — mill cert 존재 케이스 한정 조건부 위임 | `<case>_review_mill_cert.json` |
+| `page-aligner` | claude-opus-5 | Phase 1.5 페이지 회전 감지 (적용은 `align-inputs` CLI) | `<stem>_orientation.json` |
+| `doc-classifier` | claude-opus-5 | Phase 1.6 혼입 문서 페이지 분류(13종 taxonomy) + 기준 20 heat/PO 식별자 판독 (제외 적용은 결정적 코드) | `<stem>_doctype.json` |
+| `ocr-extractor` | claude-opus-5 | Phase 2 Vision 전사 (full / fragment 두 모드) | `<stem>_extracted.json` |
+| `mps-extractor` | claude-opus-5 | Phase 4 직전 MPS 스캔 1회 추출 → 검토 5에이전트가 공유 소비하는 digest 산출 | `<case>_mps_digest.json` |
+| `chemistry-reviewer` | claude-opus-5 | 화학성분 검토 + Cev 역산·crop 확정 | `<case>_review_chemistry.json` |
+| `mechanical-reviewer` | claude-opus-5 | 기계적 성질 검토 | `<case>_review_mechanical.json` |
+| `heat-treatment-reviewer` | claude-opus-5 | 열처리 검토 (±10°C 룰) | `<case>_review_heat_treatment.json` |
+| `nde-reviewer` | claude-opus-5 | NDE/특별요구(δ-ferrite·PMI·Code Case) + 기준 20 PMI/NDE/조직 첨부판정(A/B/C/D ladder) | `<case>_review_nde.json` |
+| `format-reviewer` | claude-opus-5 | 표기형식·식별(기준 11/14/15/16, doc_checks) + 기준 20 나머지 4종 첨부판정 | `<case>_review_format.json` |
+| `mill-cert-reviewer` | claude-opus-5 | 원자재 MILL CERT 검증·교차비교(기준 21·22) — mill cert 존재 케이스 한정 조건부 위임 | `<case>_review_mill_cert.json` |
 
-**모델 원칙**: 전 에이전트 claude-opus-4-8(정확도 우선 — 다품목 MTC 식별·수치 판독, 300 DPI 필수). OCR(전사)과 검토(판정)는 모델이 아니라 역할로 분리되며, 복잡도별 차등 예산(단순 ≤30분 / 표준 ≤60분 / 복합 60~90분, 정확도 최우선)으로 운용한다. `CLAUDE_CODE_SUBAGENT_MODEL` 환경변수가 설정돼 있으면 각 에이전트 frontmatter의 model을 덮어쓰므로 **해제 상태**로 실행한다.
+**모델 원칙**: 전 에이전트 claude-opus-5(정확도 우선 — 다품목 MTC 식별·수치 판독, 300 DPI 필수). OCR(전사)과 검토(판정)는 모델이 아니라 역할로 분리되며, 복잡도별 차등 예산(단순 ≤30분 / 표준 ≤60분 / 복합 60~90분, 정확도 최우선)으로 운용한다. `CLAUDE_CODE_SUBAGENT_MODEL` 환경변수가 설정돼 있으면 각 에이전트 frontmatter의 model을 덮어쓰므로 **해제 상태**로 실행한다.
 
-> 별도 주석 스킬 `cert-review-annotate`는 위 10개와 독립적으로 `annotation-locator`(claude-opus-4-8) 1개를 위임해, 검토 후(후순위) review.json의 주의/N/A/FAIL 항목에 대한 주석 좌표 `<case>_annotations.json`을 산출한다.
+> 별도 주석 스킬 `cert-review-annotate`는 위 10개와 독립적으로 `annotation-locator`(claude-opus-5) 1개를 위임해, 검토 후(후순위) review.json의 주의/N/A/FAIL 항목에 대한 주석 좌표 `<case>_annotations.json`을 산출한다.
 
 ## 병합 CLI (`merge-reviews`)
 
@@ -229,7 +229,7 @@ python -m scripts.cli merge-reviews --all          # 전 케이스
 접수 성적서 PDF에는 완제품 성적서 외 문서(원자재 Mill Cert, PMI/NDE/외관치수/이화학/조직시험 보고서, 열처리로 온도차트 등)가 임의 위치로 섞여 들어오는 경우가 실무상 빈번하다(공급사별 편차 큼). 이를 방치하면 원자재 grade가 완제품 인벤토리를 오염시키거나, 혼입 문서의 표를 화학/기계적성질 표로 오인하는 등의 오판정 위험이 있다.
 
 ```
-Phase 1.6  classify-sheets(결정적) → doc-classifier(claude-opus-4-8, 13종 taxonomy 분류
+Phase 1.6  classify-sheets(결정적) → doc-classifier(claude-opus-5, 13종 taxonomy 분류
            + heat/PO 식별자 verbatim 판독) → check-doctype([GATE] exit 0 필수 — 통과 전 OCR 금지)
            → <stem>_doctype.json (판정 권위, whitelist: 부재/미지 라벨은 안전하게 검토 포함)
 
@@ -254,7 +254,7 @@ Phase C  annotate CLI ──→ output/reports/<case>/<stem>_annotated.pdf
 ```
 
 - **대상/형태**: verdict **주의 / N/A / FAIL**(PASS 제외) 항목당 네이티브 주석 3오브젝트 — `/Square`(verdict색 테두리, 채우기 없음) + Acrobat 네이티브 빈 `/Popup` 동반(양방향 링크 — 박스 클릭 시 코멘트 스레드) + `/FreeText` ≤50자 한글 라벨. **색**: `compliance_report` 상수 재사용 → 주의 노랑·N/A 회색·FAIL 빨강(엑셀 리포트와 100% 일치).
-- **좌표**: 전용 `annotation-locator`(Vision, claude-opus-4-8)가 review.json 대상 항목을 캐시된 페이지에서 셀 bbox(Tier A — 확정 좌표만)로 산출. 추정 좌표 박스 금지. 렌더러가 페이지 `/Rotate`+정렬 회전을 합성(T=(R+A)%360)해 사용자 공간 `/Rect`로 역변환(CropBox 오프셋·상속 /Rotate 처리).
+- **좌표**: 전용 `annotation-locator`(Vision, claude-opus-5)가 review.json 대상 항목을 캐시된 페이지에서 셀 bbox(Tier A — 확정 좌표만)로 산출. 추정 좌표 박스 금지. 렌더러가 페이지 `/Rotate`+정렬 회전을 합성(T=(R+A)%360)해 사용자 공간 `/Rect`로 역변환(CropBox 오프셋·상속 /Rotate 처리).
 - **생성**: `annotate_pdf.py`가 **전 페이지 copy-through**(`pypdf` clone) — `/Annots`에만 추가되므로 주석을 뷰어에서 개별 삭제·이동·수정 가능. 업라이트 페이지는 콘텐츠가 바이트 단위로 보존되고, 회전 페이지(`/Rotate`≠0 또는 정렬 회전≠0)는 주석 직전에 **무손실 업라이트 정규화**(회전 matrix 1개를 콘텐츠 스트림에 전사 → `/Rotate=0`, 임베딩 이미지 스트림 바이트 불변, 래스터화 0회)를 거친 파생본에 부착된다. 라벨은 자체 `/AP`(벡터 칩+4x 한글 글리프, `Pillow`)를 내장해 pdfium 계열(Chrome 등) 포함 전 주요 뷰어에서 클릭 없이 상시 표시. 신규 의존성 0, C1 준수(OCR 라이브러리 미사용).
 
 ```powershell

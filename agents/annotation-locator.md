@@ -1,7 +1,8 @@
 ---
 name: annotation-locator
 description: Dedicated post-review agent for the cert-review-annotate skill. Reads the finished review.json plus the cached cert page renders and locates each 주의/N/A/FAIL item's cell as a fractional bounding box, emitting <case>_annotations.json for the deterministic PDF burn-in. Used for 성적서 주석 위치(annotation) 산출. Explicitly invoked by the cert-review-annotate orchestrator; not subject to automatic delegation.
-model: claude-opus-4-8
+model: claude-opus-5
+effort: medium
 ---
 
 # annotation-locator — Phase B Annotation Coordinate Locator
